@@ -2,6 +2,8 @@
 
 **When:** no rush. The Portal works with simple placeholders until then. I need the artwork **before the design pass** (step 2 in plan §11.5). Collect at your own pace.
 
+**Status (2026-11-16):** 6 role badges received from game-icons.net (artist Lorc, CC BY 3.0, credit required). They're in `web/assets/badges/` with `CREDITS.md`. When the design pass uses them, show the credit line on screen (e.g. the Our Team page footer).
+
 **Where to put them:** drop the files into `web/assets/badges/`, named as in the lists below (e.g. `role-qcd.png`). If you'd rather, send them in chat or put them in a Google Drive folder.
 
 ---
@@ -12,7 +14,7 @@
 3. **Send the CARE logo and brand colours** if you have them.
 
 ## Licence check (important, the Portal is used by the organisation)
-- ✅ **Good sources:** Canva elements (check the item allows use in your own designs/website) · Flaticon / Freepik (free = must credit the artist; Premium = no credit needed) · The Noun Project · Icons8 · Streamline · or a designer on **Fastwork** for a custom CARE set.
+- ✅ **Good sources:** game-icons.net (free, CC BY 3.0: credit the artist) · Canva elements (check the item allows use in your own designs/website) · Flaticon / Freepik (free = must credit the artist; Premium = no credit needed) · The Noun Project · Icons8 · Streamline · or a designer on **Fastwork** for a custom CARE set.
 - ❌ **Avoid:** pictures from Google Images · Twinkl (its licence is for teaching materials) · characters from existing games or cartoons.
 - Keep a note of where each pack came from (link + licence), in case we need to show it later.
 
@@ -26,8 +28,8 @@
 ## 1. Role badges (6): `role-<name>.png`
 | File | Role |
 |---|---|
-| `role-therapist` | Therapist |
-| `role-senior` | Senior (field overlap) |
+| `role-therapist` | Junior therapist (covers own cases). Received: `Junior.png` |
+| `role-senior` | Senior therapist (covers any case; new hires overlap with them). Received: `Senior.png` |
 | `role-qcd` | QCD, Quality Control Department (role-play training, overlap forms, evaluations) |
 | `role-supervisor` | Supervisor |
 | `role-hr` | HR |

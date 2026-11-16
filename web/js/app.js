@@ -1,4 +1,5 @@
 // App shell: decides which screen to show, builds the tab bar, routes tabs.
+import { rolesText } from './labels.js';
 import { APP_VERSION, isConfigured } from './config.js';
 import { supa, arrivedVia } from './supabase.js';
 import { signIn, signOut, sendPasswordReset, setPassword, currentUser } from './auth.js';
@@ -64,7 +65,7 @@ async function enterApp(user) {
   );
 
   $('#who').textContent = state.me.nickname || state.me.full_name;
-  $('#who-roles').textContent = state.roles.join(' · ');
+  $('#who-roles').textContent = rolesText(state.roles);
   $('#admin-btn').hidden = !canAdmin();
   renderNav();
   showView('view-app');

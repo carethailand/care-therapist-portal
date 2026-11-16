@@ -3,7 +3,7 @@
 // this page only hides controls a person can't use.
 import { listStaff, addPerson, updatePerson, setRoles, staffLogin } from '../data.js';
 import { esc, titleCase, todayLocal } from '../ui.js';
-import { stageLabel, TRACK_LABEL, roleLabel } from '../labels.js';
+import { stageLabel, TRACK_LABEL, roleLabel, displayRoles } from '../labels.js';
 import { openRecord, exportEveryone } from './export.js';
 
 // Each track has its own steps. CARE new hires become Therapist at Probation
@@ -19,13 +19,15 @@ const STATUSES = ['active', 'on_leave', 'exited'];
 const ROLES = ['applicant', 'therapist', 'senior', 'qcd', 'supervisor', 'hr', 'admin'];
 const ROLE_HELP = {
   applicant: 'New hire in training, or ABAT learner. Sees only their own journey and the course',
-  therapist: 'Uses the Portal as a therapist',
-  senior: 'Leads field overlap with trainees',
+  therapist: 'Junior therapist: covers their own cases',
+  senior: 'Senior therapist: can cover any case; new hires observe and do field overlap with them. Includes Therapist',
   qcd: 'Quality Control Department: role-play training, overlap forms, QCD evaluations',
   supervisor: 'Supervises therapists: sees everyone, adds timeline notes',
   hr: 'Adds and edits staff records',
   admin: 'Full control, including roles and tab switches',
 };
+
+const CHECK_LABEL = { therapist: 'Therapist (Junior)', senior: 'Senior' };
 
 let ctx; // { me, roles }
 let people = [];
@@ -147,7 +149,7 @@ function row(p) {
       ${p.track === 'abat' ? '<span class="chip track-abat">ABAT</span>' : ''}
       <span class="chip stage">${esc(stageLabel(p.stage))}</span>
       ${p.status === 'on_leave' ? '<span class="chip warn">On leave</span>' : ''}
-      ${p.roles.map((r) => `<span class="chip role-${esc(r)}">${esc(roleLabel(r))}</span>`).join('')}
+      ${displayRoles(p.roles).map((r) => `<span class="chip role-${esc(r.key)}">${esc(r.label)}</span>`).join('')}
     </div>
     <div class="login">${login}</div>
     <button type="button" class="small-btn" data-edit="${esc(p.id)}">Edit</button>
@@ -203,7 +205,7 @@ function openPerson(p) {
           const self = !isNew && p.id === ctx.me.id && r === 'admin';
           return `<label class="check${locked ? ' locked' : ''}">
             <input type="checkbox" name="role" value="${r}"${roles.includes(r) ? ' checked' : ''}${locked || self ? ' disabled data-fixed' : ''}>
-            <span><strong>${esc(roleLabel(r))}</strong> <span class="muted small">${esc(ROLE_HELP[r])}${locked ? ' · admin only' : ''}${self ? " · you can't remove your own admin" : ''}</span></span>
+            <span><strong>${esc(CHECK_LABEL[r] ?? roleLabel(r))}</strong> <span class="muted small">${esc(ROLE_HELP[r])}${locked ? ' · admin only' : ''}${self ? " · you can't remove your own admin" : ''}</span></span>
           </label>`;
         }).join('')}
       </fieldset>
@@ -264,6 +266,14 @@ function openPerson(p) {
     }
   }
 
+  // Senior is a tier of Therapist: Senior always includes Therapist.
+  roleBox('senior').addEventListener('change', (e) => {
+    if (e.target.checked && !roleBox('therapist').disabled) roleBox('therapist').checked = true;
+  });
+  roleBox('therapist').addEventListener('change', (e) => {
+    if (!e.target.checked && !roleBox('senior').disabled) roleBox('senior').checked = false;
+  });
+
   fillStages(p?.stage ?? null);
   applyTrack();
   form.track.addEventListener('change', () => { fillStages(null); applyTrack(); onStage(); });
@@ -310,6 +320,7 @@ function openPerson(p) {
     const wanted = [...form.querySelectorAll('input[name="role"]')]
       .filter((b) => b.checked).map((b) => b.value);
     if (!wanted.length) { btn.disabled = false; return say('Please tick at least one role.'); }
+    if (wanted.includes('senior') && !wanted.includes('therapist')) wanted.push('therapist');
 
     let id = p?.id;
     try {

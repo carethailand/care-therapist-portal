@@ -8,7 +8,7 @@
 // never into the GitHub repo.
 import { loadEvents } from '../data.js';
 import { esc, fmtDate, todayLocal } from '../ui.js';
-import { stageLabel, trackLabel, roleLabel, statusLabel } from '../labels.js';
+import { stageLabel, trackLabel, rolesText, statusLabel } from '../labels.js';
 
 const XLSX_URL = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/+esm';
 
@@ -73,7 +73,7 @@ function recordMarkup(p, events, people, me) {
         ${fact('Who', trackLabel(p.track))}
         ${fact('Status', statusLabel(p.status))}
         ${fact('Stage', stageLabel(p.stage))}
-        ${fact('Roles', p.roles.map(roleLabel).join(', '))}
+        ${fact('Roles', rolesText(p.roles))}
         ${fact('Accepted on', fmtDate(p.accepted_on))}
         ${fact('Start date', fmtDate(p.start_date))}
         ${fact('Probation ends', fmtDate(p.probation_end_date))}
@@ -121,7 +121,7 @@ export async function exportEveryone(people, me) {
     Who: trackLabel(p.track),
     Status: statusLabel(p.status),
     Stage: stageLabel(p.stage),
-    Roles: p.roles.map(roleLabel).join(', '),
+    Roles: rolesText(p.roles),
     'Accepted on': p.accepted_on ?? '',
     'Start date': p.start_date ?? '',
     'Probation ends': p.probation_end_date ?? '',
