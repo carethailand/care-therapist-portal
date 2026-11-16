@@ -63,6 +63,12 @@ async function load() {
     </section>`;
   }).join('') || '<p class="muted">Nobody to show yet.</p>';
   for (const b of box.querySelectorAll('[data-act="edit"]')) b.addEventListener('click', openEditor);
+  // A long "about me" shows 3 lines; tap (or Enter) to read it all.
+  for (const a of box.querySelectorAll('.tm-about')) {
+    const toggle = () => a.classList.toggle('open');
+    a.addEventListener('click', toggle);
+    a.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
+  }
 }
 
 const initials = (p) => (p.nickname || p.full_name).trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
@@ -91,8 +97,8 @@ function cardHtml(p) {
         ${rankBadges.map((r) => `<img class="tm-rank" src="assets/badges/${BADGE_FILE[r]}" alt="${esc(r === 'admin' || r === 'hr' ? roleLabel(r) : RANK_LABEL[r])} badge" title="${esc(r === 'admin' || r === 'hr' ? roleLabel(r) : RANK_LABEL[r])}" width="40" height="40">`).join('')}
         ${ms.map((m) => `<img class="tm-ms" src="${esc(m.img)}" alt="${esc(m.label)}" title="${esc(m.label)}${m.word ? ` · ${esc(m.word)}` : ''}" width="44" height="44">`).join('')}
       </div>
-      ${p.about ? `<p class="tm-about">${esc(p.about)}</p>` : me ? '<p class="muted small">Add a line about yourself: languages, favourite activity, a fun fact…</p>' : ''}
-      <p class="muted small">${p.years == null ? '' : p.years < 1 ? 'New to CARE 🌱' : `${p.years} year${p.years > 1 ? 's' : ''} at CARE`}</p>
+      ${p.about ? `<p class="tm-about" tabindex="0" title="Tap to read all">${esc(p.about)}</p>` : ''}
+      <p class="muted small tm-years">${p.years == null ? '' : p.years < 1 ? 'New to CARE 🌱' : `${p.years} year${p.years > 1 ? 's' : ''} at CARE`}</p>
       ${me ? '<p><button type="button" class="link" data-act="edit">Edit my card</button></p>' : ''}
     </div>
   </li>`;

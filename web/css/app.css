@@ -717,3 +717,20 @@ fieldset { min-width: 0; }
 .btn-file input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 .btn-file:has(input:focus-visible) { outline: 2px solid var(--accent-fill); outline-offset: 2px; }
 .tm-edit textarea { width: 100%; }
+
+/* Our Team: equal profile cards (P6b). Photo on top, everything centred;
+   every card is the same height, and a long "about me" opens on tap. */
+.tm-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); grid-auto-rows: 1fr; }
+.tm-card { flex-direction: column; align-items: center; text-align: center; gap: 10px; min-height: 360px; padding: 20px 16px; }
+.tm-photo { width: 92px; height: 92px; }
+.tm-body { display: flex; flex-direction: column; align-items: center; width: 100%; flex: 1; }
+.tm-name { justify-content: center; }
+.tm-badges { justify-content: center; }
+.tm-about { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; border-radius: 8px; }
+.tm-about.open { -webkit-line-clamp: unset; display: block; }
+.tm-years { margin-top: auto !important; padding-top: 6px; }
+.tm-card { min-height: 384px; }
+.tm-badges { flex-wrap: nowrap; gap: 2px; }
+.tm-rank { width: 32px; height: 32px; }
+.tm-ms { width: 36px; height: 36px; }
+.tm-full, .tm-role { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }

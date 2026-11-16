@@ -227,3 +227,7 @@ Home shows the latest year badge (it replaces the one before) plus Passed probat
 
 **What it shows:** current CARE staff (not applicants, ABAT learners or people who have left), grouped as *Admin & HR* (office staff without a clinical rank), *Supervisors*, *QCD*, *Senior therapists*, *Junior therapists*. Each card: photo (or initials), nickname and full name, rank and office badges, the latest year badge plus Passed probation / Longest-serving, a short "about me" (280 characters) and years at CARE. Only current CARE staff can open the tab.
 **Editing:** each person taps *Edit my card* to add a photo and their line. The photo is cropped to a square and shrunk in the browser before upload (about 50 KB). Photos are stored privately in Supabase Storage (`team-photos`, 2 MB limit, JPG/PNG/WebP); staff see them through links that last an hour. SAFEGUARDS 13: staff photos only, never children.
+
+## Step 17 — One Learning Hub tab (added 2026-11-16)
+
+**Run** `supabase/migrations/20261116001800_merge_learning_tabs.sql`. Learning Hub, Resource Links and Journal Library (placeholders) become one tab, **Learning Hub**, with those as sections when it's built.
