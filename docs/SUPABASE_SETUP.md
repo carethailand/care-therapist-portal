@@ -192,3 +192,14 @@ The login helper already allows HR to create logins for applicants (redeployed b
 **Run also** `20261116001200_leave_session_arrangements.sql` (after 011).
 
 **Who does what:** therapists request leave, list the sessions they'll miss, and see their balances; an **admin decides each missed session** (cancelled / covered by / make-up) with *Arrange sessions*; **HR approves or declines** (admins can too); an **admin ticks "Families notified"**. Days are counted by work week: **seniors, QCD and supervisors Monday–Friday** (5-day week), **juniors and admin staff Monday–Saturday**; Sundays never count, half days allowed, and people can correct the number (e.g. a scheduled Saturday). Sessions are recorded by **3-letter case code only** (e.g. ABC); the database refuses anything else. Each person's year can be saved as a PDF laid out like the paper form.
+
+## Step 14 — CARE Connect (added 2026-11-16)
+
+1. **Run** `supabase/migrations/20261116001300_care_connect.sql`, then `20261116001400_care_connect_more.sql`, then `supabase/checks/rls_check.sql` (no rows).
+2. **Publish** the app.
+3. Switch the tab on when ready: `update public.app_modules set enabled = true where key = 'connect';`
+
+**How it works:** therapists send an *idea, concern, problem, question or thank-you* to the **Admin team** (admin + HR), the **Supervisor & QCD team**, or both. The page promises a reply within **5 working days**; the inbox flags messages waiting longer. The team can reply, add **internal notes** (never shown to the sender), set the status (*Received → Looking into it → Resolved*) and choose who looks after it.
+**Recipients:** Admin team (admin + HR), Supervisor & QCD team, Senior team, or one person (only they see it; they can *Pass to the Admin team*). Problems always go to the Admin team. Messages to one person can be anonymous only if they're a thank-you.
+**Kudos board:** a thank-you can ask Admin to post it; an admin approves (and may tidy the wording) under *Kudos waiting for the board*. All CARE staff see the board on CARE Connect and the latest three on Home.
+**Anonymous:** no sender is stored at all, the time is rounded to the day, and the sender gets a private **CC-XXXXX-XXXXX** code (only its fingerprint is stored) to read replies and answer back. A lost code can't be recovered. The sender's own device remembers their anonymous messages under *My messages* (stored only in that browser).

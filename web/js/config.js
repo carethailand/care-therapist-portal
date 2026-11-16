@@ -8,7 +8,7 @@
 export const SUPABASE_URL = 'https://slokwrjyizqqcbxcrnbh.supabase.co'; // Portal project (care-therapist-portal)
 export const SUPABASE_ANON_KEY = 'sb_publishable_6B2Mgs05Hxe29-dqVz7h1w_wj59BmzD'; // publishable = public, safe to commit
 
-export const APP_VERSION = 'v2026-11-16-P3e';
+export const APP_VERSION = 'v2026-11-16-P4b';
 
 // Kept different from the Binder's key ('care_auth'): both apps live on the same
 // github.io address, so they share browser storage. Distinct keys keep the two

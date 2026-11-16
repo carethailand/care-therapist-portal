@@ -575,3 +575,52 @@ fieldset { min-width: 0; }
 .preview-card { border-style: dashed; }
 .lock-note { background: var(--surface-raised); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; font-size: .92rem; }
 .assign-list { max-height: 45vh; overflow: auto; }
+
+/* CARE Connect */
+.page-title .ico { width: .9em; height: .9em; vertical-align: -0.08em; color: var(--accent); }
+.lead { color: var(--muted); max-width: 60ch; margin: 4px 0 20px; }
+.od-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); align-items: start; }
+.od-grid .card { margin-bottom: 16px; }
+.pills { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.pills legend { font-weight: 500; font-size: .9rem; margin-bottom: 6px; padding: 0; }
+.pill { display: inline-flex; font-weight: 400; }
+.pill input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.pill span { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 999px;
+  border: 1px solid var(--line-strong); background: var(--surface-raised); cursor: pointer; font-size: .92rem; }
+.pill input:checked + span { background: var(--accent-soft); border-color: var(--accent-fill); color: var(--accent); font-weight: 500; }
+.pill input:focus-visible + span { outline: 2px solid var(--accent-fill); outline-offset: 2px; }
+.anon-box { background: var(--surface-raised); border: 1px solid var(--line); border-radius: 14px; padding: 12px; }
+.od-list { list-style: none; margin: 0; padding: 0; }
+.od-row { display: flex; gap: 12px; align-items: flex-start; padding: 12px 6px; border-top: 1px solid var(--line); cursor: pointer; border-radius: 12px; }
+.od-row:first-child { border-top: 0; }
+.od-row:hover, .od-row:focus-visible { background: var(--surface-raised); }
+.od-kind .ico { width: 22px; height: 22px; color: var(--accent); margin-top: 2px; }
+.od-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.od-title { font-weight: 500; }
+.od-snip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.od-side { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: none; }
+.od-dlg { width: min(680px, calc(100vw - 24px)); }
+.od-thread { max-height: 52vh; overflow: auto; display: grid; gap: 10px; margin-bottom: 14px; }
+.od-msg, .od-reply { border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; background: var(--surface-raised); }
+.od-msg p, .od-reply p { margin: 0 0 4px; }
+.od-from { font-weight: 500; }
+.od-body { white-space: pre-wrap; }
+.od-reply.from-team { background: var(--accent-soft); border-color: transparent; margin-left: 24px; }
+.od-reply.from-sender { margin-right: 24px; }
+.od-reply.internal { background: var(--warn-bg); border-style: dashed; }
+.od-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1.5rem; letter-spacing: .08em; text-align: center;
+  background: var(--surface); border: 1px dashed var(--line-strong); border-radius: 14px; padding: 14px; user-select: all; }
+/* CARE Connect: kudos */
+.kudos-box { background: var(--clay-soft); border: 1px solid transparent; border-radius: 14px; padding: 12px; }
+.kudos-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+.kudos-list.compact { grid-template-columns: 1fr; gap: 8px; }
+.kudos-card { background: var(--surface-raised); border: 1px solid var(--line); border-radius: 18px; padding: 14px 16px; position: relative; }
+.kudos-card::before { content: ""; position: absolute; left: 16px; top: 0; width: 34px; height: 3px; border-radius: 0 0 3px 3px; background: var(--care-pink); }
+.kudos-list .kudos-card:nth-child(3n+2)::before { background: var(--care-blue); }
+.kudos-list .kudos-card:nth-child(3n)::before { background: var(--care-yellow); }
+.kudos-card p { margin: 0 0 4px; }
+.kudos-to { font-weight: 500; font-size: .9rem; color: var(--accent); }
+.kudos-text { font-family: var(--font-serif); font-size: 1.05rem; line-height: 1.45; }
+.kudos-q { border: 1px solid var(--line); border-radius: 14px; padding: 12px; margin-bottom: 10px; background: var(--surface-raised); }
+.kudos-q textarea { width: 100%; }
+#od-board h2 .ico { color: var(--care-pink); }

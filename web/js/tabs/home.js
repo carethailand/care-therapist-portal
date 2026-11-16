@@ -24,7 +24,7 @@ const BADGE_FILE = {
   qcd: 'QCD.png', supervisor: 'Supervisor.png', hr: 'Admin.png', admin: 'Admin.png',
 };
 const TAB_ICON = {
-  journey: 'route', training: 'school', learning: 'book', resources: 'link', journals: 'books',
+  journey: 'route', training: 'school', connect: 'message-heart', learning: 'book', resources: 'link', journals: 'books',
   leave: 'beach', hours: 'clock', supervision: 'user-check', documents: 'file-text',
 };
 
@@ -72,6 +72,7 @@ export async function render(panel, { me, roles, visible = [], canAdmin = false 
         </article>
 
         <article class="card training-card" id="home-training" hidden></article>
+        <article class="card kudos-home" id="home-kudos" hidden></article>
       </div>
 
       ${tiles.length || canAdmin ? `
@@ -86,6 +87,25 @@ export async function render(panel, { me, roles, visible = [], canAdmin = false 
 
   // Training progress (only when the Training tab is open for this person).
   if (visible.some((m) => m.key === 'training')) drawTraining(panel.querySelector('#home-training'), me);
+  // Latest kudos (CARE staff, when CARE Connect is open).
+  if (visible.some((m) => m.key === 'connect') && me.track !== 'abat' && rank !== 'applicant') drawKudos(panel.querySelector('#home-kudos'));
+}
+
+async function drawKudos(el) {
+  let list = [];
+  let card;
+  try {
+    const [data, tab] = await Promise.all([import('../connect-data.js'), import('./connect.js')]);
+    list = await data.kudosBoard(3);
+    card = tab.kudosCardHtml;
+  } catch {
+    return;
+  }
+  if (!list.length) return;
+  el.innerHTML = `<p class="level-kicker">Kudos</p><h2>Thank-yous around CARE</h2>
+    <ul class="kudos-list compact">${list.map(card).join('')}</ul>
+    <a class="text-link" href="#/connect">See the Kudos board ${icon('arrow-right')}</a>`;
+  el.hidden = false;
 }
 
 async function drawTraining(el, me) {
