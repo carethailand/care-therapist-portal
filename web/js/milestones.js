@@ -63,6 +63,17 @@ export function showcase(list) {
   return { shown, next };
 }
 
+// Badges for someone else's card, from team_directory()'s summary
+// ({ years, probation_passed, longest }): latest year badge, probation, longest.
+export function summaryBadges(p) {
+  const out = [];
+  const y = [...YEARS].reverse().find((n) => p.years != null && p.years >= n);
+  if (y) out.push({ img: file(`year-${y}`), label: `${y} year${y > 1 ? 's' : ''} at CARE`, word: WORD[y] || '' });
+  if (p.probation_passed) out.push({ img: file('probation'), label: 'Passed probation' });
+  if (p.longest) out.push({ img: file('longest'), label: 'Longest-serving therapist' });
+  return out;
+}
+
 export async function isLongest(me) {
   try {
     const { data, error } = await supa.rpc('milestone_longest');

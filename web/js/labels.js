@@ -48,4 +48,10 @@ export function displayRoles(roles) {
 }
 export const rolesText = (roles) => displayRoles(roles).map((r) => r.label).join(' · ');
 
+// Badge artwork per rank / office role (assets/badges/, credit in CREDITS.md).
+export const BADGE_FILE = {
+  applicant: 'Applicant.png', therapist: 'Junior.png', senior: 'Senior.png',
+  qcd: 'QCD.png', supervisor: 'Supervisor.png', hr: 'Admin.png', admin: 'Admin.png',
+};
+
 export const statusLabel = (s) => (s === 'exited' ? 'Left CARE' : titleCase(s ?? ''));

@@ -218,3 +218,12 @@ The login helper already allows HR to create logins for applicants (redeployed b
 - *Longest-serving therapist*: the current therapist (Junior, Senior, QCD or Supervisor) with the earliest Start date; ties share it, and it passes on when someone leaves (`milestone_longest()`).
 Home shows the latest year badge (it replaces the one before) plus Passed probation and Longest-serving; the Journey page shows the whole collection with unlock dates.
 **Credit:** sticker and milestone art is from Vecteezy.com (free licence, credit required). The Portal shows "Stickers and milestone badges: Vecteezy.com" wherever they appear.
+
+## Step 16 — Our Team page (added 2026-11-16)
+
+1. **Run** `supabase/migrations/20261116001700_our_team.sql`, then `supabase/checks/rls_check.sql` (no rows).
+2. **Publish** the app.
+3. Switch the tab on when ready: `update public.app_modules set enabled = true where key = 'team';`
+
+**What it shows:** current CARE staff (not applicants, ABAT learners or people who have left), grouped as *Admin & HR* (office staff without a clinical rank), *Supervisors*, *QCD*, *Senior therapists*, *Junior therapists*. Each card: photo (or initials), nickname and full name, rank and office badges, the latest year badge plus Passed probation / Longest-serving, a short "about me" (280 characters) and years at CARE. Only current CARE staff can open the tab.
+**Editing:** each person taps *Edit my card* to add a photo and their line. The photo is cropped to a square and shrunk in the browser before upload (about 50 KB). Photos are stored privately in Supabase Storage (`team-photos`, 2 MB limit, JPG/PNG/WebP); staff see them through links that last an hour. SAFEGUARDS 13: staff photos only, never children.

@@ -15,12 +15,13 @@ const TABS = {
   training: () => import('./tabs/training.js'),
   leave: () => import('./tabs/leave.js'),
   connect: () => import('./tabs/connect.js'),
+  team: () => import('./tabs/team.js'),
 };
 const comingSoon = () => import('./tabs/coming-soon.js');
 
 // Icon per tab (see js/icons.js).
 const TAB_ICON = {
-  home: 'home', journey: 'route', training: 'school', connect: 'message-heart', learning: 'book', resources: 'link',
+  home: 'home', journey: 'route', team: 'users', training: 'school', connect: 'message-heart', learning: 'book', resources: 'link',
   journals: 'books', leave: 'beach', hours: 'clock', supervision: 'user-check', documents: 'file-text',
 };
 // Home is built in: everyone signed in has it, first in the list.

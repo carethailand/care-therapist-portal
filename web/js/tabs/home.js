@@ -2,7 +2,7 @@
 // Levels follow the real journey (plan §11.2); badges are Songg's artwork
 // (game-icons.net by Lorc, CC BY 3.0 — the credit line below is required).
 import { esc, fmtDate, todayLocal } from '../ui.js';
-import { rankOf, RANK_LABEL, OFFICE_ROLES, roleLabel } from '../labels.js';
+import { rankOf, RANK_LABEL, OFFICE_ROLES, roleLabel, BADGE_FILE } from '../labels.js';
 import { icon } from '../icons.js';
 import { milestones, showcase, isLongest, milestoneEligible } from '../milestones.js';
 import { ART_CREDIT } from '../stickers.js';
@@ -21,12 +21,8 @@ const LEVELS = {
     ['certified', 'Certified'],
   ],
 };
-const BADGE_FILE = {
-  applicant: 'Applicant.png', therapist: 'Junior.png', senior: 'Senior.png',
-  qcd: 'QCD.png', supervisor: 'Supervisor.png', hr: 'Admin.png', admin: 'Admin.png',
-};
 const TAB_ICON = {
-  journey: 'route', training: 'school', connect: 'message-heart', learning: 'book', resources: 'link', journals: 'books',
+  journey: 'route', team: 'users', training: 'school', connect: 'message-heart', learning: 'book', resources: 'link', journals: 'books',
   leave: 'beach', hours: 'clock', supervision: 'user-check', documents: 'file-text',
 };
 
