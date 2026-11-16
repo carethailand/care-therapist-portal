@@ -636,3 +636,7 @@ fieldset { min-width: 0; }
 .od-grid { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
 .od-team .page-head h2 { font-size: 1.25rem; }
 #od-teams .card { margin-bottom: 16px; }
+/* CARE Connect: one column, every box full width (Songg, 2026-11-16) */
+.od-stack { display: flex; flex-direction: column; }
+.od-stack > .card, .od-stack #od-teams > .card { width: 100%; margin-bottom: 16px; }
+.od-stack .od-form { max-width: 760px; }

@@ -63,13 +63,13 @@ export async function render(panel, context) {
     <div class="page-head"><h1 class="page-title">${icon('message-heart')} CARE Connect</h1></div>
     <p class="lead">Share anything with the team: an idea, a worry, a problem, a question, or a thank-you.
       We read every message and reply within ${REPLY_DAYS} working days.</p>
-    <div class="od-grid">
-      <section class="card" id="od-write"><p class="muted">Loading…</p></section>
-      <section class="card" id="od-mine"><p class="muted">Loading…</p></section>
-    </div>
+    <div class="od-stack">
+    <section class="card" id="od-write"><p class="muted">Loading…</p></section>
     ${isStaff() ? '<section class="card" id="od-board"></section>' : ''}
+    <section class="card" id="od-mine"><p class="muted">Loading…</p></section>
     ${has('admin') ? '<section class="card" id="od-kudosq" hidden></section>' : ''}
     <div id="od-teams">${myTeams().map((t) => `<section class="card od-team" id="od-team-${t.key}"><p class="muted">Loading ${esc(t.label)}…</p></section>`).join('')}</div>
+    </div>
     <dialog id="od-dlg" class="dlg od-dlg"></dialog>`;
   try { staff = await loadPeople(); } catch { staff = []; }
   drawWrite();
