@@ -11,7 +11,7 @@ Colours and backgrounds were changed for CARE.
 | Senior.png (Senior therapist) | game-icons.net (add the icon's page link if you have it) | Lorc |
 | QCD.png | game-icons.net (add the icon's page link if you have it) | Lorc |
 | Supervisor.png | game-icons.net (add the icon's page link if you have it) | Lorc |
-| Admin.png | game-icons.net (add the icon's page link if you have it) | Lorc |
+| Admin.png (office staff: Admin, HR) | game-icons.net (add the icon's page link if you have it) | Lorc |
 
 The licence requires credit wherever the badges are shown. The Portal shows
 "Badge icons by Lorc, game-icons.net, CC BY 3.0" on screens that use them.

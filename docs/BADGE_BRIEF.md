@@ -2,7 +2,7 @@
 
 **When:** no rush. The Portal works with simple placeholders until then. I need the artwork **before the design pass** (step 2 in plan §11.5). Collect at your own pace.
 
-**Status (2026-11-16):** 6 role badges received from game-icons.net (artist Lorc, CC BY 3.0, credit required). They're in `web/assets/badges/` with `CREDITS.md`. When the design pass uses them, show the credit line on screen (e.g. the Our Team page footer).
+**Status (2026-11-16):** badge set complete. One badge per rank: `Applicant`, `Junior`, `Senior`, `QCD`, `Supervisor`. **`Admin.png` = all non-therapist (office) staff, including HR**, so no separate HR badge is needed. Someone with a rank *and* an office role (e.g. Supervisor + Admin) shows **both badges**: rank first, then Admin. 6 badges received from game-icons.net (artist Lorc, CC BY 3.0, credit required). They're in `web/assets/badges/` with `CREDITS.md`. When the design pass uses them, show the credit line on screen (e.g. the Our Team page footer).
 
 **Where to put them:** drop the files into `web/assets/badges/`, named as in the lists below (e.g. `role-qcd.png`). If you'd rather, send them in chat or put them in a Google Drive folder.
 
@@ -32,8 +32,8 @@
 | `role-senior` | Senior therapist (covers any case; new hires overlap with them). Received: `Senior.png` |
 | `role-qcd` | QCD, Quality Control Department (role-play training, overlap forms, evaluations) |
 | `role-supervisor` | Supervisor |
-| `role-hr` | HR |
-| `role-admin` | Admin |
+| `role-hr` | HR: uses `Admin.png` (office staff badge) |
+| `role-admin` | Admin / office staff: `Admin.png` |
 
 ## 2. Level badges (9): `level-<n>.png`
 Levels follow the real journey. Suggest friendlier names if you like!
