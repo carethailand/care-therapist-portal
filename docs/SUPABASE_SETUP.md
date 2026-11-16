@@ -280,3 +280,13 @@ When everyone in a group has finished (completed, not passed or withdrawn), **Gr
 2. After you check the .zip, **Clear files and close group** deletes the uploaded files from the Portal (scores, hours, checklist marks and results stay) and marks the group *Closed*.
 
 **Completed card:** a finished programme shows one card with its badge (S for Senior, Q for QCD), the completion date, **View certificate** and **Show steps**. Current Seniors and above see *Senior Therapist Training · Completed before the Portal* with the S badge automatically.
+
+## Step 24 — New training badges + training completed before the Portal (added 2026-11-17)
+
+1. **Run** `supabase/migrations/20261116002500_legacy_training.sql`.
+2. **Publish** the app (run the SQL first: the People screen reads the new column).
+
+Badges for completing training are now certificate-and-rosette badges: **silver** = Senior Therapist Training, **gold** = QCD Training, **prism** = Supervisor Training.
+- Senior Therapist Training counts automatically for Senior therapists and above.
+- QCD Training counts automatically for QCD staff. For **Supervisors**, an admin ticks **Completed before the Portal → QCD Training** on the People screen (only those who did it).
+- Supervisor Training counts for Supervisors.

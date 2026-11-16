@@ -475,9 +475,13 @@ function completedCard(prog, enr, legacy = false) {
 // Seniors (and above) who reached the rank before the Portal: Senior training
 // counts as completed; QCD and above also QCD training (when switched on).
 function legacyPrograms(current) {
-  const r = RANK_ORDER.indexOf(rankOf(ctx.roles));
+  const rank = rankOf(ctx.roles);
+  const r = RANK_ORDER.indexOf(rank);
+  const verified = ctx.me.legacy_training || [];
   return content.programs.filter((p) => p.enabled && p.promotes_to && r >= RANK_ORDER.indexOf(p.promotes_to)
-    && !current.some((e) => e.program_key === p.key));
+    && !current.some((e) => e.program_key === p.key)
+    // QCD training: QCD staff automatically; supervisors only when an admin verified it.
+    && (p.promotes_to !== 'qcd' || rank === 'qcd' || verified.includes('qcd')));
 }
 
 function programCard(enr) {

@@ -213,6 +213,13 @@ function openPerson(p) {
         }).join('')}
       </fieldset>
 
+      <fieldset class="legacy-box">
+        <legend>Completed before the Portal <span class="muted small">(admin only)</span></legend>
+        <label class="check${isAdmin() ? '' : ' locked'}"><input type="checkbox" name="legacy_qcd"${(p?.legacy_training || []).includes('qcd') ? ' checked' : ''}${isAdmin() ? '' : ' disabled'}>
+          <span><strong>QCD Training</strong> <span class="muted small">Tick for supervisors who completed QCD training (QCD staff get it automatically). Shows the completed card and the gold badge.</span></span></label>
+        <p class="muted small">Senior Therapist Training is counted automatically for Senior therapists and above.</p>
+      </fieldset>
+
       <fieldset>
         <legend>Office roles <span class="muted small">(optional, on top of the rank)</span></legend>
         ${OFFICE_ROLES.map((r) => {
@@ -323,6 +330,10 @@ function openPerson(p) {
       probation_end_date: f.get('probation_end_date') || null,
       exited_on: f.get('exited_on') || null,
     };
+    if (isAdmin()) {
+      const keep = (p?.legacy_training || []).filter((x) => x !== 'qcd');
+      fields.legacy_training = form.querySelector('input[name="legacy_qcd"]').checked ? [...keep, 'qcd'] : keep;
+    }
     if (!p?.auth_user_id) fields.email = f.get('email').trim().toLowerCase();
     // Read .checked directly so locked (disabled) choices are kept as they were.
     const pickedRank = form.querySelector('input[name="rank"]:checked')?.value || null;
