@@ -90,6 +90,18 @@ export async function loadTeamProgram(programKey) {
 
 export const setDueDate = (enrollmentId, dueOn) =>
   supa.from('training_enrollments').update({ due_on: dueOn }).eq('id', enrollmentId).then(must);
+// Admin: give people a place on a programme (e.g. senior therapists on ABAT).
+export async function assignPeople(programKey, therapistIds, dueOn, approvedBy, startedOn) {
+  const rows = therapistIds.map((id) => ({
+    therapist_id: id, program_key: programKey, status: 'active', approved_by: approvedBy,
+    started_on: startedOn, due_on: dueOn || null,
+  }));
+  const { error } = await supa.from('training_enrollments').insert(rows);
+  if (error) {
+    if (error.code === '23505') throw new Error('Someone in your selection already has a place on this programme.');
+    throw friendly(error);
+  }
+}
 export const allowRetake = (enrollmentId) => supa.rpc('exam_allow_retake', { p_enrollment: enrollmentId }).then(must);
 
 // ---------------------------------------------------------------------------

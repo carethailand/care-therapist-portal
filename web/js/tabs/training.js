@@ -3,8 +3,9 @@
 // page never sees the answers.
 import {
   loadContent, loadMyTraining, setItemDone, agreeStep, examStart, examSave, examSubmit, examMySummary, examReview,
-  loadTeamProgram, allowRetake, setDueDate,
+  loadTeamProgram, allowRetake, setDueDate, assignPeople,
 } from '../training-data.js';
+import { rankOf } from '../labels.js';
 import { docHtml } from '../doc-text.js';
 import { listStaff } from '../data.js';
 import { esc, fmtDate, todayLocal } from '../ui.js';
@@ -87,14 +88,24 @@ function myCurrent() {
   });
 }
 
+// CARE staff (not applicants or ABAT learners) can look through a programme
+// they haven't been assigned to, read-only.
+function previewPrograms(current) {
+  const staff = ctx.me.track !== 'abat' && rankOf(ctx.roles) !== 'applicant';
+  if (!staff) return [];
+  return content.programs.filter((p) => p.enabled && !current.some((e) => e.program_key === p.key));
+}
+
 function drawHome() {
   const current = myCurrent();
+  const previews = previewPrograms(current);
   const teamPrograms = content.programs.filter((p) => p.enabled);
   panelEl.innerHTML = `
-    ${current.length
-      ? current.map(programCard).join('')
-      : `<section class="card"><h2>My training</h2>
-           <p class="muted">You're not in a training programme right now. When you are, it will appear here.</p></section>`}
+    ${current.map(programCard).join('')}
+    ${previews.map(previewCard).join('')}
+    ${!current.length && !previews.length
+      ? `<section class="card"><h2>My training</h2>
+           <p class="muted">You're not in a training programme right now. When you are, it will appear here.</p></section>` : ''}
     ${isTeam() ? `
       <section class="card" id="team-card">
         <div class="page-head">
@@ -166,6 +177,35 @@ function learnCount(enrId, stepId) {
   const items = itemsOf(stepId);
   const n = items.filter((i) => mine.done.some((d) => d.enrollment_id === enrId && d.item_id === i.id)).length;
   return `${n} of ${items.length} done`;
+}
+
+function previewCard(prog) {
+  const steps = stepsOf(prog.key);
+  const itemLine = (it) => {
+    const url = safeUrl(it.url);
+    let action = '<span class="muted small nowrap">Link coming soon</span>';
+    if (it.kind === 'document' && it.body) action = `<button type="button" class="small-btn" data-read="${esc(it.id)}">Read</button>`;
+    else if (canvaEmbed(url)) action = `<button type="button" class="small-btn" data-canva="${esc(it.id)}">View</button>`;
+    else if (url) action = `<a class="small-btn" href="${esc(url)}" target="_blank" rel="noopener noreferrer">Open</a>`;
+    return `<li><span>${ITEM_ICON[it.kind] ?? '•'} ${esc(it.title)}${it.note ? ` <span class="muted small">${esc(it.note)}</span>` : ''}</span>${action}</li>`;
+  };
+  return `
+    <section class="card program-card preview-card">
+      <div class="page-head">
+        <h2>${esc(prog.title)}</h2>
+        <span class="chip">Preview</span>
+      </div>
+      ${prog.summary ? `<p class="muted">${esc(prog.summary)}</p>` : ''}
+      <p class="lock-note">🔒 You can look through the course. To take part and sit the exam, an admin needs to assign you. Ask your supervisor if you'd like to join.</p>
+      <ol class="steps">${steps.map((s) => `
+        <li class="step">
+          <div class="step-head"><span class="step-icon" aria-hidden="true">${STEP_ICON[s.kind] ?? '•'}</span><strong>${esc(s.title)}</strong></div>
+          ${['learn', 'agree'].includes(s.kind) && itemsOf(s.id).length
+            ? `<ul class="items">${itemsOf(s.id).map(itemLine).join('')}</ul>`
+            : s.kind === 'exam' ? '<p class="muted small">Opens when you are assigned.</p>'
+            : s.details ? `<p class="muted small">${esc(s.details)}</p>` : ''}
+        </li>`).join('')}</ol>
+    </section>`;
 }
 
 function programCard(enr) {
@@ -708,14 +748,18 @@ async function drawTeam(programKey) {
   const examStep = stepsOf(programKey).find((s) => s.kind === 'exam');
   const maxAttempts = examStep?.config?.max_attempts ?? 1;
   const rows = data.enrollments.filter((e) => e.status !== 'withdrawn');
+  const assignBtn = ctx.roles.includes('admin')
+    ? `<p><button type="button" class="primary" data-assign>+ Assign people</button></p>` : '';
+  const wireAssign = () => body.querySelector('[data-assign]')?.addEventListener('click', () => assignDialog(programKey, people, data));
   if (!rows.length) {
-    body.innerHTML = '<p class="muted">No one is in this programme yet.</p>';
+    body.innerHTML = `${assignBtn}<p class="muted">No one is in this programme yet.</p>`;
+    wireAssign();
     return;
   }
   const order = { active: 0, recommended: 1, not_passed: 2, passed: 3 };
   rows.sort((a, b) => (order[a.status] ?? 9) - (order[b.status] ?? 9));
 
-  body.innerHTML = `
+  body.innerHTML = `${assignBtn}
     <div class="table-wrap"><table class="team-table">
       <thead><tr><th>Person</th><th>Status</th><th>Started</th><th>Finish by</th><th>Policies</th><th>Modules</th><th>Exam</th><th></th></tr></thead>
       <tbody>${rows.map((e) => {
@@ -760,6 +804,7 @@ async function drawTeam(programKey) {
     </table></div>
     <p class="muted small">Trainees see their own score and a summary by domain, but never which questions they got wrong. Answer reviews are for admins, supervisors and QCD.</p>`;
 
+  wireAssign();
   for (const b of body.querySelectorAll('[data-retake]')) {
     b.addEventListener('click', async () => {
       if (!confirm(`${b.dataset.name} has used all their attempts. Allow one extra attempt?`)) return;
@@ -782,6 +827,52 @@ async function drawTeam(programKey) {
   for (const b of body.querySelectorAll('[data-tcert]')) {
     b.addEventListener('click', () => showCertificate(data.certificates.find((c) => c.id === b.dataset.tcert)));
   }
+}
+
+// Admin: give CARE staff a place on a programme (applicants are added automatically).
+function assignDialog(programKey, people, data) {
+  const prog = content.programs.find((p) => p.key === programKey);
+  const open = new Set(data.enrollments.filter((e) => ['active', 'recommended'].includes(e.status)).map((e) => e.therapist_id));
+  const done = new Set(data.enrollments.filter((e) => e.status === 'passed').map((e) => e.therapist_id));
+  const order = ['supervisor', 'qcd', 'senior', 'therapist'];
+  const eligible = people
+    .filter((p) => p.status !== 'exited' && p.track !== 'abat' && order.includes(rankOf(p.roles)) && !open.has(p.id))
+    .sort((a, b) => order.indexOf(rankOf(a.roles)) - order.indexOf(rankOf(b.roles)) || (a.nickname || a.full_name).localeCompare(b.nickname || b.full_name));
+  const weeks = prog?.enrolment_weeks || 6;
+  const today = todayLocal();
+  const [y, m, d] = today.split('-').map(Number);
+  const due = new Date(y, m - 1, d + weeks * 7);
+  const dueIso = `${due.getFullYear()}-${String(due.getMonth() + 1).padStart(2, '0')}-${String(due.getDate()).padStart(2, '0')}`;
+  const label = { supervisor: 'Supervisor', qcd: 'QCD', senior: 'Senior therapist', therapist: 'Junior therapist' };
+  const dlg = panelEl.querySelector('#tr-dlg');
+  dlg.innerHTML = `
+    <form method="dialog" class="person-form">
+      <h2>Assign people: ${esc(prog?.title ?? '')}</h2>
+      <p class="muted small">Pick CARE staff to take this course. Applicants are added automatically and aren't listed here.</p>
+      ${eligible.length ? `<fieldset class="assign-list">${eligible.map((p) => `
+        <label class="check"><input type="checkbox" name="who" value="${esc(p.id)}">
+          <span><strong>${esc(p.nickname || p.full_name)}</strong> <span class="muted small">${esc(label[rankOf(p.roles)])}${done.has(p.id) ? ' · completed before' : ''}</span></span></label>`).join('')}</fieldset>`
+        : '<p class="muted">Everyone eligible already has a place.</p>'}
+      <label>Finish by <input name="due" type="date" required value="${dueIso}"></label>
+      <p class="msg" role="status" hidden></p>
+      <div class="dlg-actions"><span class="spacer"></span>
+        <button type="button" data-act="cancel">Cancel</button>
+        <button type="submit" class="primary"${eligible.length ? '' : ' disabled'}>Assign</button></div>
+    </form>`;
+  const form = dlg.querySelector('form');
+  form.querySelector('[data-act="cancel"]').addEventListener('click', () => dlg.close());
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const ids = [...form.querySelectorAll('input[name="who"]:checked')].map((b) => b.value);
+    const msg = form.querySelector('.msg');
+    if (!ids.length) { msg.hidden = false; msg.dataset.kind = 'error'; msg.textContent = 'Tick at least one person.'; return; }
+    try {
+      await assignPeople(programKey, ids, form.due.value, ctx.me.id, today);
+      dlg.close();
+      await drawTeam(programKey);
+    } catch (e) { msg.hidden = false; msg.dataset.kind = 'error'; msg.textContent = e.message; }
+  });
+  dlg.showModal();
 }
 
 // Admin: change one person's finish-by date (e.g. an approved extension).

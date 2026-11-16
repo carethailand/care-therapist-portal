@@ -571,3 +571,7 @@ fieldset { min-width: 0; }
 .arrange-how [hidden] { display: none !important; }
 .session-row { grid-template-columns: 90px 1fr 1fr auto; }
 @media (max-width: 640px) { .session-row { grid-template-columns: 1fr 1fr; } }
+/* Training: preview for CARE staff not yet assigned; assign dialog */
+.preview-card { border-style: dashed; }
+.lock-note { background: var(--surface-raised); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; font-size: .92rem; }
+.assign-list { max-height: 45vh; overflow: auto; }
