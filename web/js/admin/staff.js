@@ -174,6 +174,8 @@ function openPerson(p) {
       <div class="grid2">
         <label>Full name <input name="full_name" required value="${v('full_name')}"></label>
         <label>Nickname <input name="nickname" value="${v('nickname')}"></label>
+        <label>Employee no. <input name="employee_no" value="${v('employee_no')}" placeholder="CARE0059"></label>
+        <label>Section / department <input name="department" value="${v('department')}"></label>
       </div>
       <label>Email (they sign in with this)
         <input name="email" type="email" required value="${v('email')}" ${p?.auth_user_id ? 'readonly title="Has a login. The email can\'t be changed here."' : ''}>
@@ -311,6 +313,8 @@ function openPerson(p) {
     const fields = {
       full_name: f.get('full_name').trim(),
       nickname: f.get('nickname').trim() || null,
+      employee_no: f.get('employee_no').trim() || null,
+      department: f.get('department').trim() || null,
       track: f.get('track'),
       stage: f.get('stage'),
       status: f.get('status'),

@@ -180,3 +180,13 @@ The login helper already allows HR to create logins for applicants (redeployed b
 - Passing gives a certificate (with a number) and a timeline entry. ABAT learners move to *Certified* automatically. CARE new hires: move them to *Role-play + orientation* yourself.
 
 ⚠️ The old Training portal repo (`therapist-onboarding-training`) is public and contains `questions.json` **with the answer key** and `trainees.json` with PINs. Make that repo private (GitHub → repo → Settings → Danger Zone → Change visibility) and consider refreshing the questions before using them here. Never put exam files in this repo.
+
+## Step 13 — Leave & HR tab (added 2026-11-16)
+
+1. **Run** `supabase/migrations/20261116001100_leave.sql`, then `supabase/checks/rls_check.sql` (no rows).
+2. **Publish** the app (it reads the new employee no. / department fields, so run step 1 first).
+3. In **⚙️ Admin → People**, fill in each person's **Employee no.** and **Section/department** (printed on the leave form).
+4. In the **Leave & HR** tab → *Annual leave allowances*, set each person's **AL days** for the year (+ carry-over for the admin team, use-by date).
+5. Switch the tab on for staff: Table Editor → `app_modules` → `leave` → `enabled = true` (or ask Claude to add a switch).
+
+**Who does what:** therapists request leave and see their balances; **HR approves or declines** (admins can too); an **admin ticks "Families notified"**. Days are counted Monday–Saturday (Sundays skipped), half days allowed; people can correct the number. Sessions are recorded by **3-letter case code only** (e.g. AVM); the database refuses anything else. Each person's year can be saved as a PDF laid out like the paper form.

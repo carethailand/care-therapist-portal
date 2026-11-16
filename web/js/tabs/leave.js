@@ -1,0 +1,513 @@
+// Leave & HR tab: my leave balance, request form, my requests; for HR/admin
+// the request inbox (approve / decline, families notified) and each person's
+// annual leave allowance. Children appear only as case codes (e.g. "AVM").
+import {
+  loadLeaveRef, loadMyLeave, submitLeave, cancelLeave, staffPicklist, countDays, daysUntil,
+  loadTeamLeave, decideLeave, markNotified, saveEntitlement,
+} from '../leave-data.js';
+import { listStaff } from '../data.js';
+import { esc, fmtDate, todayLocal } from '../ui.js';
+import { rankOf, RANK_LABEL } from '../labels.js';
+import { icon } from '../icons.js';
+
+const STATUS = {
+  pending: ['Waiting for HR', 'warn'],
+  approved: ['Approved', 'ok'],
+  declined: ['Declined', ''],
+  cancelled: ['Cancelled', ''],
+};
+
+let ctx;
+let panelEl;
+let ref;          // { types, kinds }
+let year;
+let picklist = []; // [{ id, full_name, nickname }]
+
+const isHR = () => ctx.roles.includes('hr');
+const isAdmin = () => ctx.roles.includes('admin');
+const isLeaveTeam = () => isHR() || isAdmin();
+const nameOf = (list, id) => {
+  const p = list.find((x) => x.id === id);
+  return p ? (p.nickname || p.full_name) : '';
+};
+const typeLabel = (code) => ref.types.find((t) => t.code === code)?.label ?? code;
+const kindLabel = (code) => ref.kinds.find((k) => k.code === code)?.label ?? code;
+const fmtDays = (n) => `${Number(n)} day${Number(n) === 1 ? '' : 's'}`;
+const range = (r) => (r.start_date === r.end_date
+  ? `${fmtDate(r.start_date)}${r.half_day ? ` (${r.half_day === 'am' ? 'morning' : 'afternoon'})` : ''}`
+  : `${fmtDate(r.start_date)} – ${fmtDate(r.end_date)}`);
+
+export async function render(panel, context) {
+  ctx = context;
+  panelEl = panel;
+  year = year ?? Number(todayLocal().slice(0, 4));
+  panel.innerHTML = '<p class="muted">Loading…</p>';
+  try {
+    [ref, picklist] = await Promise.all([loadLeaveRef(), staffPicklist()]);
+  } catch (e) {
+    panel.innerHTML = `<section class="card"><p class="error">Could not load leave: ${esc(e.message)}</p></section>`;
+    return;
+  }
+  await draw();
+}
+
+async function draw() {
+  const thisYear = Number(todayLocal().slice(0, 4));
+  panelEl.innerHTML = `
+    <div class="page-head">
+      <h1 class="page-title">Leave</h1>
+      <select id="lv-year" aria-label="Year">${[thisYear - 1, thisYear, thisYear + 1].map((y) => `<option${y === year ? ' selected' : ''}>${y}</option>`).join('')}</select>
+    </div>
+    <div id="lv-mine"><p class="muted">Loading…</p></div>
+    ${isLeaveTeam() ? '<div id="lv-team"></div>' : ''}
+    <dialog id="lv-dlg" class="dlg leave-dlg"></dialog>`;
+  panelEl.querySelector('#lv-year').addEventListener('change', (e) => { year = Number(e.target.value); draw(); });
+  await drawMine();
+  if (isLeaveTeam()) await drawTeam();
+}
+
+// ---------------------------------------------------------------------------
+// Balances
+// ---------------------------------------------------------------------------
+function balances(ent, requests) {
+  const today = todayLocal();
+  const sum = (code, status, kind) => requests
+    .filter((r) => r.type === code && r.status === status && (!kind || r.kind === kind))
+    .reduce((t, r) => t + Number(r.days), 0);
+  return ref.types.map((t) => {
+    let allowance = t.max_days != null ? Number(t.max_days) : null;
+    let carry = 0;
+    if (t.per_person) {
+      if (!ent) allowance = null;
+      else {
+        carry = ent.carry_over_until && ent.carry_over_until < today ? 0 : Number(ent.carry_over_days || 0);
+        allowance = Number(ent.al_days) + carry;
+      }
+    }
+    return {
+      ...t,
+      allowance,
+      carry,
+      used: sum(t.code, 'approved'),
+      waiting: sum(t.code, 'pending'),
+      kinds: t.needs_kind
+        ? ref.kinds.map((k) => ({ ...k, used: sum(t.code, 'approved', k.code) })).filter((k) => k.used > 0)
+        : [],
+    };
+  });
+}
+
+function balanceHtml(bal, ent, perPersonMissingText) {
+  return `<div class="balances">${bal.map((b) => {
+    const left = b.allowance != null ? b.allowance - b.used : null;
+    return `<div class="bal">
+      <p class="bal-code">${esc(b.code)}</p>
+      <p class="bal-label">${esc(b.label)}</p>
+      ${b.per_person && b.allowance == null
+        ? `<p class="muted small">${esc(perPersonMissingText)}</p>`
+        : b.allowance != null
+          ? `<p class="bal-num"><strong>${left}</strong> <span class="muted">of ${b.allowance} left</span></p>
+             <div class="progress"><span style="width:${b.allowance ? Math.min(100, Math.round((b.used / b.allowance) * 100)) : 0}%"></span></div>`
+          : `<p class="bal-num"><strong>${b.used}</strong> <span class="muted">days used</span></p>`}
+      ${b.waiting ? `<p class="small warn-text">${b.waiting} waiting for HR</p>` : ''}
+      ${b.carry ? `<p class="muted small">Includes ${b.carry} carried over${ent?.carry_over_until ? `, use by ${esc(fmtDate(ent.carry_over_until))}` : ''}</p>` : ''}
+      ${b.kinds.map((k) => `<p class="muted small">${esc(k.label)}: ${k.used} of ${k.max_days}</p>`).join('')}
+    </div>`;
+  }).join('')}</div>`;
+}
+
+// ---------------------------------------------------------------------------
+// Mine
+// ---------------------------------------------------------------------------
+async function drawMine() {
+  const box = panelEl.querySelector('#lv-mine');
+  let mine;
+  try {
+    mine = await loadMyLeave(ctx.me.id, year);
+  } catch (e) {
+    box.innerHTML = `<section class="card"><p class="error">${esc(e.message)}</p></section>`;
+    return;
+  }
+  const bal = balances(mine.entitlement, mine.requests);
+  box.innerHTML = `
+    <section class="card">
+      <div class="page-head">
+        <h2>My leave ${year}</h2>
+        <span class="spacer"></span>
+        <button type="button" data-act="print-mine">${icon('file-text')} Save form as PDF</button>
+        <button type="button" class="primary" data-act="new">+ Request leave</button>
+      </div>
+      ${balanceHtml(bal, mine.entitlement, `Your ${year} annual leave hasn't been set yet. HR will add it.`)}
+    </section>
+    <section class="card">
+      <h2>My requests</h2>
+      ${mine.requests.length ? `<ul class="lv-list">${mine.requests.map((r) => requestRow(r, { mine: true })).join('')}</ul>`
+        : `<p class="muted">No leave requested for ${year} yet.</p>`}
+    </section>`;
+  box.querySelector('[data-act="new"]').addEventListener('click', () => requestDialog(bal));
+  box.querySelector('[data-act="print-mine"]').addEventListener('click', () =>
+    printForm({ ...ctx.me, roles: ctx.roles }, mine.entitlement, mine.requests, picklist));
+  for (const b of box.querySelectorAll('[data-cancel]')) {
+    b.addEventListener('click', async () => {
+      if (!confirm('Cancel this leave request?')) return;
+      try { await cancelLeave(b.dataset.cancel); await drawMine(); } catch (e) { alert(e.message); }
+    });
+  }
+}
+
+function sessionsText(r, people) {
+  if (!r.sessions?.length) return '';
+  return `<ul class="lv-sessions">${r.sessions.map((s) => `<li><strong>${esc(s.case_code)}</strong> · ${esc(fmtDate(s.session_date))}${s.session_time ? ` ${esc(s.session_time)}` : ''} →
+    ${s.cover_kind === 'cover' ? `covered by ${esc(nameOf(people, s.covering_therapist_id) || 'a colleague')}`
+      : `make-up ${esc(fmtDate(s.makeup_date))}${s.makeup_time ? ` ${esc(s.makeup_time)}` : ''}`}</li>`).join('')}</ul>`;
+}
+
+function requestRow(r, { mine = false, people = picklist, team = false } = {}) {
+  const [label, cls] = STATUS[r.status];
+  const who = team ? `<strong>${esc(nameOf(people, r.therapist_id) || 'Unknown')}</strong> · ` : '';
+  return `<li class="lv-row">
+    <div class="lv-main">
+      <p class="lv-title">${who}<span class="chip">${esc(r.type)}</span> ${esc(r.type === 'OL' ? kindLabel(r.kind) : typeLabel(r.type))} · ${esc(fmtDays(r.days))}</p>
+      <p class="muted small">${esc(range(r))}${r.reason ? ` · ${esc(r.reason)}` : ''}</p>
+      ${sessionsText(r, people)}
+      ${r.decision_note ? `<p class="small">HR note: ${esc(r.decision_note)}</p>` : ''}
+      ${r.status === 'approved' ? `<p class="small muted">Approved ${esc(fmtDate(String(r.decided_at).slice(0, 10)))}${nameOf(people, r.decided_by) ? ` by ${esc(nameOf(people, r.decided_by))}` : ''}${r.families_notified_on ? ` · families notified ${esc(fmtDate(r.families_notified_on))}` : r.sessions?.length ? ' · families not yet notified' : ''}</p>` : ''}
+    </div>
+    <div class="lv-side">
+      <span class="chip ${cls}">${esc(label)}</span>
+      ${mine && r.status === 'pending' ? `<button type="button" class="small-btn" data-cancel="${esc(r.id)}">Cancel</button>` : ''}
+      ${team ? teamActions(r) : ''}
+    </div>
+  </li>`;
+}
+
+// ---------------------------------------------------------------------------
+// Request form
+// ---------------------------------------------------------------------------
+function requestDialog(bal) {
+  const dlg = panelEl.querySelector('#lv-dlg');
+  const today = todayLocal();
+  const staffOptions = picklist.filter((p) => p.id !== ctx.me.id)
+    .map((p) => `<option value="${esc(p.id)}">${esc(p.nickname ? `${p.nickname} (${p.full_name})` : p.full_name)}</option>`).join('');
+  dlg.innerHTML = `
+    <form method="dialog" class="person-form">
+      <h2>Request leave</h2>
+      <div class="grid2">
+        <label>Type of leave
+          <select name="type" required>${ref.types.map((t) => `<option value="${esc(t.code)}">${esc(t.code)} · ${esc(t.label)}</option>`).join('')}</select></label>
+        <label data-kind hidden>Which specific leave?
+          <select name="kind">${ref.kinds.map((k) => `<option value="${esc(k.code)}">${esc(k.label)} (up to ${k.max_days} days)</option>`).join('')}</select></label>
+      </div>
+      <p class="hint muted small" data-kindnote hidden>Specific leave needs discussion and approval from the Center Manager in advance.</p>
+      <label>Reason <input name="reason" maxlength="300" placeholder="e.g. family visit"></label>
+      <div class="grid2">
+        <label>First day <input name="start" type="date" required value="${today}"></label>
+        <label>Last day <input name="end" type="date" required value="${today}"></label>
+      </div>
+      <div class="grid2">
+        <label data-half>Half day?
+          <select name="half"><option value="">Full day</option><option value="am">Morning only</option><option value="pm">Afternoon only</option></select></label>
+        <label>Number of leave days <input name="days" type="number" min="0.5" step="0.5" required></label>
+      </div>
+      <p class="muted small">Counted Monday to Saturday (Sundays skipped). Change it if a public holiday falls inside.</p>
+      <p class="msg" data-warn hidden></p>
+
+      <fieldset>
+        <legend>Sessions you'll miss</legend>
+        <p class="muted small">Talk to your team or the scheduler first. For each session, give the covering therapist <em>or</em> a make-up session.
+          Use the <strong>3-letter case code only</strong> (e.g. AVM), never a child's name.</p>
+        <div data-sessions></div>
+        <button type="button" class="small-btn" data-addsession>+ Add a session</button>
+      </fieldset>
+
+      <details class="small muted"><summary>The 4 steps (CARE leave policy)</summary>
+        <ol>
+          <li>Discuss with your team or the scheduler, and fill in who covers your sessions or your make-up sessions.</li>
+          <li>Submit this form to HR (at least 2 weeks before your first day of leave).</li>
+          <li>Once approved, the families are notified.</li>
+          <li>You inform the families about your leave and who will cover your sessions.</li>
+        </ol></details>
+
+      <p class="msg" role="status" hidden></p>
+      <div class="dlg-actions"><span class="spacer"></span>
+        <button type="button" data-act="cancel">Cancel</button>
+        <button type="submit" class="primary">Send to HR</button></div>
+    </form>`;
+  const form = dlg.querySelector('form');
+  const warn = form.querySelector('[data-warn]');
+  const msg = form.querySelector('.msg[role="status"]');
+  let daysTouched = false;
+
+  const refresh = () => {
+    const t = ref.types.find((x) => x.code === form.type.value);
+    form.querySelector('[data-kind]').hidden = !t?.needs_kind;
+    form.querySelector('[data-kindnote]').hidden = !t?.needs_kind;
+    if (form.end.value < form.start.value) form.end.value = form.start.value;
+    const single = form.start.value === form.end.value;
+    form.querySelector('[data-half]').hidden = !single;
+    if (!single) form.half.value = '';
+    if (!daysTouched) form.days.value = countDays(form.start.value, form.end.value, form.half.value) || '';
+    const notes = [];
+    const lead = daysUntil(form.start.value, todayLocal());
+    if (t?.notice_days && lead < t.notice_days) notes.push(`⚠️ Leave should be requested at least ${t.notice_days} days before the first day (this is ${lead < 0 ? 'in the past' : `${lead} day${lead === 1 ? '' : 's'} away`}). You can still send it.`);
+    const b = bal.find((x) => x.code === t?.code);
+    const want = Number(form.days.value || 0);
+    if (b?.allowance != null && b.used + b.waiting + want > b.allowance) {
+      notes.push(`⚠️ This is more than your remaining ${t.code} (${Math.max(0, b.allowance - b.used - b.waiting)} left, counting requests waiting for HR).`);
+    }
+    if (t?.needs_kind) {
+      const k = ref.kinds.find((x) => x.code === form.kind.value);
+      if (k && want > k.max_days) notes.push(`⚠️ ${k.label} leave is up to ${k.max_days} days.`);
+    }
+    warn.textContent = notes.join(' ');
+    warn.hidden = !notes.length;
+  };
+  for (const n of ['type', 'kind', 'start', 'end', 'half']) form[n].addEventListener('change', refresh);
+  form.days.addEventListener('input', () => { daysTouched = true; refresh(); });
+
+  const box = form.querySelector('[data-sessions]');
+  const addSession = () => {
+    const row = document.createElement('div');
+    row.className = 'session-row';
+    row.innerHTML = `
+      <input name="case" placeholder="AVM" maxlength="3" minlength="3" pattern="[A-Z]{3}" required aria-label="Case code (3 letters)" title="3-letter case code, e.g. AVM" class="case-input">
+      <input name="sdate" type="date" required aria-label="Session date" value="${esc(form.start.value)}">
+      <input name="stime" placeholder="10:15–12:15" maxlength="20" aria-label="Session time">
+      <select name="how" aria-label="Covered or make-up"><option value="cover">Covered by</option><option value="makeup">Make-up session</option></select>
+      <select name="who" aria-label="Covering therapist"><option value="">Choose…</option>${staffOptions}</select>
+      <input name="mdate" type="date" aria-label="Make-up date" hidden>
+      <input name="mtime" placeholder="Make-up time" maxlength="20" aria-label="Make-up time" hidden>
+      <button type="button" class="small-btn" aria-label="Remove session">✕</button>`;
+    const how = row.querySelector('[name="how"]');
+    how.addEventListener('change', () => {
+      const mk = how.value === 'makeup';
+      row.querySelector('[name="who"]').hidden = mk;
+      row.querySelector('[name="mdate"]').hidden = !mk;
+      row.querySelector('[name="mtime"]').hidden = !mk;
+    });
+    row.querySelector('button').addEventListener('click', () => row.remove());
+    row.querySelector('[name="case"]').addEventListener('input', (e) => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3); });
+    box.append(row);
+  };
+  form.querySelector('[data-addsession]').addEventListener('click', addSession);
+  form.querySelector('[data-act="cancel"]').addEventListener('click', () => dlg.close());
+
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const t = ref.types.find((x) => x.code === form.type.value);
+    const sessions = [];
+    for (const row of box.querySelectorAll('.session-row')) {
+      const g = (n) => row.querySelector(`[name="${n}"]`).value.trim();
+      const how = g('how');
+      if (how === 'cover' && !g('who')) { msg.hidden = false; msg.dataset.kind = 'error'; msg.textContent = 'Choose the covering therapist for each session, or switch it to a make-up session.'; return; }
+      if (how === 'makeup' && !g('mdate')) { msg.hidden = false; msg.dataset.kind = 'error'; msg.textContent = 'Give the make-up date for each make-up session.'; return; }
+      sessions.push({
+        case_code: g('case'), session_date: g('sdate'), session_time: g('stime') || null, cover_kind: how,
+        covering_therapist_id: how === 'cover' ? g('who') : null,
+        makeup_date: how === 'makeup' ? g('mdate') : null, makeup_time: how === 'makeup' ? (g('mtime') || null) : null,
+      });
+    }
+    const btn = form.querySelector('[type="submit"]');
+    btn.disabled = true;
+    try {
+      await submitLeave({
+        therapist_id: ctx.me.id, type: t.code, kind: t.needs_kind ? form.kind.value : null,
+        reason: form.reason.value.trim() || null, start_date: form.start.value, end_date: form.end.value,
+        half_day: form.half.value || null, days: Number(form.days.value),
+      }, sessions);
+      dlg.close();
+      await drawMine();
+      if (isLeaveTeam()) await drawTeam();
+    } catch (e) {
+      msg.hidden = false; msg.dataset.kind = 'error'; msg.textContent = e.message; btn.disabled = false;
+    }
+  });
+  refresh();
+  dlg.showModal();
+}
+
+// ---------------------------------------------------------------------------
+// HR / admin
+// ---------------------------------------------------------------------------
+let teamFilter = 'pending';
+
+function teamActions(r) {
+  const out = [];
+  if (r.status === 'pending' && (isHR() || isAdmin())) {
+    out.push(`<button type="button" class="small-btn primary" data-approve="${esc(r.id)}">Approve</button>`);
+    out.push(`<button type="button" class="small-btn" data-decline="${esc(r.id)}">Decline</button>`);
+  }
+  if (r.status === 'approved' && isAdmin() && !r.families_notified_on && r.sessions?.length) {
+    out.push(`<button type="button" class="small-btn" data-notified="${esc(r.id)}">Families notified</button>`);
+  }
+  if (r.status === 'approved') out.push(`<button type="button" class="link small" data-tcancel="${esc(r.id)}">Cancel leave</button>`);
+  return out.join('');
+}
+
+async function drawTeam() {
+  const box = panelEl.querySelector('#lv-team');
+  box.innerHTML = '<section class="card"><p class="muted">Loading team leave…</p></section>';
+  let people;
+  let data;
+  try {
+    [people, data] = await Promise.all([listStaff(), loadTeamLeave(year)]);
+  } catch (e) {
+    box.innerHTML = `<section class="card"><p class="error">${esc(e.message)}</p></section>`;
+    return;
+  }
+  const staff = people.filter((p) => p.status !== 'exited' && p.track !== 'abat' && rankOf(p.roles) !== 'applicant');
+  const shown = data.requests.filter((r) => teamFilter === 'all' || r.status === teamFilter
+    || (teamFilter === 'notify' && r.status === 'approved' && !r.families_notified_on && r.sessions.length));
+  const waiting = data.requests.filter((r) => r.status === 'pending').length;
+
+  box.innerHTML = `
+    <section class="card">
+      <div class="page-head">
+        <h2>Team requests ${waiting ? `<span class="chip warn">${waiting} waiting</span>` : ''}</h2>
+        <select id="lv-filter" aria-label="Show">
+          <option value="pending"${teamFilter === 'pending' ? ' selected' : ''}>Waiting for HR</option>
+          <option value="notify"${teamFilter === 'notify' ? ' selected' : ''}>Families not yet notified</option>
+          <option value="approved"${teamFilter === 'approved' ? ' selected' : ''}>Approved</option>
+          <option value="all"${teamFilter === 'all' ? ' selected' : ''}>All ${year}</option>
+        </select>
+      </div>
+      ${shown.length ? `<ul class="lv-list">${shown.map((r) => requestRow(r, { people, team: true })).join('')}</ul>` : '<p class="muted">Nothing here.</p>'}
+    </section>
+    <section class="card">
+      <h2>Annual leave allowances ${year}</h2>
+      <p class="muted small">Set each person's annual leave (AL) for ${year}. It depends on how long they've worked at CARE.</p>
+      <div class="table-wrap"><table class="team-table">
+        <thead><tr><th>Person</th><th>Joined</th><th>AL days</th><th>Carried over</th><th>AL used</th><th></th></tr></thead>
+        <tbody>${staff.map((p) => {
+          const ent = data.entitlements.find((e) => e.therapist_id === p.id);
+          const used = data.requests.filter((r) => r.therapist_id === p.id && r.type === 'AL' && r.status === 'approved').reduce((t, r) => t + Number(r.days), 0);
+          return `<tr>
+            <td><strong>${esc(p.nickname || p.full_name)}</strong>${p.employee_no ? ` <span class="muted small">${esc(p.employee_no)}</span>` : ''}</td>
+            <td>${esc(fmtDate(p.start_date))}</td>
+            <td>${ent ? Number(ent.al_days) : '<span class="warn-text">Not set</span>'}</td>
+            <td>${ent && Number(ent.carry_over_days) ? `${Number(ent.carry_over_days)}${ent.carry_over_until ? ` <span class="muted small">until ${esc(fmtDate(ent.carry_over_until))}</span>` : ''}` : '—'}</td>
+            <td>${used}</td>
+            <td class="nowrap"><button type="button" class="small-btn" data-ent="${esc(p.id)}">Edit</button>
+              <button type="button" class="small-btn" data-print="${esc(p.id)}" aria-label="Save leave form as PDF">${icon('file-text')}</button></td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table></div>
+    </section>`;
+
+  box.querySelector('#lv-filter').addEventListener('change', (e) => { teamFilter = e.target.value; drawTeam(); });
+  const act = async (fn) => { try { await fn(); await drawTeam(); } catch (e) { alert(e.message); } };
+  for (const b of box.querySelectorAll('[data-approve]')) b.addEventListener('click', () => act(() => decideLeave(b.dataset.approve, true, prompt('Note for the therapist (optional):') || null)));
+  for (const b of box.querySelectorAll('[data-decline]')) {
+    b.addEventListener('click', () => {
+      const note = prompt('Why is this declined? (The therapist will see this note.)');
+      if (note === null) return;
+      act(() => decideLeave(b.dataset.decline, false, note));
+    });
+  }
+  for (const b of box.querySelectorAll('[data-notified]')) {
+    b.addEventListener('click', () => {
+      const d = prompt('Date the families were notified (YYYY-MM-DD):', todayLocal());
+      if (d === null) return;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) { alert('Please use the format YYYY-MM-DD.'); return; }
+      act(() => markNotified(b.dataset.notified, d));
+    });
+  }
+  for (const b of box.querySelectorAll('[data-tcancel]')) {
+    b.addEventListener('click', () => { if (confirm('Cancel this approved leave?')) act(() => cancelLeave(b.dataset.tcancel)); });
+  }
+  for (const b of box.querySelectorAll('[data-ent]')) {
+    b.addEventListener('click', () => entitlementDialog(people.find((p) => p.id === b.dataset.ent), data.entitlements.find((e) => e.therapist_id === b.dataset.ent)));
+  }
+  for (const b of box.querySelectorAll('[data-print]')) {
+    b.addEventListener('click', () => {
+      const p = people.find((x) => x.id === b.dataset.print);
+      printForm(p, data.entitlements.find((e) => e.therapist_id === p.id), data.requests.filter((r) => r.therapist_id === p.id), people);
+    });
+  }
+}
+
+function entitlementDialog(p, ent) {
+  const dlg = panelEl.querySelector('#lv-dlg');
+  dlg.innerHTML = `
+    <form method="dialog" class="person-form">
+      <h2>Annual leave ${year}: ${esc(p.nickname || p.full_name)}</h2>
+      <p class="muted small">Joined ${esc(fmtDate(p.start_date))}</p>
+      <label>Annual leave (AL) days for ${year} <input name="al" type="number" min="0" step="0.5" required value="${esc(ent?.al_days ?? '')}"></label>
+      <div class="grid2">
+        <label>Days carried over from ${year - 1} <input name="carry" type="number" min="0" step="0.5" value="${esc(ent?.carry_over_days ?? 0)}"></label>
+        <label>Carried-over days must be used by <input name="until" type="date" value="${esc(ent?.carry_over_until ?? `${year}-03-31`)}"></label>
+      </div>
+      <p class="muted small">Carry-over is for the admin team only (CARE policy).</p>
+      <label>Note (optional) <input name="note" maxlength="200" value="${esc(ent?.note ?? '')}"></label>
+      <p class="msg" role="status" hidden></p>
+      <div class="dlg-actions"><span class="spacer"></span>
+        <button type="button" data-act="cancel">Cancel</button>
+        <button type="submit" class="primary">Save</button></div>
+    </form>`;
+  const form = dlg.querySelector('form');
+  form.querySelector('[data-act="cancel"]').addEventListener('click', () => dlg.close());
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    try {
+      await saveEntitlement({
+        therapist_id: p.id, year, al_days: Number(form.al.value), carry_over_days: Number(form.carry.value || 0),
+        carry_over_until: Number(form.carry.value || 0) ? (form.until.value || null) : null,
+        note: form.note.value.trim() || null, updated_by: ctx.me.id, updated_at: new Date().toISOString(),
+      });
+      dlg.close();
+      await drawTeam();
+    } catch (e) {
+      const m = form.querySelector('.msg'); m.hidden = false; m.dataset.kind = 'error'; m.textContent = e.message;
+    }
+  });
+  dlg.showModal();
+}
+
+// ---------------------------------------------------------------------------
+// The year's leave form, laid out like the paper one (Save as PDF)
+// ---------------------------------------------------------------------------
+function printForm(person, ent, requests, people) {
+  const rows = requests.filter((r) => r.status !== 'cancelled').slice().sort((a, b) => a.start_date.localeCompare(b.start_date));
+  const totals = ref.types.map((t) => ({
+    code: t.code,
+    days: requests.filter((r) => r.type === t.code && r.status === 'approved').reduce((s, r) => s + Number(r.days), 0),
+  }));
+  const rank = rankOf(person.roles || []);
+  const html = `
+    <article class="leave-form">
+      <h2>Leave Request Form of ${year}</h2>
+      <table class="lf-head"><tr>
+        <td>Name: <strong>${esc(person.full_name)}</strong></td>
+        <td>Emp. No: <strong>${esc(person.employee_no || '—')}</strong></td>
+        <td>Joined on: <strong>${esc(fmtDate(person.start_date))}</strong></td></tr><tr>
+        <td>Position: <strong>${esc(rank ? RANK_LABEL[rank] : '—')}</strong></td>
+        <td colspan="2">Section/Department: <strong>${esc(person.department || '—')}</strong></td></tr></table>
+      <p class="small">Annual leave entitlement ${year}: <strong>${ent ? Number(ent.al_days) : '—'}</strong> days${ent && Number(ent.carry_over_days) ? ` (+ ${Number(ent.carry_over_days)} carried over, use by ${esc(fmtDate(ent.carry_over_until))})` : ''}
+        · Total leave taken: ${totals.map((t) => `${esc(t.code)} ${t.days}`).join(' · ')}</p>
+      <table class="lf-table">
+        <thead><tr><th>Submitted</th><th>Type</th><th>Reason</th><th>Start</th><th>End</th><th>Days</th><th>Sessions (case · date · time → cover / make-up)</th><th>Status · approved by / date</th><th>Families notified</th></tr></thead>
+        <tbody>${rows.map((r) => `<tr>
+          <td>${esc(fmtDate(String(r.submitted_at).slice(0, 10)))}</td>
+          <td>${esc(r.type)}${r.kind ? ` (${esc(kindLabel(r.kind))})` : ''}</td>
+          <td>${esc(r.reason || '')}</td>
+          <td>${esc(fmtDate(r.start_date))}${r.half_day ? ` ${r.half_day === 'am' ? 'am' : 'pm'}` : ''}</td>
+          <td>${esc(fmtDate(r.end_date))}</td>
+          <td>${Number(r.days)}</td>
+          <td>${r.sessions.map((s) => `${esc(s.case_code)} · ${esc(fmtDate(s.session_date))} ${esc(s.session_time || '')} → ${s.cover_kind === 'cover' ? esc(nameOf(people, s.covering_therapist_id)) : `make-up ${esc(fmtDate(s.makeup_date))} ${esc(s.makeup_time || '')}`}`).join('<br>') || '—'}</td>
+          <td>${esc(STATUS[r.status][0])}${r.decided_at ? ` · ${esc(nameOf(people, r.decided_by))} ${esc(fmtDate(String(r.decided_at).slice(0, 10)))}` : ''}</td>
+          <td>${r.families_notified_on ? `${esc(fmtDate(r.families_notified_on))}${r.notified_by ? ` · ${esc(nameOf(people, r.notified_by))}` : ''}` : ''}</td>
+        </tr>`).join('') || '<tr><td colspan="9">No leave recorded.</td></tr>'}</tbody>
+      </table>
+      <p class="small muted">CARE Therapist Portal · printed ${esc(fmtDate(todayLocal()))}</p>
+    </article>`;
+  const area = document.getElementById('print-area');
+  area.innerHTML = html;
+  const page = document.createElement('style');
+  page.textContent = '@page { size: A4 landscape; margin: 10mm; }';
+  document.head.append(page);
+  const oldTitle = document.title;
+  document.title = `Leave ${year} - ${person.full_name}`;
+  const done = () => { area.innerHTML = ''; page.remove(); document.title = oldTitle; window.removeEventListener('afterprint', done); };
+  window.addEventListener('afterprint', done);
+  window.print();
+}

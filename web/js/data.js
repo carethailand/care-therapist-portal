@@ -38,7 +38,7 @@ const ROLES_JOIN = 'staff_roles!staff_roles_therapist_id_fkey(role)';
 export async function listStaff() {
   const { data, error } = await supa
     .from('therapists')
-    .select(`id,auth_user_id,email,full_name,nickname,track,stage,status,accepted_on,start_date,probation_end_date,exited_on,binder_user_id,created_at,updated_at,${ROLES_JOIN}`)
+    .select(`id,auth_user_id,email,full_name,nickname,employee_no,department,track,stage,status,accepted_on,start_date,probation_end_date,exited_on,binder_user_id,created_at,updated_at,${ROLES_JOIN}`)
     .order('full_name');
   if (error) throw error;
   return data.map((p) => ({ ...p, roles: p.staff_roles.map((r) => r.role) }));

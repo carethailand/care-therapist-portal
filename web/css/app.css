@@ -518,3 +518,49 @@ code.pw { background: var(--surface); }
 /* Badges are now coloured artwork: keep the ring quiet and neutral. */
 .badge, .badge.rim-applicant, .badge.rim-therapist, .badge.rim-senior, .badge.rim-qcd,
 .badge.rim-supervisor, .badge.rim-admin, .badge.rim-hr { border: 1px solid var(--line-strong); background: #FBF8F3; }
+
+/* Leave */
+.page-title { margin: 0; font-size: 1.9rem; }
+.warn-text { color: var(--warn-ink); }
+.balances { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.bal { background: var(--surface-raised); border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; }
+.bal p { margin: 0; }
+.bal-code { font-size: .72rem; letter-spacing: .12em; color: var(--accent); font-weight: 500; }
+.bal-label { font-family: var(--font-serif); font-size: 1rem; margin-bottom: 6px !important; }
+.bal-num strong { font-size: 1.4rem; font-weight: 500; }
+.bal .progress { margin: 6px 0 4px; height: 6px; }
+.lv-list { list-style: none; margin: 0; padding: 0; }
+.lv-row { display: flex; gap: 12px; justify-content: space-between; align-items: flex-start; padding: 12px 0; border-top: 1px solid var(--line); }
+.lv-row:first-child { border-top: 0; }
+.lv-main { min-width: 0; flex: 1; }
+.lv-main p { margin: 2px 0; }
+.lv-title { font-weight: 500; }
+.lv-side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex: none; }
+.lv-sessions { margin: 4px 0; padding-left: 18px; font-size: .88rem; color: var(--muted); }
+.leave-dlg { width: min(720px, calc(100vw - 24px)); }
+.session-row { display: grid; gap: 6px; grid-template-columns: 90px 140px 110px 1fr 1fr auto; align-items: center; margin-bottom: 8px; }
+.session-row [hidden] { display: none !important; }
+.case-input { text-transform: uppercase; letter-spacing: .08em; }
+@media (max-width: 640px) {
+  .session-row { grid-template-columns: 1fr 1fr; padding: 8px; border: 1px solid var(--line); border-radius: 12px; }
+  .lv-row { flex-direction: column; }
+  .lv-side { flex-direction: row; align-items: center; flex-wrap: wrap; }
+}
+.small-btn.primary { padding: 6px 12px; }
+/* Leave form print-out */
+.leave-form { font-family: var(--font-sans); color: #000; }
+.leave-form h2 { text-align: center; font-family: var(--font-serif); }
+.lf-head { width: 100%; margin-bottom: 8px; font-size: 10pt; }
+.lf-head td { padding: 2px 8px 2px 0; }
+.lf-table { width: 100%; border-collapse: collapse; font-size: 8.5pt; }
+.lf-table th, .lf-table td { border: 1px solid #999; padding: 4px; vertical-align: top; text-align: left; }
+.lf-table th { background: #F7DEC9; }
+@media print { #print-area .lf-table th { background: #F7DEC9 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+/* Phone fixes: two balance boxes per row; dialogs never wider than the screen */
+.balances { grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); }
+fieldset { min-width: 0; }
+.dlg form { grid-template-columns: minmax(0, 1fr); }
+.dlg input, .dlg select, .dlg textarea { min-width: 0; width: 100%; }
+.dlg label.check input { width: auto; }
+.session-row > * { min-width: 0; }
+@media (max-width: 640px) { .grid2 { grid-template-columns: minmax(0, 1fr); } }

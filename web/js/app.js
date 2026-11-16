@@ -13,6 +13,7 @@ const TABS = {
   home: () => import('./tabs/home.js'),
   journey: () => import('./tabs/journey.js'),
   training: () => import('./tabs/training.js'),
+  leave: () => import('./tabs/leave.js'),
 };
 const comingSoon = () => import('./tabs/coming-soon.js');
 
