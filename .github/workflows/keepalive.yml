@@ -1,0 +1,42 @@
+name: Keep Supabase awake
+
+# Free Supabase projects pause after 7 days of no activity.
+# This pings each project once a day. It reads no data.
+#
+# Needs these repo secrets (Settings → Secrets and variables → Actions):
+#   PORTAL_SUPABASE_URL, PORTAL_SUPABASE_ANON_KEY   — required
+#   BINDER_SUPABASE_URL, BINDER_SUPABASE_ANON_KEY   — optional; the step is skipped
+#     until they're set AND the Binder has its own keepalive() function
+#     (docs/SUPABASE_SETUP.md, step 8).
+
+on:
+  schedule:
+    - cron: '17 2 * * *'   # every day, 09:17 Thailand time
+  workflow_dispatch: {}     # "Run workflow" button for testing
+
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    env:
+      # Job-level so the Binder step's `if` can see whether it is set.
+      BINDER_URL: ${{ secrets.BINDER_SUPABASE_URL }}
+    steps:
+      - name: Ping Portal project
+        env:
+          URL: ${{ secrets.PORTAL_SUPABASE_URL }}
+          KEY: ${{ secrets.PORTAL_SUPABASE_ANON_KEY }}
+        run: |
+          curl --fail --silent --show-error -X POST "$URL/rest/v1/rpc/keepalive" \
+            -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
+            -H "Content-Type: application/json" -d '{}'
+
+      - name: Ping Binder project
+        if: ${{ env.BINDER_URL != '' }}
+        env:
+          KEY: ${{ secrets.BINDER_SUPABASE_ANON_KEY }}
+        run: |
+          curl --fail --silent --show-error -X POST "$BINDER_URL/rest/v1/rpc/keepalive" \
+            -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
+            -H "Content-Type: application/json" -d '{}'

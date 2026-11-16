@@ -1,0 +1,174 @@
+// App shell: decides which screen to show, builds the tab bar, routes tabs.
+import { APP_VERSION, isConfigured } from './config.js';
+import { supa, arrivedVia } from './supabase.js';
+import { signIn, signOut, sendPasswordReset, setPassword, currentUser } from './auth.js';
+import { loadMe, loadRoles, loadModules } from './data.js';
+import { $, esc, showView, setMessage } from './ui.js';
+
+// Built tabs. Anything not listed here renders the "coming soon" card.
+const TABS = {
+  journey: () => import('./tabs/journey.js'),
+};
+const comingSoon = () => import('./tabs/coming-soon.js');
+
+// Admin pages: reached from the ⚙️ button, not the tab bar.
+const ADMIN_PAGES = {
+  staff: { load: () => import('./admin/staff.js'), roles: ['admin', 'hr'] },
+};
+const canAdmin = () => state.roles.some((r) => r === 'admin' || r === 'hr');
+
+const state = { me: null, roles: [], modules: [], visible: [] };
+
+for (const el of document.querySelectorAll('.app-version')) el.textContent = APP_VERSION;
+
+// ---------------------------------------------------------------------------
+// Start-up
+// ---------------------------------------------------------------------------
+async function boot() {
+  if (!isConfigured()) return showView('view-setup');
+
+  supa.auth.onAuthStateChange((event) => {
+    if (event === 'PASSWORD_RECOVERY') showSetPassword('Choose a new password');
+    if (event === 'SIGNED_OUT') showView('view-login');
+  });
+
+  const user = await currentUser();
+  if (!user) return showView('view-login');
+
+  if (arrivedVia === 'invite') return showSetPassword('Welcome! Choose your password');
+  if (arrivedVia === 'recovery') return showSetPassword('Choose a new password');
+
+  await enterApp(user);
+}
+
+async function enterApp(user) {
+  // Logins made by an admin start with a temporary password.
+  if (user.user_metadata?.must_change_password) return showSetPassword('Welcome! Please choose your own password');
+
+  showView('view-loading');
+  try {
+    state.me = await loadMe(user.id);
+    if (!state.me) {
+      $('#unlinked-email').textContent = user.email;
+      return showView('view-unlinked');
+    }
+    [state.roles, state.modules] = await Promise.all([loadRoles(state.me.id), loadModules()]);
+  } catch (e) {
+    $('#load-error').textContent = e.message || String(e);
+    return showView('view-error');
+  }
+
+  const isAdmin = state.roles.includes('admin');
+  state.visible = state.modules.filter(
+    (m) => (m.enabled && m.roles.some((r) => state.roles.includes(r))) || isAdmin,
+  );
+
+  $('#who').textContent = state.me.nickname || state.me.full_name;
+  $('#who-roles').textContent = state.roles.join(' · ');
+  $('#admin-btn').hidden = !canAdmin();
+  renderNav();
+  showView('view-app');
+  route();
+}
+
+// ---------------------------------------------------------------------------
+// Tabs
+// ---------------------------------------------------------------------------
+function renderNav() {
+  $('#tabs').innerHTML = state.visible
+    .map((m) => `<a href="#/${esc(m.key)}" data-key="${esc(m.key)}"${m.enabled ? '' : ' class="preview" title="Hidden from staff — admin preview"'}>${esc(m.label)}${m.enabled ? '' : ' <small>hidden</small>'}</a>`)
+    .join('');
+}
+
+async function route() {
+  if (!state.me) return;
+  const want = window.location.hash.startsWith('#/') ? window.location.hash.slice(2) : '';
+  const panel = $('#panel');
+
+  if (want.startsWith('admin/')) {
+    const page = ADMIN_PAGES[want.slice(6)];
+    if (page && state.roles.some((r) => page.roles.includes(r))) {
+      for (const a of document.querySelectorAll('#tabs a')) a.removeAttribute('aria-current');
+      $('#admin-btn').setAttribute('aria-current', 'page');
+      panel.innerHTML = '<p class="muted">Loading…</p>';
+      const mod = await page.load();
+      await mod.render(panel, { me: state.me, roles: state.roles });
+      return;
+    }
+  }
+  $('#admin-btn').removeAttribute('aria-current');
+
+  const module = state.visible.find((m) => m.key === want) || state.visible[0];
+  if (!module) {
+    panel.innerHTML = '<section class="card"><p>No tabs are switched on for you yet.</p></section>';
+    return;
+  }
+  for (const a of document.querySelectorAll('#tabs a')) {
+    a.toggleAttribute('aria-current', a.dataset.key === module.key);
+  }
+  panel.innerHTML = '<p class="muted">Loading…</p>';
+  const mod = await (TABS[module.key] || comingSoon)();
+  await mod.render(panel, { me: state.me, roles: state.roles, module });
+}
+
+window.addEventListener('hashchange', route);
+
+// ---------------------------------------------------------------------------
+// Forms
+// ---------------------------------------------------------------------------
+$('#login-form').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const msg = $('#login-msg');
+  const btn = ev.submitter;
+  btn.disabled = true;
+  setMessage(msg, '');
+  try {
+    await signIn($('#login-email').value, $('#login-password').value);
+    await enterApp(await currentUser());
+  } catch (e) {
+    setMessage(msg, e.message, 'error');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+$('#forgot-btn').addEventListener('click', async () => {
+  const msg = $('#login-msg');
+  const email = $('#login-email').value;
+  if (!email) return setMessage(msg, 'Type your email above first, then tap "Forgot password".', 'error');
+  try {
+    await sendPasswordReset(email);
+    setMessage(msg, 'If that email has an account, a reset link is on its way.', 'ok');
+  } catch (e) {
+    setMessage(msg, e.message, 'error');
+  }
+});
+
+function showSetPassword(heading) {
+  $('#setpw-heading').textContent = heading;
+  $('#setpw-form').reset();
+  setMessage($('#setpw-msg'), '');
+  showView('view-set-password');
+}
+
+$('#setpw-form').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const msg = $('#setpw-msg');
+  const pw = $('#setpw-password').value;
+  if (pw !== $('#setpw-confirm').value) return setMessage(msg, 'The two passwords do not match.', 'error');
+  try {
+    const user = await setPassword(pw);
+    history.replaceState(null, '', window.location.pathname);
+    await enterApp(user);
+  } catch (e) {
+    setMessage(msg, e.message, 'error');
+  }
+});
+
+$('#change-pw-btn').addEventListener('click', () => showSetPassword('Change your password'));
+// Cancel goes back to the app if it's loaded; otherwise (first sign-in) it signs out.
+$('#setpw-cancel').addEventListener('click', () => (state.me && $('#tabs').childElementCount ? showView('view-app') : signOut()));
+for (const b of document.querySelectorAll('.signout-btn')) b.addEventListener('click', signOut);
+$('#retry-btn').addEventListener('click', boot);
+
+boot();

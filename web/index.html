@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CARE Therapist Portal</title>
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="css/app.css">
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+
+  <!-- Not configured yet -->
+  <main id="view-setup" data-view class="center" hidden>
+    <section class="card narrow">
+      <h1>CARE Therapist Portal</h1>
+      <p>The Portal isn't connected to its Supabase project yet.</p>
+      <p class="muted">Admin: fill in <code>web/js/config.js</code> — see <code>docs/SUPABASE_SETUP.md</code>, step 6.</p>
+      <p class="muted small app-version"></p>
+    </section>
+  </main>
+
+  <!-- Loading -->
+  <main id="view-loading" data-view class="center">
+    <p class="muted">Loading…</p>
+  </main>
+
+  <!-- Sign in -->
+  <main id="view-login" data-view class="center" hidden>
+    <section class="card narrow">
+      <h1>CARE Therapist Portal</h1>
+      <form id="login-form">
+        <label>Email <input id="login-email" type="email" autocomplete="username" required></label>
+        <label>Password <input id="login-password" type="password" autocomplete="current-password" required></label>
+        <button type="submit" class="primary">Sign in</button>
+        <button type="button" id="forgot-btn" class="link">Forgot password?</button>
+        <p id="login-msg" class="msg" role="status" hidden></p>
+      </form>
+      <p class="muted small app-version"></p>
+    </section>
+  </main>
+
+  <!-- Set / change password (invite, reset link, or from the menu) -->
+  <main id="view-set-password" data-view class="center" hidden>
+    <section class="card narrow">
+      <h1 id="setpw-heading">Choose your password</h1>
+      <form id="setpw-form">
+        <label>New password <input id="setpw-password" type="password" autocomplete="new-password" minlength="10" required></label>
+        <label>Type it again <input id="setpw-confirm" type="password" autocomplete="new-password" minlength="10" required></label>
+        <button type="submit" class="primary">Save password</button>
+        <button type="button" id="setpw-cancel" class="link">Cancel</button>
+        <p id="setpw-msg" class="msg" role="status" hidden></p>
+      </form>
+    </section>
+  </main>
+
+  <!-- Logged in, but no staff record linked -->
+  <main id="view-unlinked" data-view class="center" hidden>
+    <section class="card narrow">
+      <h1>Almost there</h1>
+      <p>You're signed in as <strong id="unlinked-email"></strong>, but this login isn't linked to a staff record yet (or the record is closed).</p>
+      <p class="muted">Please ask an admin to add you using this exact email.</p>
+      <button type="button" class="signout-btn">Sign out</button>
+    </section>
+  </main>
+
+  <!-- Could not load -->
+  <main id="view-error" data-view class="center" hidden>
+    <section class="card narrow">
+      <h1>Couldn't load the Portal</h1>
+      <p class="error" id="load-error"></p>
+      <p class="muted">Your data is safe — nothing was changed. Check your connection and try again.</p>
+      <button type="button" id="retry-btn" class="primary">Try again</button>
+      <button type="button" class="signout-btn">Sign out</button>
+    </section>
+  </main>
+
+  <!-- The app -->
+  <div id="view-app" data-view hidden>
+    <header class="topbar">
+      <div class="brand">CARE <span>Therapist Portal</span></div>
+      <div class="me">
+        <span id="who"></span>
+        <small id="who-roles"></small>
+        <a href="#/admin/staff" id="admin-btn" class="admin-btn" hidden title="Admin: Staff">⚙️ Admin</a>
+        <button type="button" id="change-pw-btn" class="link">Password</button>
+        <button type="button" class="signout-btn link">Sign out</button>
+      </div>
+    </header>
+    <nav id="tabs" aria-label="Portal sections"></nav>
+    <main id="panel"></main>
+    <footer class="muted small app-version"></footer>
+  </div>
+
+  <div id="print-area" hidden></div>
+</body>
+</html>
