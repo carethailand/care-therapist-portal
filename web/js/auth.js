@@ -1,5 +1,6 @@
 // Sign-in, sign-out, password set / reset.
 import { supa } from './supabase.js';
+import { AUTH_STORAGE_KEY } from './config.js';
 
 const redirectUrl = () => window.location.origin + window.location.pathname;
 
@@ -8,8 +9,18 @@ export async function signIn(email, password) {
   if (error) throw friendly(error);
 }
 
+// Always ends on the sign-in screen, even if Supabase can't be reached or the
+// session had already expired (then signOut() returns an error and keeps the
+// stored login, which used to leave the button doing nothing).
 export async function signOut() {
-  await supa.auth.signOut();
+  for (const b of document.querySelectorAll('.signout-btn')) { b.disabled = true; b.textContent = 'Signing out…'; }
+  try {
+    await Promise.race([supa.auth.signOut({ scope: 'local' }), new Promise((r) => setTimeout(r, 4000))]);
+  } catch { /* carry on */ }
+  try {
+    for (const k of Object.keys(localStorage)) if (k.startsWith(AUTH_STORAGE_KEY) || /^sb-.*-auth-token/.test(k)) localStorage.removeItem(k);
+  } catch { /* storage blocked: nothing stored */ }
+  window.location.replace(window.location.pathname);
 }
 
 export async function sendPasswordReset(email) {
