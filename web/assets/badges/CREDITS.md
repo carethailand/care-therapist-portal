@@ -2,7 +2,7 @@
 
 Icons from **game-icons.net**, by **Lorc**, licensed under
 **Creative Commons Attribution 3.0 (CC BY 3.0)**: https://creativecommons.org/licenses/by/3.0/
-Colours and backgrounds were changed for CARE (2026-11-16: black → each rank's colour, white → cream; recoloured by a small script). The untouched originals are in `original/`.
+Colours were changed for CARE (2026-11-16, second set by Songg: each badge is a disc; the black disc → the rank's colour and the light-green icon → cream; recoloured by a small script). The untouched originals are in `original/`.
 
 | File | Icon | Author |
 |---|---|---|

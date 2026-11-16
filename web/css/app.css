@@ -624,3 +624,7 @@ fieldset { min-width: 0; }
 .kudos-q { border: 1px solid var(--line); border-radius: 14px; padding: 12px; margin-bottom: 10px; background: var(--surface-raised); }
 .kudos-q textarea { width: 100%; }
 #od-board h2 .ico { color: var(--care-pink); }
+/* New badge art (2026-11-16): a coloured disc with a cream icon. Thin ring, little padding. */
+.badge, .badge.rim-applicant, .badge.rim-therapist, .badge.rim-senior, .badge.rim-qcd,
+.badge.rim-supervisor, .badge.rim-admin, .badge.rim-hr { padding: 3px; background: var(--bg); border: 1px solid var(--line-strong); }
+.badge-stack .badge + .badge { padding: 2px; }
