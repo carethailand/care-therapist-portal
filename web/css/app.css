@@ -514,3 +514,7 @@ code.pw { background: var(--surface); }
   .topbar .theme-btn { padding: 6px 9px; }
   .me { gap: 4px 8px; }
 }
+
+/* Badges are now coloured artwork: keep the ring quiet and neutral. */
+.badge, .badge.rim-applicant, .badge.rim-therapist, .badge.rim-senior, .badge.rim-qcd,
+.badge.rim-supervisor, .badge.rim-admin, .badge.rim-hr { border: 1px solid var(--line-strong); background: #FBF8F3; }
