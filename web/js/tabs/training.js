@@ -5,6 +5,7 @@ import {
   loadContent, loadMyTraining, setItemDone, agreeStep, examStart, examSave, examSubmit, examMySummary, examReview,
   loadTeamProgram, allowRetake, setDueDate, assignPeople,
   recommend, approveRecommendation, declineRecommendation, recordResult, logHours, removeHours, saveEval, promote,
+  loadGroups, saveGroup, deleteGroup, setGroupMembers, saveSession, deleteSession, takeAttendance,
 } from '../training-data.js';
 import { rankOf } from '../labels.js';
 import { docHtml } from '../doc-text.js';
@@ -116,6 +117,11 @@ function drawHome() {
       <section class="card" id="team-card">
         <div class="page-head">
           <h2>Trainees</h2>
+          <span class="spacer"></span>
+          <div class="seg" role="tablist" id="team-view" hidden>
+            <button type="button" role="tab" data-view="trainees" aria-selected="true">People</button>
+            <button type="button" role="tab" data-view="groups" aria-selected="false">Groups & schedule</button>
+          </div>
           <select id="team-prog" aria-label="Programme">
             ${teamPrograms.map((p) => `<option value="${esc(p.key)}">${esc(p.title)}</option>`).join('')}
           </select>
@@ -211,8 +217,18 @@ function drawHome() {
   }
   if (isTeam()) {
     const sel = panelEl.querySelector('#team-prog');
-    sel.addEventListener('change', () => { teamOpen = null; drawTeam(sel.value); });
-    if (sel.value) drawTeam(sel.value);
+    const seg = panelEl.querySelector('#team-view');
+    const show = () => {
+      const hasGroups = stepsOf(sel.value).some((x) => x.kind === 'session');
+      seg.hidden = !hasGroups;
+      if (!hasGroups) teamView = 'trainees';
+      for (const b of seg.querySelectorAll('button')) b.setAttribute('aria-selected', String(b.dataset.view === teamView));
+      teamOpen = null;
+      return teamView === 'groups' ? drawGroups(sel.value) : drawTeam(sel.value);
+    };
+    sel.addEventListener('change', show);
+    for (const b of seg.querySelectorAll('button')) b.addEventListener('click', () => { teamView = b.dataset.view; show(); });
+    if (sel.value) show();
     else panelEl.querySelector('#team-body').innerHTML = '<p class="muted">No programmes are switched on yet.</p>';
   }
 }
@@ -350,6 +366,8 @@ function courseHero(prog, enr, statusChip) {
   const lessons = steps.filter((s) => s.kind === 'learn').flatMap((s) => itemsOf(s.id));
   const mods = lessons.filter((i) => domainOf(i));
   const vids = lessons.filter((i) => i.kind === 'video');
+  const stepIds = new Set(steps.map((x) => x.id));
+  const nextSes = enr ? (mine.sessions || []).find((x) => x.status === 'planned' && x.held_on >= todayLocal() && (!x.step_id || stepIds.has(x.step_id))) : null;
   const hrs = lessons.reduce((t, i) => t + hoursOf(i), 0);
   const prg = progressOf(prog, enr);
   const pct = prg.total ? Math.round((prg.done / prg.total) * 100) : 0;
@@ -373,6 +391,7 @@ function courseHero(prog, enr, statusChip) {
     <div class="course-pills">
       ${mods.length ? `<span class="pill">${icon('book')} ${mods.length} lessons${hrs ? ` · about ${Math.round(hrs)} h` : ''}</span>` : ''}
       ${vids.length ? `<span class="pill">${icon('player-play')} ${vids.length} videos</span>` : ''}
+      ${nextSes ? `<span class="pill next">${icon('calendar')} Next: ${esc(fmtDay(nextSes.held_on))}${nextSes.start_time ? `, ${esc(fmtTime(nextSes.start_time))}` : ''}</span>` : ''}
       ${steps.filter((x) => x.kind === 'session').map((x) => `<span class="pill">${icon('school')} ${x.config?.target_hours ?? ''} h in-person training</span>`).join('')}
       ${due}
     </div>
@@ -494,8 +513,9 @@ function stepHtml(step, enr, n = 1, state = 'todo') {
         <span class="small muted">${fmtHours(got)} of ${target} hours</span></div>
       ${topics.length ? `<p class="small muted ch-count">${covered.size} of ${topics.length} chapters covered</p>
         <ol class="chapters">${topics.map((t, i) => `<li class="${covered.has(i + 1) ? 'done' : ''}"><span class="ch-num">${covered.has(i + 1) ? icon('check') : i + 1}</span><span>${esc(t)}</span></li>`).join('')}</ol>` : ''}
-      ${log.length ? `<h4 class="ch-h">Sessions</h4><ul class="hours-list">${log.map((h) => sessionLine(h, topics)).join('')}</ul>`
-        : '<p class="muted small">Your supervisor records each session here.</p>'}`, status);
+      ${mySchedule(step, enr, topics)}
+      ${log.length ? `<h4 class="ch-h">Hours logged</h4><ul class="hours-list">${log.map((h) => sessionLine(h, topics)).join('')}</ul>`
+        : '<p class="muted small">Your hours appear here after each session.</p>'}`, status);
   }
 
   if (step.kind === 'gap') {
@@ -510,7 +530,8 @@ function stepHtml(step, enr, n = 1, state = 'todo') {
       ${c.mode === 'oral' ? `<span class="pill">${icon('users')} Oral, with the examiners</span>` : ''}
       ${c.duration_min ? `<span class="pill">${icon('clock')} ${fmtMinutes(c.duration_min)}</span>` : ''}
     </div>`;
-    const body = !r ? '<p class="muted small">Your supervisor records the result after the exam.</p>'
+    const planned = (mine.sessions || []).find((x) => x.kind === 'exam' && x.step_id === step.id && x.status === 'planned');
+    const body = !r ? `${planned ? `<p>${icon('calendar')} <strong>${esc(fmtDay(planned.held_on))}${planned.start_time ? `, ${esc(fmtTime(planned.start_time))}` : ''}</strong>${planned.place ? ` · ${esc(planned.place)}` : ''}</p>` : ''}<p class="muted small">Your supervisor records the result after the exam.</p>`
       : r.passed ? `<p class="ok-text">${icon('check')} Passed${r.held_on ? ` · ${esc(fmtDate(r.held_on))}` : ''}</p>`
         : `<p>Not passed this time${r.held_on ? ` (${esc(fmtDate(r.held_on))})` : ''}. Your supervisor will talk with you about the next step.</p>`;
     return stepShell(step, n, state, `${r?.passed ? '' : facts}${body}`, status);
@@ -551,7 +572,8 @@ function stepStatus(step, e, d, team = false) {
     case 'gap': return c.days ? `${Math.round(c.days / 7)} weeks` : '';
     case 'result': {
       const r = resultFor(e.id, step.id, d.results);
-      if (!r) return 'Not yet';
+      const planned = !team && (mine.sessions || []).find((x) => x.kind === 'exam' && x.step_id === step.id && x.status === 'planned');
+      if (!r) return planned ? `On ${fmtDay(planned.held_on)}` : 'Not yet';
       const sc = team && r.score != null ? ` · ${Number(r.score)}${r.full_score ? `/${Number(r.full_score)}` : ''}` : '';
       return `${r.passed ? 'Passed' : 'Not passed'}${sc}`;
     }
@@ -1148,6 +1170,7 @@ function printCertificate(html, c) {
 // (mini step path + where they are now). "Open" shows that trainee's steps
 // with only the actions that make sense for each step.
 let teamOpen = null; // enrolment shown in the trainee panel (re-opened after an action)
+let teamView = 'trainees'; // 'trainees' | 'groups'
 async function drawTeam(programKey) {
   const body = panelEl.querySelector('#team-body');
   body.innerHTML = '<p class="muted">Loading…</p>';
@@ -1170,7 +1193,7 @@ async function drawTeam(programKey) {
   const tools = [
     isAdmin() ? '<button type="button" class="primary" data-assign>+ Assign people</button>' : '',
     prog?.promotes_to && (isSup || isAdmin()) ? '<button type="button" data-recommend>+ Recommend someone</button>' : '',
-    assessor && sessionSteps.length && rows.some((e) => e.status === 'active') ? `<button type="button" data-group-hours>${icon('school')} Log a group session</button>` : '',
+    assessor && sessionSteps.length && rows.some((e) => e.status === 'active') ? `<button type="button" data-goto-groups>${icon('calendar')} Groups & schedule</button>` : '',
   ].filter(Boolean).join(' ');
   const order = { recommended: 0, active: 1, not_passed: 2, passed: 3 };
   rows.sort((a, b) => (order[a.status] ?? 9) - (order[b.status] ?? 9) || nameOf(a.therapist_id).localeCompare(nameOf(b.therapist_id)));
@@ -1201,7 +1224,7 @@ async function drawTeam(programKey) {
 
   body.querySelector('[data-assign]')?.addEventListener('click', () => assignDialog(programKey, people, data));
   body.querySelector('[data-recommend]')?.addEventListener('click', () => recommendDialog(programKey, people, data));
-  body.querySelector('[data-group-hours]')?.addEventListener('click', () => hoursDialog(programKey, sessionSteps[0], rows.filter((e) => e.status === 'active'), nameOf, data));
+  body.querySelector('[data-goto-groups]')?.addEventListener('click', () => panelEl.querySelector('#team-view [data-view="groups"]')?.click());
   for (const b of body.querySelectorAll('[data-open]')) {
     b.addEventListener('click', () => { teamOpen = b.dataset.open; traineePanel(programKey, rows.find((x) => x.id === b.dataset.open), people, data); });
   }
@@ -1567,4 +1590,231 @@ function dueDialog(enrollmentId, name, current, programKey) {
     }
   });
   if (!dlg.open) dlg.showModal();
+}
+
+// ---------------------------------------------------------------------------
+// Groups & schedule (admin plans; supervisors / QCD / admin take attendance)
+// ---------------------------------------------------------------------------
+const fmtDay = (iso) => {
+  if (!iso) return '';
+  const [y, m, d] = iso.slice(0, 10).split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+};
+const fmtTime = (t) => (t ? String(t).slice(0, 5) : '');
+const KIND_LABEL = { session: 'Training session', exam: 'Exam', other: 'Other' };
+
+function sessionTitle(se, topics, steps) {
+  if (se.kind === 'exam') return se.title || steps.find((x) => x.id === se.step_id)?.title || 'Exam';
+  const ch = (se.chapters || []).slice().sort((a, b) => a - b);
+  const names = ch.map((c) => topics[c - 1]).filter(Boolean);
+  return se.title || (ch.length ? `Ch ${ch.join(', ')}${names.length ? ` · ${names.join(' · ')}` : ''}` : KIND_LABEL[se.kind]);
+}
+
+async function drawGroups(programKey) {
+  const body = panelEl.querySelector('#team-body');
+  body.innerHTML = '<p class="muted">Loading…</p>';
+  let people; let data; let g;
+  try {
+    [people, data, g] = await Promise.all([listStaff(), loadTeamProgram(programKey), loadGroups(programKey)]);
+  } catch (e) { body.innerHTML = `<p class="error">Could not load groups: ${esc(e.message)}</p>`; return; }
+  if (!g.ready) { body.innerHTML = '<p class="muted">Groups need the database update (Portal 022). Ask an admin to run it.</p>'; return; }
+  const steps = stepsOf(programKey);
+  const topics = steps.find((x) => x.kind === 'session')?.config?.topics || [];
+  const nameOf = (id) => { const p = people.find((x) => x.id === id); return p ? (p.nickname || p.full_name) : 'Unknown'; };
+  const enrName = (eid) => nameOf(data.enrollments.find((x) => x.id === eid)?.therapist_id);
+  const admin = isAdmin();
+  const assessor = ctx.roles.some((r) => ['admin', 'supervisor', 'qcd'].includes(r));
+  const today = todayLocal();
+  const ctxG = { programKey, people, data, g, steps, topics, nameOf, enrName };
+
+  body.innerHTML = `
+    ${admin ? '<p class="row-actions"><button type="button" class="primary" data-new-group>+ New group</button></p>' : ''}
+    ${g.groups.length ? g.groups.map((gr) => {
+      const mem = g.members.filter((m) => m.group_id === gr.id);
+      const ses = g.sessions.filter((x) => x.group_id === gr.id);
+      const next = ses.find((x) => x.status === 'planned' && x.held_on >= today);
+      return `<section class="grp">
+        <div class="grp-head">
+          <div><h3>${esc(gr.name)}</h3>
+            <p class="small muted">${mem.length} ${mem.length === 1 ? 'person' : 'people'}${mem.length ? `: ${mem.map((m) => esc(enrName(m.enrollment_id))).join(', ')}` : ''}</p>
+            ${next ? `<p class="small">Next: <strong>${esc(fmtDay(next.held_on))}${next.start_time ? `, ${esc(fmtTime(next.start_time))}` : ''}</strong> · ${esc(sessionTitle(next, topics, steps))}</p>` : ''}</div>
+          ${admin ? `<div class="row-actions"><button type="button" class="small-btn" data-edit-group="${esc(gr.id)}">Edit group</button>
+            <button type="button" class="small-btn primary" data-plan="${esc(gr.id)}">+ Plan session</button></div>` : ''}
+        </div>
+        ${ses.length ? `<ul class="sched">${ses.map((se) => {
+          const came = data.hours.filter((h) => h.session_id === se.id).length;
+          const past = se.held_on <= today;
+          return `<li class="${se.status}${past ? ' past' : ''}">
+            <span class="sched-date"><strong>${esc(fmtDay(se.held_on))}</strong>${se.start_time ? `<br><span class="muted small">${esc(fmtTime(se.start_time))}${se.hours ? ` · ${esc(fmtHours(se.hours))} h` : ''}</span>` : se.hours ? `<br><span class="muted small">${esc(fmtHours(se.hours))} h</span>` : ''}</span>
+            <span class="sched-main"><span class="chip${se.kind === 'exam' ? ' warn' : ''}">${esc(KIND_LABEL[se.kind])}</span> ${esc(sessionTitle(se, topics, steps))}
+              <span class="muted small">${[se.place, se.trainer_id ? `with ${nameOf(se.trainer_id)}` : ''].filter(Boolean).map(esc).join(' · ')}</span></span>
+            <span class="sched-act">
+              ${se.status === 'done' ? `<span class="ok-text small">${icon('check')} ${came} attended</span>` : se.status === 'cancelled' ? '<span class="muted small">Cancelled</span>' : ''}
+              ${assessor && se.kind === 'session' && se.status !== 'cancelled' && past ? `<button type="button" class="small-btn${se.status === 'done' ? '' : ' primary'}" data-attend="${esc(se.id)}">${se.status === 'done' ? 'Edit attendance' : 'Attendance'}</button>` : ''}
+              ${admin ? `<button type="button" class="small-btn" data-edit-session="${esc(se.id)}">Edit</button>` : ''}
+            </span>
+          </li>`;
+        }).join('')}</ul>` : '<p class="muted small">No sessions planned yet.</p>'}
+      </section>`;
+    }).join('') : '<p class="muted">No groups yet.' + (admin ? ' Create one, add people, then plan the sessions.' : '') + '</p>'}
+    <p class="muted small">Trainees see their group's schedule. After a training session, tap <strong>Attendance</strong>: hours and chapters are logged for everyone who came.</p>`;
+
+  const redraw = () => drawGroups(programKey);
+  body.querySelector('[data-new-group]')?.addEventListener('click', () => groupDialog(ctxG, null, redraw));
+  for (const b of body.querySelectorAll('[data-edit-group]')) b.addEventListener('click', () => groupDialog(ctxG, g.groups.find((x) => x.id === b.dataset.editGroup), redraw));
+  for (const b of body.querySelectorAll('[data-plan]')) b.addEventListener('click', () => sessionDialog(ctxG, b.dataset.plan, null, redraw));
+  for (const b of body.querySelectorAll('[data-edit-session]')) {
+    b.addEventListener('click', () => { const se = g.sessions.find((x) => x.id === b.dataset.editSession); sessionDialog(ctxG, se.group_id, se, redraw); });
+  }
+  for (const b of body.querySelectorAll('[data-attend]')) b.addEventListener('click', () => attendanceDialog(ctxG, g.sessions.find((x) => x.id === b.dataset.attend), redraw));
+}
+
+function groupDialog(c, gr, redraw) {
+  const dlg = panelEl.querySelector('#tr-dlg');
+  const inGroup = new Set(c.g.members.filter((m) => gr && m.group_id === gr.id).map((m) => m.enrollment_id));
+  const taken = new Set(c.g.members.filter((m) => !gr || m.group_id !== gr.id).map((m) => m.enrollment_id));
+  const eligible = c.data.enrollments.filter((e) => (e.status === 'active' || inGroup.has(e.id)) && !taken.has(e.id));
+  dlg.innerHTML = `
+    <form method="dialog" class="person-form">
+      <h2>${gr ? 'Edit group' : 'New group'}</h2>
+      <label>Name <input name="name" required maxlength="80" value="${esc(gr?.name || '')}" placeholder="e.g. Senior 2027 – Group 1"></label>
+      <label>Notes <span class="muted small">(optional)</span> <input name="notes" maxlength="500" value="${esc(gr?.notes || '')}"></label>
+      <fieldset class="assign-list"><legend>Who is in this group?</legend>
+        ${eligible.length ? eligible.map((e) => `<label class="check"><input type="checkbox" name="who" value="${esc(e.id)}"${inGroup.has(e.id) ? ' checked' : ''}> <span>${esc(c.nameOf(e.therapist_id))}</span></label>`).join('')
+          : '<p class="muted small">Everyone with an active place is already in a group.</p>'}
+      </fieldset>
+      <p class="msg" role="status" hidden></p>
+      <div class="dlg-actions">${gr ? '<button type="button" class="link" data-del>Delete group</button>' : ''}<span class="spacer"></span>
+        <button type="button" data-act="cancel">Cancel</button>
+        <button type="submit" class="primary">Save</button></div>
+    </form>`;
+  const f = dlg.querySelector('form');
+  const say = (t) => { const m = f.querySelector('.msg'); m.hidden = false; m.dataset.kind = 'error'; m.textContent = t; };
+  f.querySelector('[data-act="cancel"]').addEventListener('click', () => dlg.close());
+  f.querySelector('[data-del]')?.addEventListener('click', async () => {
+    if (!confirm(`Delete "${gr.name}" and its schedule? Hours already logged stay on each person's record.`)) return;
+    try { await deleteGroup(gr.id); dlg.close(); await redraw(); } catch (e) { say(e.message); }
+  });
+  f.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const picked = new Set([...f.querySelectorAll('input[name="who"]:checked')].map((b) => b.value));
+    try {
+      const id = await saveGroup({ id: gr?.id, program_key: c.programKey, name: f.name.value.trim(), notes: f.notes.value.trim() || null, created_by: ctx.me.id });
+      await setGroupMembers(id, [...picked].filter((x) => !inGroup.has(x)), [...inGroup].filter((x) => !picked.has(x)));
+      dlg.close();
+      await redraw();
+    } catch (e) { say(e.message); }
+  });
+  if (!dlg.open) dlg.showModal();
+}
+
+function sessionDialog(c, groupId, se, redraw) {
+  const dlg = panelEl.querySelector('#tr-dlg');
+  const resultSteps = c.steps.filter((x) => x.kind === 'result');
+  const planned = new Set(c.g.sessions.filter((x) => x.group_id === groupId && x.id !== se?.id && x.status !== 'cancelled').flatMap((x) => x.chapters || []));
+  const trainers = c.people.filter((p) => p.status !== 'exited' && (p.roles || []).some((r) => ['supervisor', 'qcd', 'admin'].includes(r)))
+    .sort((a, b) => (a.nickname || a.full_name).localeCompare(b.nickname || b.full_name));
+  const kind = se?.kind || 'session';
+  dlg.innerHTML = `
+    <form method="dialog" class="person-form">
+      <h2>${se ? 'Edit session' : 'Plan a session'}</h2>
+      <fieldset class="pills"><legend>What is it?</legend>
+        ${[['session', 'Training session'], ['exam', 'Exam'], ['other', 'Other']].map(([k, l]) => `<label class="pill"><input type="radio" name="kind" value="${k}"${kind === k ? ' checked' : ''}><span>${l}</span></label>`).join('')}
+      </fieldset>
+      <div class="grid2">
+        <label>Date <input name="held" type="date" required value="${esc(se?.held_on || todayLocal())}"></label>
+        <label>Start time <input name="start" type="time" value="${esc(fmtTime(se?.start_time) || '13:00')}"></label>
+      </div>
+      <div class="grid2">
+        <label data-k="session other">Hours <input name="hours" type="number" min="0.5" max="12" step="0.5" value="${esc(se?.hours ?? 3)}"></label>
+        <label data-k="exam">Which exam? <select name="step">${resultSteps.map((x) => `<option value="${esc(x.id)}"${se?.step_id === x.id ? ' selected' : ''}>${esc(x.title)}</option>`).join('')}</select></label>
+        <label>Place <input name="place" maxlength="120" value="${esc(se?.place || '')}" placeholder="e.g. CARE meeting room"></label>
+      </div>
+      ${c.topics.length ? `<fieldset class="ch-pick" data-k="session"><legend>Chapters</legend>${c.topics.map((t, i) => `
+        <label class="check"><input type="checkbox" name="ch" value="${i + 1}"${(se?.chapters || []).includes(i + 1) ? ' checked' : ''}> <span><strong>${i + 1}</strong> ${esc(t)}${planned.has(i + 1) ? ' <span class="muted small">(already planned)</span>' : ''}</span></label>`).join('')}</fieldset>` : ''}
+      <label data-k="session other">Supervisor <select name="trainer"><option value="">—</option>${trainers.map((p) => `<option value="${esc(p.id)}"${se?.trainer_id === p.id ? ' selected' : ''}>${esc(p.nickname || p.full_name)}</option>`).join('')}</select></label>
+      <label>Title <span class="muted small">(optional)</span> <input name="title" maxlength="120" value="${esc(se?.title || '')}" placeholder="Shown instead of the chapter names"></label>
+      ${se ? `<label class="check"><input type="checkbox" name="cancelled"${se.status === 'cancelled' ? ' checked' : ''}> <span>Cancelled</span></label>` : ''}
+      <p class="msg" role="status" hidden></p>
+      <div class="dlg-actions">${se ? '<button type="button" class="link" data-del>Delete</button>' : ''}<span class="spacer"></span>
+        <button type="button" data-act="cancel">Cancel</button>
+        <button type="submit" class="primary">Save</button></div>
+    </form>`;
+  const f = dlg.querySelector('form');
+  const say = (t) => { const m = f.querySelector('.msg'); m.hidden = false; m.dataset.kind = 'error'; m.textContent = t; };
+  const sync = () => { for (const el of f.querySelectorAll('[data-k]')) el.hidden = !el.dataset.k.split(' ').includes(f.kind.value); };
+  f.addEventListener('change', sync); sync();
+  f.querySelector('[data-act="cancel"]').addEventListener('click', () => dlg.close());
+  f.querySelector('[data-del]')?.addEventListener('click', async () => {
+    if (!confirm('Delete this session? Hours already logged from it stay on each person\'s record.')) return;
+    try { await deleteSession(se.id); dlg.close(); await redraw(); } catch (e) { say(e.message); }
+  });
+  f.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const k = f.kind.value;
+    const chapters = k === 'session' ? [...f.querySelectorAll('input[name="ch"]:checked')].map((b) => Number(b.value)) : [];
+    if (k === 'session' && c.topics.length && !chapters.length && !f.title.value.trim()) return say('Tick the chapters (or give it a title).');
+    const sessionStep = c.steps.find((x) => x.kind === 'session');
+    try {
+      await saveSession({
+        id: se?.id, group_id: groupId, kind: k,
+        step_id: k === 'exam' ? f.step.value || null : k === 'session' ? sessionStep?.id ?? null : null,
+        title: f.title.value.trim() || null, held_on: f.held.value, start_time: f.start.value || null,
+        hours: k === 'exam' ? null : (f.hours.value ? Number(f.hours.value) : null),
+        chapters, place: f.place.value.trim() || null, trainer_id: k === 'exam' ? null : (f.trainer.value || null),
+        status: se ? (f.cancelled?.checked ? 'cancelled' : (se.status === 'cancelled' ? 'planned' : se.status)) : 'planned',
+        ...(se ? {} : { created_by: ctx.me.id }),
+      });
+      dlg.close();
+      await redraw();
+    } catch (e) { say(e.message); }
+  });
+  if (!dlg.open) dlg.showModal();
+}
+
+function attendanceDialog(c, se, redraw) {
+  const dlg = panelEl.querySelector('#tr-dlg');
+  const mem = c.g.members.filter((m) => m.group_id === se.group_id).map((m) => c.data.enrollments.find((e) => e.id === m.enrollment_id)).filter((e) => e && e.status === 'active');
+  const came = new Set(c.data.hours.filter((h) => h.session_id === se.id).map((h) => h.enrollment_id));
+  dlg.innerHTML = `
+    <form method="dialog" class="person-form">
+      <h2>Attendance</h2>
+      <p class="small"><strong>${esc(fmtDay(se.held_on))}</strong>${se.start_time ? `, ${esc(fmtTime(se.start_time))}` : ''} · ${esc(sessionTitle(se, c.topics, c.steps))} · ${esc(fmtHours(se.hours))} h</p>
+      <fieldset class="assign-list"><legend>Who came?</legend>
+        ${mem.length ? mem.map((e) => `<label class="check"><input type="checkbox" name="who" value="${esc(e.id)}"${se.status !== 'done' || came.has(e.id) ? ' checked' : ''}> <span>${esc(c.nameOf(e.therapist_id))}</span></label>`).join('') : '<p class="muted small">Nobody active in this group.</p>'}
+      </fieldset>
+      <p class="muted small">Everyone ticked gets ${esc(fmtHours(se.hours))} h${(se.chapters || []).length ? ` and chapters ${esc(se.chapters.join(', '))}` : ''} on their record. Saving again replaces the earlier attendance.</p>
+      <p class="msg" role="status" hidden></p>
+      <div class="dlg-actions"><span class="spacer"></span>
+        <button type="button" data-act="cancel">Cancel</button>
+        <button type="submit" class="primary"${mem.length ? '' : ' disabled'}>Save attendance</button></div>
+    </form>`;
+  const f = dlg.querySelector('form');
+  f.querySelector('[data-act="cancel"]').addEventListener('click', () => dlg.close());
+  f.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    try {
+      await takeAttendance(se.id, [...f.querySelectorAll('input[name="who"]:checked')].map((b) => b.value));
+      dlg.close();
+      await redraw();
+    } catch (e) { const m = f.querySelector('.msg'); m.hidden = false; m.dataset.kind = 'error'; m.textContent = e.message; }
+  });
+  if (!dlg.open) dlg.showModal();
+}
+
+// The trainee's group schedule for the in-person step.
+function mySchedule(step, enr, topics) {
+  const list = (mine.sessions || []).filter((x) => x.kind !== 'exam' && (!x.step_id || x.step_id === step.id));
+  if (!list.length) return '';
+  const today = todayLocal();
+  const up = list.filter((x) => x.status === 'planned' && x.held_on >= today);
+  const past = list.filter((x) => !(x.status === 'planned' && x.held_on >= today));
+  const row = (x) => `<li class="${x.attended ? 'came' : ''}">
+    <span class="sched-date"><strong>${esc(fmtDay(x.held_on))}</strong>${x.start_time ? `<br><span class="muted small">${esc(fmtTime(x.start_time))}${x.hours ? ` · ${esc(fmtHours(x.hours))} h` : ''}</span>` : ''}</span>
+    <span class="sched-main">${esc(sessionTitle(x, topics, [step]))}<span class="muted small">${[x.place, x.trainer ? `with ${x.trainer}` : ''].filter(Boolean).map(esc).join(' · ')}</span></span>
+    <span class="sched-act small">${x.status === 'done' ? (x.attended ? `<span class="ok-text">${icon('check')} Attended</span>` : '<span class="muted">Not attended</span>') : ''}</span>
+  </li>`;
+  return `<h4 class="ch-h">Schedule${list[0]?.group_name ? ` · ${esc(list[0].group_name)}` : ''}</h4>
+    ${up.length ? `<ul class="sched">${up.map(row).join('')}</ul>` : '<p class="muted small">No upcoming sessions.</p>'}
+    ${past.length ? `<details class="sched-past"><summary class="small">Past sessions (${past.length})</summary><ul class="sched">${past.map(row).join('')}</ul></details>` : ''}`;
 }

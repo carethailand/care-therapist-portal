@@ -250,3 +250,13 @@ The course page now has a header (name, summary, lessons and hours, finish-by da
 ## Step 20 — Senior in-person chapters (added 2026-11-16)
 
 **Run** `supabase/migrations/20261116002100_senior_chapters.sql` (after Step 19), then publish. The in-person training step lists the 14 chapters; when logging a session, the supervisor ticks the chapters covered. Trainees see each chapter ticked once covered; the Trainees table shows hours and chapters (e.g. 16 / 40 h · 6/14 chapters).
+
+## Step 21 — Training groups, schedule and attendance (added 2026-11-16)
+
+1. **Run** `supabase/migrations/20261116002200_training_groups.sql`, then `supabase/checks/rls_check.sql` (no rows).
+2. **Publish** the app.
+
+In **Training → Trainees**, programmes with in-person training (Senior) get a **People | Groups & schedule** switch.
+- **Admins** create a group (name + people with an active place; one group per person), then **+ Plan session**: a training session (date, start time, hours, chapters, place, supervisor), an exam date (written / oral), or other. Sessions can be edited, cancelled or deleted.
+- **Supervisors / QCD / admins** tap **Attendance** after a training session (everyone ticked by default); hours and chapters are logged for everyone who came. Saving again replaces that session's attendance.
+- **Trainees** see *Next: date, time* in the course header, their group's schedule (upcoming + past, with *Attended*) in the in-person step, and planned exam dates on the exam steps.

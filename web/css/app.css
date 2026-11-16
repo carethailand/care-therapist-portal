@@ -914,3 +914,24 @@ fieldset { min-width: 0; }
 .course-toggle[aria-expanded="true"] .ico { transform: rotate(180deg); }
 .course .csteps[hidden] { display: none; }
 .course:has(.csteps[hidden]) .course-hero { border-bottom: 0; }
+
+/* Training groups & schedule (P7g) */
+.seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 999px; padding: 2px; background: var(--surface-raised); }
+.seg button { border: 0; border-radius: 999px; padding: 5px 12px; font-size: .85rem; background: none; color: var(--muted); }
+.seg button[aria-selected="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.grp { border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; margin-bottom: 12px; background: var(--surface-raised); }
+.grp-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+.grp-head h3 { margin: 0; font-family: var(--font-serif); font-weight: 500; }
+.grp-head p { margin: 2px 0; }
+.sched { list-style: none; padding: 0; margin: 10px 0 0; display: grid; gap: 0; }
+.sched li { display: grid; grid-template-columns: 8.5em 1fr auto; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+.sched li:first-child { border-top: 0; }
+.sched li.cancelled .sched-main { text-decoration: line-through; color: var(--muted); }
+.sched-main { display: flex; flex-direction: column; gap: 2px; font-size: .92rem; }
+.sched-main .chip { align-self: flex-start; }
+.sched-act { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.sched-act .ico { width: 14px; height: 14px; vertical-align: -2px; }
+.sched-past summary { cursor: pointer; color: var(--accent); margin-top: 8px; }
+.pill.next { border-color: var(--clay); color: var(--clay); }
+.pill.next .ico { color: var(--clay); }
+@media (max-width: 600px) { .sched li { grid-template-columns: 1fr; } .sched-act { justify-content: flex-start; } }
