@@ -6,7 +6,7 @@ import {
   loadTeamProgram, allowRetake, setDueDate, assignPeople,
   recommend, approveRecommendation, declineRecommendation, recordResult, logHours, removeHours, saveEval, promote,
   loadGroups, saveGroup, deleteGroup, setGroupMembers, saveSession, deleteSession, takeAttendance,
-  uploadAssignment, workUrl, reviewSubmission, WORK_ACCEPT,
+  uploadAssignment, workUrl, reviewSubmission, WORK_ACCEPT, removeWorkFiles, closeGroup,
 } from '../training-data.js';
 import { rankOf } from '../labels.js';
 import { docHtml } from '../doc-text.js';
@@ -109,9 +109,10 @@ function drawHome() {
   panelEl.innerHTML = `
     <div id="my-training">
     ${current.map(programCard).join('')}
+    ${legacyPrograms(current).map((p) => completedCard(p, null, true)).join('')}
     ${previews.map(previewCard).join('')}
     </div>
-    ${!current.length && !previews.length
+    ${!current.length && !previews.length && !legacyPrograms(current).length
       ? `<section class="card"><h2>My training</h2>
            <p class="muted">You're not in a training programme right now. When you are, it will appear here.</p></section>` : ''}
     ${isTeam() ? `
@@ -441,9 +442,48 @@ function previewCard(prog) {
     </section>`;
 }
 
+const PROGRAM_BADGE = { senior: 'senior-training', qcd: 'qcd-training' };
+const RANK_ORDER = ['applicant', 'therapist', 'senior', 'qcd', 'supervisor'];
+
+// A finished programme: one calm card (badge, date, certificate); the full
+// record stays one tap away. Also used for people who reached the rank before
+// the Portal existed (legacy = true, no enrolment).
+function completedCard(prog, enr, legacy = false) {
+  const badge = PROGRAM_BADGE[prog.key];
+  const cert = enr && mine.certificates.find((c) => c.enrollment_id === enr.id);
+  const steps = enr ? stepsOf(prog.key) : [];
+  const states = enr ? stepStates(prog, enr) : [];
+  return `
+    <section class="card course done-card">
+      <div class="done-wrap">
+        ${badge ? `<img class="done-badge" src="assets/milestones/${badge}.svg" alt="${esc(prog.title)} badge" width="104" height="104">`
+          : `<span class="done-badge done-ico" aria-hidden="true">${icon('award')}</span>`}
+        <div class="done-main">
+          <p class="level-kicker">Training</p>
+          <h2>${esc(prog.title)}</h2>
+          <p class="ok-text">${icon('check')} ${legacy ? 'Completed before the Portal' : `Completed${enr.finished_on ? ` ${esc(fmtDate(enr.finished_on))}` : ''}`}${enr?.promoted_on ? ` · promoted ${esc(fmtDate(enr.promoted_on))}` : ''}</p>
+          <p class="done-act">
+            ${cert ? `<button type="button" class="primary small-btn" data-cert="${esc(cert.id)}">${icon('award')} View certificate</button>` : ''}
+            ${enr ? `<button type="button" class="course-toggle" data-steps-toggle="${esc(prog.key)}" aria-expanded="${courseOpen.has(prog.key)}">${courseOpen.has(prog.key) ? 'Hide steps' : 'Show steps'} ${icon('chevron-down')}</button>` : ''}
+          </p>
+        </div>
+      </div>
+      ${enr ? `<ol class="csteps" data-steps="${esc(prog.key)}"${courseOpen.has(prog.key) ? '' : ' hidden'}>${steps.map((s, i) => stepHtml(s, enr, i + 1, states[i])).join('')}</ol>` : ''}
+    </section>`;
+}
+
+// Seniors (and above) who reached the rank before the Portal: Senior training
+// counts as completed; QCD and above also QCD training (when switched on).
+function legacyPrograms(current) {
+  const r = RANK_ORDER.indexOf(rankOf(ctx.roles));
+  return content.programs.filter((p) => p.enabled && p.promotes_to && r >= RANK_ORDER.indexOf(p.promotes_to)
+    && !current.some((e) => e.program_key === p.key));
+}
+
 function programCard(enr) {
   const prog = content.programs.find((p) => p.key === enr.program_key);
   if (!prog) return '';
+  if (enr.status === 'passed') return completedCard(prog, enr);
   const states = stepStates(prog, enr);
   const chip = `<span class="chip ${enr.status === 'passed' ? 'ok' : 'stage'}">${esc(STATUS_LABEL[enr.status] ?? enr.status)}</span>`;
   return `
@@ -1666,14 +1706,17 @@ async function drawGroups(programKey) {
     ${g.groups.length ? g.groups.map((gr) => {
       const mem = g.members.filter((m) => m.group_id === gr.id);
       const ses = g.sessions.filter((x) => x.group_id === gr.id);
-      const next = ses.find((x) => x.status === 'planned' && x.held_on >= today);
+      const next = !gr.closed_at && ses.find((x) => x.status === 'planned' && x.held_on >= today);
       return `<section class="grp">
         <div class="grp-head">
           <div><h3>${esc(gr.name)}</h3>
             <p class="small muted">${mem.length} ${mem.length === 1 ? 'person' : 'people'}${mem.length ? `: ${mem.map((m) => esc(enrName(m.enrollment_id))).join(', ')}` : ''}</p>
             ${next ? `<p class="small">Next: <strong>${esc(fmtDay(next.held_on))}${next.start_time ? `, ${esc(fmtTime(next.start_time))}` : ''}</strong> · ${esc(sessionTitle(next, topics, steps))}</p>` : ''}</div>
-          ${admin ? `<div class="row-actions"><button type="button" class="small-btn" data-edit-group="${esc(gr.id)}">Edit group</button>
-            <button type="button" class="small-btn primary" data-plan="${esc(gr.id)}">+ Plan session</button></div>` : ''}
+          ${gr.closed_at ? `<span class="chip ok">Closed ${esc(fmtDate(gr.closed_at.slice(0, 10)))}</span>`
+            : admin ? `<div class="row-actions"><button type="button" class="small-btn" data-edit-group="${esc(gr.id)}">Edit group</button>
+            ${mem.length && mem.every((m) => { const e = data.enrollments.find((x) => x.id === m.enrollment_id); return e && !['active', 'recommended'].includes(e.status); })
+              ? `<button type="button" class="small-btn primary" data-close-group="${esc(gr.id)}">Close group</button>`
+              : `<button type="button" class="small-btn primary" data-plan="${esc(gr.id)}">+ Plan session</button>`}</div>` : ''}
         </div>
         ${ses.length ? `<ul class="sched">${ses.map((se) => {
           const came = data.hours.filter((h) => h.session_id === se.id).length;
@@ -1701,6 +1744,7 @@ async function drawGroups(programKey) {
     b.addEventListener('click', () => { const se = g.sessions.find((x) => x.id === b.dataset.editSession); sessionDialog(ctxG, se.group_id, se, redraw); });
   }
   for (const b of body.querySelectorAll('[data-attend]')) b.addEventListener('click', () => attendanceDialog(ctxG, g.sessions.find((x) => x.id === b.dataset.attend), redraw));
+  for (const b of body.querySelectorAll('[data-close-group]')) b.addEventListener('click', () => closeGroupDialog(ctxG, g.groups.find((x) => x.id === b.dataset.closeGroup), redraw));
 }
 
 function groupDialog(c, gr, redraw) {
@@ -1939,5 +1983,55 @@ function reviewDialog(programKey, step, enrs, people, data, waitingOnly = false)
       } catch (e) { msg.hidden = false; msg.dataset.kind = 'error'; msg.textContent = e.message; }
     });
   }
+  if (!dlg.open) dlg.showModal();
+}
+
+// Close a finished group: download everything, then clear the uploaded files.
+function closeGroupDialog(c, gr, redraw) {
+  const dlg = panelEl.querySelector('#tr-dlg');
+  const enrs = c.g.members.filter((m) => m.group_id === gr.id).map((m) => c.data.enrollments.find((e) => e.id === m.enrollment_id)).filter(Boolean);
+  const files = (c.data.subs || []).filter((x) => x.file_path && enrs.some((e) => e.id === x.enrollment_id)).length;
+  dlg.innerHTML = `
+    <div class="person-form">
+      <h2>Close “${esc(gr.name)}”</h2>
+      <p>Everyone in this group has finished. Closing it:</p>
+      <ol class="small">
+        <li><strong>Downloads one .zip</strong>: a summary spreadsheet, each person's record (prints to PDF) and ${files} assignment file${files === 1 ? '' : 's'}. Save it in CARE's Google Drive.</li>
+        <li><strong>Clears the uploaded files</strong> from the Portal to free space. Scores, hours, checklist marks and results stay.</li>
+        <li>Each person keeps a simple <strong>Completed</strong> card with their certificate and badge.</li>
+      </ol>
+      <p class="msg" role="status" hidden></p>
+      <div class="dlg-actions"><span class="spacer"></span>
+        <button type="button" data-act="cancel">Cancel</button>
+        <button type="button" class="primary" data-go>Download .zip</button></div>
+    </div>`;
+  const msg = dlg.querySelector('.msg');
+  const say = (t, k = 'info') => { msg.hidden = false; msg.dataset.kind = k; msg.textContent = t; };
+  dlg.querySelector('[data-act="cancel"]').addEventListener('click', () => dlg.close());
+  dlg.querySelector('[data-go]').addEventListener('click', async (ev) => {
+    const btn = ev.currentTarget;
+    btn.disabled = true;
+    try {
+      const { exportGroup } = await import('../training-export.js');
+      const out = await exportGroup({
+        program: content.programs.find((p) => p.key === c.programKey), group: gr, steps: c.steps, items: content.items, topics: c.topics,
+        enrollments: enrs, people: c.people, data: c.data, sessions: c.g.sessions.filter((x) => x.group_id === gr.id),
+      }, (t) => say(t));
+      say(`Downloaded “${out.filename}”. Check it opens, then clear the files.`, 'ok');
+      btn.textContent = 'Clear files and close group';
+      btn.disabled = false;
+      btn.replaceWith(btn.cloneNode(true));
+      dlg.querySelector('[data-go]').addEventListener('click', async () => {
+        if (!confirm('Clear the uploaded files and close this group? This can\'t be undone (the .zip is your copy).')) return;
+        try {
+          say('Clearing files…');
+          if (out.paths.length) await removeWorkFiles(out.paths);
+          await closeGroup(gr.id);
+          dlg.close();
+          await redraw();
+        } catch (e) { say(e.message, 'error'); }
+      });
+    } catch (e) { say(e.message, 'error'); btn.disabled = false; }
+  });
   if (!dlg.open) dlg.showModal();
 }

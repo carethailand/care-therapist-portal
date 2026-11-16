@@ -224,6 +224,15 @@ export async function workUrl(path) {
   if (error) throw friendly(error);
   return data.signedUrl;
 }
+export async function workBlob(path) {
+  const res = await fetch(await workUrl(path));
+  if (!res.ok) throw new Error(`Could not download ${path}`);
+  return res.blob();
+}
+export async function removeWorkFiles(paths) {
+  for (let i = 0; i < paths.length; i += 100) must(await supa.storage.from(WORK).remove(paths.slice(i, i + 100)));
+}
+export const closeGroup = (groupId) => supa.rpc('training_group_close', { p_group: groupId }).then(must);
 export const reviewSubmission = (id, status, feedback) =>
   supa.rpc('training_review', { p_submission: id, p_status: status, p_feedback: feedback || null }).then(must);
 

@@ -957,3 +957,18 @@ fieldset { min-width: 0; }
 .rv-form { margin: 8px 0 0 32px; display: grid; gap: 6px; }
 .rv-form textarea { width: 100%; }
 @media (max-width: 600px) { .asg { flex-wrap: wrap; } .asg-act { width: 100%; padding-left: 32px; } }
+
+/* Completed programme card + close group (P7i) */
+.done-card { padding: 0; }
+.done-wrap { display: flex; gap: 20px; align-items: center; padding: 22px 24px; background: linear-gradient(160deg, var(--accent-soft), transparent 70%); }
+.done-badge { flex: none; width: 104px; height: 104px; object-fit: contain; }
+.done-ico { display: grid; place-items: center; border-radius: 50%; background: var(--surface-raised); color: var(--accent); }
+.done-ico .ico { width: 48px; height: 48px; }
+.done-main h2 { margin: 0 0 4px; font-size: 1.6rem; }
+.done-main .ok-text { display: flex; align-items: center; gap: 6px; margin: 0; }
+.done-main .ok-text .ico { width: 18px; height: 18px; }
+.done-act { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0 0; }
+.done-act .course-toggle { margin-top: 0; }
+.done-act .small-btn .ico { width: 15px; height: 15px; vertical-align: -3px; }
+.done-card .csteps { border-top: 1px solid var(--line); }
+@media (max-width: 600px) { .done-wrap { flex-direction: column; align-items: flex-start; padding: 18px 16px; } .done-badge { width: 84px; height: 84px; } }

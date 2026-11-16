@@ -269,3 +269,14 @@ In **Training → Trainees**, programmes with in-person training (Senior) get a 
 - **Trainees:** the in-person training step lists the 14 chapter assignments, each *due 7 days after the session that covers it*. **Upload** (photos are shrunk first), **Open**, **Replace** until reviewed; they see *Submitted*, *Reviewed* or *Please redo* with the comment.
 - **Supervisors / QCD / admins:** **To review (N)** in Trainees → People lists everything waiting; each trainee's **Open** panel has **Assignments** (all 14 chapters). Open the file, add a comment, mark **Reviewed** or **Please redo**.
 - Files are private (only the trainee and the training team can open them, via links that last 10 minutes). "Close group" (next) exports and clears them.
+
+## Step 23 — Close a training group (added 2026-11-16)
+
+1. **Run** `supabase/migrations/20261116002400_training_group_close.sql`.
+2. **Publish** the app.
+
+When everyone in a group has finished (completed, not passed or withdrawn), **Groups & schedule** shows **Close group** instead of *+ Plan session*. It:
+1. **Downloads one .zip**: `Summary.xlsx` (People, Sessions, Assignments, Practicum, About) + a folder per person with `Record.html` (prints to PDF) and their assignment files. Save it in CARE's Google Drive.
+2. After you check the .zip, **Clear files and close group** deletes the uploaded files from the Portal (scores, hours, checklist marks and results stay) and marks the group *Closed*.
+
+**Completed card:** a finished programme shows one card with its badge (S for Senior, Q for QCD), the completion date, **View certificate** and **Show steps**. Current Seniors and above see *Senior Therapist Training · Completed before the Portal* with the S badge automatically.
