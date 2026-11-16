@@ -38,7 +38,7 @@ export async function exportGroup(c, onProgress = () => {}) {
       [learnItems.some((i) => i.kind === 'video') ? 'Videos watched' : 'Lessons done']: `${learnItems.filter((i) => c.data.done.some((d) => d.enrollment_id === e.id && d.item_id === i.id)).length}/${learnItems.length}`,
       'Training hours': Math.round(hrs * 10) / 10,
       Chapters: c.topics.length ? `${chs.size}/${c.topics.length}` : '',
-      'Assignments submitted': c.topics.length ? `${subs.length}/${c.topics.length}` : '',
+      'Assignments submitted': c.topics.length ? `${subs.length}/${Array.isArray(sessionStep?.config?.assignment_chapters) ? sessionStep.config.assignment_chapters.length : c.topics.length}` : '',
       'Assignments reviewed': subs.filter((x) => x.status === 'reviewed').length,
     };
     for (const st of resultSteps) {

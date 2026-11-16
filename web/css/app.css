@@ -744,9 +744,9 @@ fieldset { min-width: 0; }
 .course-accr .ico { width: 16px; height: 16px; }
 .course-sum { margin: 10px 0 0; color: var(--muted); max-width: 62ch; }
 .course-pills { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 0; }
-.pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: .82rem; background: var(--surface-raised); border: 1px solid var(--line); color: var(--text); }
-.pill .ico { width: 15px; height: 15px; color: var(--accent); }
-.pill.warn { border-color: var(--clay); color: var(--clay); }
+span.pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: .82rem; background: var(--surface-raised); border: 1px solid var(--line); color: var(--text); }
+span.pill .ico { width: 15px; height: 15px; color: var(--accent); }
+span.pill.warn { border-color: var(--clay); color: var(--clay); }
 .course-progress { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
 .course-progress .progress { flex: 1; margin: 0; }
 .course-path { list-style: none; display: flex; flex-wrap: wrap; gap: 6px 0; padding: 0; margin: 16px 0 0; counter-reset: none; }
@@ -932,8 +932,8 @@ fieldset { min-width: 0; }
 .sched-act { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
 .sched-act .ico { width: 14px; height: 14px; vertical-align: -2px; }
 .sched-past summary { cursor: pointer; color: var(--accent); margin-top: 8px; }
-.pill.next { border-color: var(--clay); color: var(--clay); }
-.pill.next .ico { color: var(--clay); }
+span.pill.next { border-color: var(--clay); color: var(--clay); }
+span.pill.next .ico { color: var(--clay); }
 @media (max-width: 600px) { .sched li { grid-template-columns: 1fr; } .sched-act { justify-content: flex-start; } }
 
 /* Chapter assignments (P7h) */
@@ -972,3 +972,11 @@ fieldset { min-width: 0; }
 .done-act .small-btn .ico { width: 15px; height: 15px; vertical-align: -3px; }
 .done-card .csteps { border-top: 1px solid var(--line); }
 @media (max-width: 600px) { .done-wrap { flex-direction: column; align-items: flex-start; padding: 18px 16px; } .done-badge { width: 84px; height: 84px; } }
+/* Admin: chapters & assignments; trainee assignment note (P7j) */
+.asg-admin { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 0; }
+.asg-admin li { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-top: 1px solid var(--line); }
+.asg-admin li:first-child { border-top: 0; }
+.asg-admin .ch-num { margin-top: 8px; }
+.asg-admin-main { flex: 1; display: grid; gap: 4px; }
+.asg-admin-main input[name^="t"] { width: 100%; }
+.asg-note { color: var(--muted); }

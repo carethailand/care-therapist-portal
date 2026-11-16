@@ -632,7 +632,7 @@ function stepStatus(step, e, d, team = false) {
       const topics = (c.topics || []).length;
       const cov = chaptersCovered((d.hours || []).filter((h) => h.enrollment_id === e.id && h.step_id === step.id)).size;
       const subN = (d.subs || []).filter((x) => x.enrollment_id === e.id && x.step_id === step.id).length;
-      return `${fmtHours(got)} / ${c.target_hours ?? '?'} h${topics ? ` · ${cov}/${topics} chapters` : ''}${topics && subN ? ` · ${subN} assignments` : ''}`;
+      return `${fmtHours(got)} / ${c.target_hours ?? '?'} h${topics ? ` · ${cov}/${topics} chapters` : ''}${topics && subN ? ` · ${subN}/${asgChapters(step).length} assignments` : ''}`;
     }
     case 'gap': return c.days ? `${Math.round(c.days / 7)} weeks` : '';
     case 'result': {
@@ -1356,7 +1356,7 @@ function traineePanel(programKey, e, people, data) {
       if (canRetake() && active && atts.length && !passed && left <= 0 && last?.status !== 'in_progress') acts.push(`<button type="button" class="small-btn" data-retake="${esc(e.id)}">Allow extra attempt</button>`);
     }
     if (s.kind === 'session' && assessor && (active || hoursFor(e.id, s.id, data.hours))) acts.push(`<button type="button" class="small-btn" data-hours="${esc(s.id)}">${active ? 'Log hours' : 'View hours'}</button>`);
-    if (s.kind === 'session' && (s.config?.topics || []).length) {
+    if (s.kind === 'session' && asgChapters(s).length) {
       const subs = (data.subs || []).filter((x) => x.enrollment_id === e.id && x.step_id === s.id);
       const waiting = subs.filter((x) => x.status === 'submitted').length;
       acts.push(`<button type="button" class="small-btn${waiting ? ' primary' : ''}" data-asg="${esc(s.id)}">Assignments${waiting ? ` (${waiting} to review)` : ''}</button>`);
@@ -1900,13 +1900,21 @@ function mySchedule(step, enr, topics) {
 // ---------------------------------------------------------------------------
 // Chapter assignments
 // ---------------------------------------------------------------------------
+// Which chapters have an assignment (admin setting; default: every chapter).
+const asgChapters = (step) => {
+  const n = (step?.config?.topics || []).length;
+  const set = step?.config?.assignment_chapters;
+  return Array.isArray(set) ? set.filter((x) => x >= 1 && x <= n).sort((a, b) => a - b) : Array.from({ length: n }, (_, i) => i + 1);
+};
 const SUB_LABEL = { submitted: 'Submitted · waiting for review', reviewed: 'Reviewed', redo: 'Please redo' };
 const addDays = (iso, n) => { const [y, m, d] = iso.split('-').map(Number); const t = new Date(y, m - 1, d + n); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`; };
 
 // Trainee: one row per chapter, due 7 days after the session that covers it.
 function myAssignments(step, enr, topics) {
-  if (!topics.length) return '';
-  const subs = (mine.subs || []).filter((x) => x.enrollment_id === enr.id && x.step_id === step.id);
+  const chs = asgChapters(step);
+  if (!topics.length || !chs.length) return '';
+  const notes = step.config?.assignment_notes || {};
+  const subs = (mine.subs || []).filter((x) => x.enrollment_id === enr.id && x.step_id === step.id && chs.includes(x.chapter));
   const active = enr.status === 'active';
   const today = todayLocal();
   const dueFor = (ch) => {
@@ -1914,9 +1922,9 @@ function myAssignments(step, enr, topics) {
     return se ? addDays(se.held_on, 7) : null;
   };
   const done = subs.filter((x) => x.status === 'reviewed').length;
-  return `<h4 class="ch-h">Assignments <span class="muted small">· ${subs.length} of ${topics.length} submitted${done ? `, ${done} reviewed` : ''}</span></h4>
-    <ul class="asg-list">${topics.map((t, i) => {
-      const ch = i + 1;
+  return `<h4 class="ch-h">Assignments <span class="muted small">· ${subs.length} of ${chs.length} submitted${done ? `, ${done} reviewed` : ''}</span></h4>
+    <ul class="asg-list">${chs.map((ch) => {
+      const t = topics[ch - 1];
       const sub = subs.find((x) => x.chapter === ch);
       const due = dueFor(ch);
       const late = !sub && due && due < today;
@@ -1924,6 +1932,7 @@ function myAssignments(step, enr, topics) {
       return `<li class="asg ${sub ? sub.status : 'none'}">
         <span class="ch-num">${sub?.status === 'reviewed' ? icon('check') : ch}</span>
         <span class="asg-main"><span>${esc(t)}</span>
+          ${notes[ch] ? `<span class="asg-note small">${esc(notes[ch])}</span>` : ''}
           <span class="small ${sub?.status === 'redo' || late ? 'error' : sub?.status === 'reviewed' ? 'ok-text' : 'muted'}">${sub ? `${esc(SUB_LABEL[sub.status])}${sub.file_name ? ` · ${esc(sub.file_name)}` : ''}` : due ? `Due ${esc(fmtDate(due))}` : 'Not submitted'}</span>
           ${sub?.feedback ? `<span class="asg-fb small">“${esc(sub.feedback)}”</span>` : ''}
           <span class="asg-msg small" hidden></span></span>
@@ -1946,7 +1955,7 @@ function reviewDialog(programKey, step, enrs, people, data, waitingOnly = false)
     .sort((a, b) => (waitingOnly ? a.submitted_at.localeCompare(b.submitted_at) : a.chapter - b.chapter));
   const single = !waitingOnly && enrs.length === 1;
   const rows = single
-    ? topics.map((t, i) => ({ ch: i + 1, t, sub: subs.find((x) => x.chapter === i + 1) }))
+    ? asgChapters(step).map((ch) => ({ ch, t: topics[ch - 1], sub: subs.find((x) => x.chapter === ch) }))
     : subs.map((x) => ({ ch: x.chapter, t: topics[x.chapter - 1] || `Chapter ${x.chapter}`, sub: x }));
   dlg.innerHTML = `
     <div class="person-form rv">

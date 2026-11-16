@@ -122,6 +122,7 @@ function drawBody() {
       drawLearn(s, el);
     } else if (s.kind === 'learn') drawLearn(s, el);
     else if (s.kind === 'exam') drawExam(s, el);
+    else if (s.kind === 'session') drawSession(s, el);
     else if (s.kind === 'certificate') el.innerHTML = '<p class="muted">Issued automatically to everyone who passes the exam, with a certificate number. Trainees can save it as a PDF.</p>';
     else el.innerHTML = '<p class="muted">Editing for this kind of step comes with the Senior and QCD programmes.</p>';
   }
@@ -411,4 +412,50 @@ function importDialog(step, existing) {
     }
   });
   dlg.showModal();
+}
+
+// ---------------------------------------------------------------------------
+// In-person training: hours target, chapters and their assignments
+// ---------------------------------------------------------------------------
+function drawSession(step, el) {
+  const cfg = step.config || {};
+  const topics = cfg.topics || [];
+  const on = new Set(Array.isArray(cfg.assignment_chapters) ? cfg.assignment_chapters : topics.map((_, i) => i + 1));
+  const notes = cfg.assignment_notes || {};
+  el.innerHTML = `
+    <form class="person-form session-settings">
+      <label>Target hours <input name="target" type="number" min="1" max="500" value="${esc(cfg.target_hours ?? '')}"></label>
+      <p class="muted small">Tick the chapters that have an assignment. Trainees upload it in the Portal; it's due 7 days after the session that covers the chapter. Instructions are optional and shown to the trainee.</p>
+      <ol class="asg-admin">${topics.map((t, i) => `
+        <li>
+          <span class="ch-num">${i + 1}</span>
+          <div class="asg-admin-main">
+            <input name="t${i + 1}" value="${esc(t)}" aria-label="Chapter ${i + 1} title" maxlength="120">
+            <label class="check small"><input type="checkbox" name="a${i + 1}"${on.has(i + 1) ? ' checked' : ''}> <span>Has an assignment</span></label>
+            <textarea name="n${i + 1}" rows="2" maxlength="600" placeholder="Instructions (optional), e.g. Write one page on…"${on.has(i + 1) ? '' : ' hidden'}>${esc(notes[i + 1] || '')}</textarea>
+          </div>
+        </li>`).join('')}</ol>
+      ${topics.length ? '' : '<p class="muted">No chapters yet.</p>'}
+      <p><button type="submit" class="small-btn primary">Save chapters & assignments</button> <span class="msg small" role="status" hidden></span></p>
+    </form>`;
+  const f = el.querySelector('form');
+  for (const box of f.querySelectorAll('input[type="checkbox"][name^="a"]')) {
+    box.addEventListener('change', () => { f[`n${box.name.slice(1)}`].hidden = !box.checked; });
+  }
+  f.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const msg = f.querySelector('.msg');
+    const newTopics = topics.map((t, i) => f[`t${i + 1}`].value.trim() || t);
+    const chapters = topics.map((_, i) => i + 1).filter((n) => f[`a${n}`].checked);
+    const newNotes = {};
+    for (const n of chapters) { const v = f[`n${n}`].value.trim(); if (v) newNotes[n] = v; }
+    try {
+      await saveStepConfig(step.id, {
+        ...cfg, topics: newTopics, target_hours: f.target.value ? Number(f.target.value) : cfg.target_hours,
+        assignment_chapters: chapters, assignment_notes: newNotes,
+      });
+      msg.hidden = false; msg.className = 'msg small ok-text'; msg.textContent = 'Saved.';
+      await reloadContent();
+    } catch (e) { msg.hidden = false; msg.className = 'msg small error'; msg.textContent = e.message; }
+  });
 }
