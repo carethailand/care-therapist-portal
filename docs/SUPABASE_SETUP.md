@@ -238,3 +238,11 @@ Home shows the latest year badge (it replaces the one before) plus Passed probat
 2. **Publish** the app (run the SQL first: the new page reads the accreditation line).
 
 The course page now has a header (name, summary, lessons and hours, finish-by date, progress bar, step path) and folding steps: the step you're on is open, the others closed. Lessons show a coloured domain letter (A–G) and a round tick. To show "Qualified by QABA" (or similar) under the course name, fill in **Accreditation line** in ⚙️ Admin → Training content → Course settings.
+
+## Step 19 — Senior Therapist Training (added 2026-11-16)
+
+1. **Run** `supabase/migrations/20261116002000_senior_training.sql`, then `supabase/checks/rls_check.sql` (no rows).
+2. **Run** the private file *Portal training content › 2 Senior › Senior course setup – run once in Supabase.sql* (kept off GitHub). It adds the seven steps, ten videos and the 2026 practicum checklist, and switches the programme on.
+3. **Publish** the app.
+
+**How it works:** a supervisor taps *+ Recommend someone* (Junior therapists only) with a reason; an admin taps **Approve**. Trainees tick videos themselves (admin sends the links). Supervisors/QCD/admin log in-person hours (*Log a group session* or per person), record the written and oral exam results (score / full score + pass / not pass), and fill the practicum checklist (Prep 1–4, Clinic 1–4, technical skills) in the Portal; the checklist shows the pass rule as ticks. Trainees see pass / not pass + date for exams, and their practicum marks and comments. When the oral exam (the last step) is recorded as passed and every recorded step is passed, the place is completed and a certificate is issued; an admin then taps **Promote to Senior** (rank and badge change, timeline entry).

@@ -20,7 +20,7 @@ function friendly(error) {
 // ---------------------------------------------------------------------------
 export async function loadContent() {
   const [programs, steps, items] = await Promise.all([
-    supa.from('training_programs').select('key,title,summary,accreditation,sort_order,enabled,certificate,certificate_title,provider_name,certificate_note,enrolment_weeks,enrolment_weeks_new_hire').order('sort_order').then(must),
+    supa.from('training_programs').select('key,title,summary,accreditation,promotes_to,sort_order,enabled,certificate,certificate_title,provider_name,certificate_note,enrolment_weeks,enrolment_weeks_new_hire').order('sort_order').then(must),
     supa.from('training_steps').select('id,program_key,sort_order,kind,title,details,config').order('sort_order').then(must),
     supa.from('training_items').select('id,step_id,sort_order,title,url,kind,note,body').order('sort_order').then(must),
   ]);
@@ -30,6 +30,9 @@ export async function loadContent() {
 // ---------------------------------------------------------------------------
 // The signed-in trainee
 // ---------------------------------------------------------------------------
+const HOURS_COLS = 'id,enrollment_id,step_id,held_on,hours,topic';
+const EVAL_COLS = 'id,enrollment_id,step_id,section,seq,case_code,held_on,marks,comment,assessor_id,updated_at';
+
 export async function loadMyTraining(meId) {
   const enrollments = await supa
     .from('training_enrollments')
@@ -38,14 +41,19 @@ export async function loadMyTraining(meId) {
     .order('created_at', { ascending: false })
     .then(must);
   const ids = enrollments.map((e) => e.id);
-  if (!ids.length) return { enrollments, done: [], stepsDone: [], attempts: [], certificates: [] };
-  const [done, stepsDone, attempts, certificates] = await Promise.all([
+  if (!ids.length) return { enrollments, done: [], stepsDone: [], attempts: [], certificates: [], results: [], hours: [], evals: [] };
+  const [done, stepsDone, attempts, certificates, results, hours, evals] = await Promise.all([
     supa.from('training_item_done').select('enrollment_id,item_id').in('enrollment_id', ids).then(must),
     supa.from('training_step_done').select('enrollment_id,step_id,done_at').in('enrollment_id', ids).then(must),
     supa.from('exam_attempts').select('id,enrollment_id,step_id,started_at,deadline,submitted_at,status,passed').in('enrollment_id', ids).then(must),
     supa.from('certificates').select('id,code,program_key,enrollment_id,full_name,title,issued_on').eq('therapist_id', meId).then(must),
+    // Recorded results (pass / not pass + date only), hours and practicum marks.
+    // Older databases without these tables still load the page.
+    supa.rpc('training_my_results').then(must).catch(() => []),
+    supa.from('training_hours').select(HOURS_COLS).in('enrollment_id', ids).order('held_on').then(must).catch(() => []),
+    supa.from('training_practicum_evals').select(EVAL_COLS).in('enrollment_id', ids).then(must).catch(() => []),
   ]);
-  return { enrollments, done, stepsDone, attempts, certificates };
+  return { enrollments, done, stepsDone, attempts, certificates, results, hours, evals };
 }
 
 // "I have read and agree" (can't be undone by the trainee).
@@ -74,18 +82,21 @@ export const examSubmit = (attemptId, answers) => supa.rpc('exam_submit', { p_at
 export async function loadTeamProgram(programKey) {
   const enrollments = await supa
     .from('training_enrollments')
-    .select('id,therapist_id,program_key,status,started_on,finished_on,due_on,extra_attempts,created_at')
+    .select('id,therapist_id,program_key,status,reason,recommended_by,started_on,finished_on,due_on,extra_attempts,promoted_on,created_at')
     .eq('program_key', programKey)
     .order('created_at', { ascending: false })
     .then(must);
   const ids = enrollments.map((e) => e.id);
-  const [done, stepsDone, results, certificates] = await Promise.all([
+  const [done, stepsDone, results, certificates, stepResults, hours, evals] = await Promise.all([
     ids.length ? supa.from('training_item_done').select('enrollment_id,item_id').in('enrollment_id', ids).then(must) : [],
     ids.length ? supa.from('training_step_done').select('enrollment_id,step_id,done_at').in('enrollment_id', ids).then(must) : [],
     supa.rpc('exam_results', { p_program: programKey }).then(must),
     supa.from('certificates').select('id,code,therapist_id,program_key,enrollment_id,full_name,title,issued_on').eq('program_key', programKey).then(must),
+    ids.length ? supa.from('training_step_results').select('enrollment_id,step_id,held_on,score,full_score,passed,note,recorded_by,recorded_at').in('enrollment_id', ids).then(must).catch(() => []) : [],
+    ids.length ? supa.from('training_hours').select(HOURS_COLS).in('enrollment_id', ids).order('held_on').then(must).catch(() => []) : [],
+    ids.length ? supa.from('training_practicum_evals').select(EVAL_COLS).in('enrollment_id', ids).then(must).catch(() => []) : [],
   ]);
-  return { enrollments, done, stepsDone, results, certificates };
+  return { enrollments, done, stepsDone, results, certificates, stepResults, hours, evals };
 }
 
 export const setDueDate = (enrollmentId, dueOn) =>
@@ -102,6 +113,38 @@ export async function assignPeople(programKey, therapistIds, dueOn, approvedBy, 
     throw friendly(error);
   }
 }
+// Supervisors recommend someone; an admin approves (place becomes active) or declines.
+export async function recommend(programKey, therapistId, reason, meId) {
+  const { error } = await supa.from('training_enrollments').insert({
+    therapist_id: therapistId, program_key: programKey, status: 'recommended', reason, recommended_by: meId, started_on: null,
+  });
+  if (error) {
+    if (error.code === '23505') throw new Error('This person already has a place (or a recommendation) for this programme.');
+    throw friendly(error);
+  }
+}
+export const approveRecommendation = (enrollmentId, meId, today) => supa.from('training_enrollments')
+  .update({ status: 'active', approved_by: meId, started_on: today }).eq('id', enrollmentId).then(must);
+export const declineRecommendation = (enrollmentId) => supa.from('training_enrollments')
+  .update({ status: 'withdrawn' }).eq('id', enrollmentId).then(must);
+
+// Assessors (supervisor, QCD, admin): recorded results, hours, practicum checklist.
+export const recordResult = (enrollmentId, stepId, r) => supa.rpc('training_record_result', {
+  p_enrollment: enrollmentId, p_step: stepId, p_passed: r.passed, p_score: r.score ?? null,
+  p_full: r.full ?? null, p_held_on: r.heldOn || null, p_note: r.note || null,
+}).then(must);
+export async function logHours(rows) {
+  const { error } = await supa.from('training_hours').insert(rows);
+  if (error) throw friendly(error);
+}
+export const removeHours = (id) => supa.from('training_hours').delete().eq('id', id).then(must);
+export async function saveEval(row) {
+  const { error } = await supa.from('training_practicum_evals')
+    .upsert({ ...row, updated_at: new Date().toISOString() }, { onConflict: 'enrollment_id,step_id,section,seq' });
+  if (error) throw friendly(error);
+}
+export const promote = (enrollmentId) => supa.rpc('training_promote', { p_enrollment: enrollmentId }).then(must);
+
 export const allowRetake = (enrollmentId) => supa.rpc('exam_allow_retake', { p_enrollment: enrollmentId }).then(must);
 
 // ---------------------------------------------------------------------------

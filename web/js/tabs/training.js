@@ -4,6 +4,7 @@
 import {
   loadContent, loadMyTraining, setItemDone, agreeStep, examStart, examSave, examSubmit, examMySummary, examReview,
   loadTeamProgram, allowRetake, setDueDate, assignPeople,
+  recommend, approveRecommendation, declineRecommendation, recordResult, logHours, removeHours, saveEval, promote,
 } from '../training-data.js';
 import { rankOf } from '../labels.js';
 import { docHtml } from '../doc-text.js';
@@ -32,7 +33,7 @@ const canRetake = () => ctx.roles.some((r) => r === 'admin' || r === 'supervisor
 const safeUrl = (u) => (/^https?:\/\//i.test(u ?? '') ? u : null);
 const stepsOf = (key) => content.steps.filter((s) => s.program_key === key);
 const itemsOf = (stepId) => content.items.filter((i) => i.step_id === stepId);
-const canTick = (it) => (it.kind === 'document' ? !!it.body : !!safeUrl(it.url));
+const canTick = (it) => (it.kind === 'document' ? !!it.body : it.kind === 'video' ? true : !!safeUrl(it.url));
 
 // Canva designs are shown INSIDE the Portal (no link to copy on screen).
 // Only real Canva design links are embedded; anything else opens normally.
@@ -92,7 +93,11 @@ function myCurrent() {
 function previewPrograms(current) {
   const staff = ctx.me.track !== 'abat' && rankOf(ctx.roles) !== 'applicant';
   if (!staff) return [];
-  return content.programs.filter((p) => p.enabled && !current.some((e) => e.program_key === p.key));
+  // Programmes that lead to a rank are previewed only by the rank below
+  // (Senior training: Junior therapists; QCD training: Senior therapists).
+  const fromRank = { senior: 'therapist', qcd: 'senior' };
+  return content.programs.filter((p) => p.enabled && !current.some((e) => e.program_key === p.key)
+    && (!p.promotes_to || rankOf(ctx.roles) === fromRank[p.promotes_to]));
 }
 
 function drawHome() {
@@ -100,8 +105,10 @@ function drawHome() {
   const previews = previewPrograms(current);
   const teamPrograms = content.programs.filter((p) => p.enabled);
   panelEl.innerHTML = `
+    <div id="my-training">
     ${current.map(programCard).join('')}
     ${previews.map(previewCard).join('')}
+    </div>
     ${!current.length && !previews.length
       ? `<section class="card"><h2>My training</h2>
            <p class="muted">You're not in a training programme right now. When you are, it will appear here.</p></section>` : ''}
@@ -142,6 +149,15 @@ function drawHome() {
   for (const d of panelEl.querySelectorAll('details[data-fold]')) {
     d.querySelector('summary').addEventListener('click', () => stepOpen.set(d.dataset.fold, !d.open));
   }
+  for (const b of panelEl.querySelectorAll('#my-training [data-pr]')) {
+    b.addEventListener('click', () => {
+      const [stepId, enrId, section, seq] = b.dataset.pr.split('|');
+      const step = content.steps.find((x) => x.id === stepId);
+      const enr = mine.enrollments.find((x) => x.id === enrId);
+      const slot = practicumSlots(step).find((x) => x.section === section && x.seq === Number(seq));
+      practicumDialog(step, enr, slot, evalFor(mine.evals, enrId, stepId, slot), { editable: false });
+    });
+  }
   for (const b of panelEl.querySelectorAll('[data-start-exam]')) {
     b.addEventListener('click', () => confirmStart(content.steps.find((s) => s.id === b.dataset.startExam), b.dataset.resume === '1'));
   }
@@ -179,16 +195,29 @@ function drawHome() {
   }
 }
 
+// Course progress: lessons ticked (ABAT), or steps completed for programmes
+// with recorded steps (Senior, QCD), where lessons are only the first part.
+function progressOf(prog, enr) {
+  const steps = stepsOf(prog.key);
+  if (steps.some((s) => ['session', 'result', 'practicum'].includes(s.kind))) {
+    const st = stepStates(prog, enr);
+    return { done: st.filter((x) => x === 'done').length, total: steps.length, unit: 'steps' };
+  }
+  const lessons = steps.filter((s) => s.kind === 'learn').flatMap((s) => itemsOf(s.id));
+  return { done: enr ? lessons.filter((i) => mine.done.some((d) => d.enrollment_id === enr.id && d.item_id === i.id)).length : 0, total: lessons.length, unit: '' };
+}
+const progressText = (p) => `${p.done} of ${p.total}${p.unit ? ` ${p.unit}` : ''} done`;
+
 function updateProgress(enrId) {
   const box = panelEl.querySelector(`[data-progress="${CSS.escape(enrId)}"]`);
   const enr = mine.enrollments.find((e) => e.id === enrId);
-  if (!box || !enr) return;
-  const lessons = stepsOf(enr.program_key).filter((s) => s.kind === 'learn').flatMap((s) => itemsOf(s.id));
-  const n = lessons.filter((i) => mine.done.some((d) => d.enrollment_id === enrId && d.item_id === i.id)).length;
-  const pct = lessons.length ? Math.round((n / lessons.length) * 100) : 0;
+  const prog = enr && content.programs.find((p) => p.key === enr.program_key);
+  if (!box || !prog) return;
+  const p = progressOf(prog, enr);
+  const pct = p.total ? Math.round((p.done / p.total) * 100) : 0;
   box.querySelector('.progress span').style.width = `${pct}%`;
   box.querySelector('.progress').setAttribute('aria-valuenow', pct);
-  box.querySelector('[data-progress-text]').textContent = `${n} of ${lessons.length} done`;
+  box.querySelector('[data-progress-text]').textContent = progressText(p);
 }
 
 function learnCount(enrId, stepId) {
@@ -199,8 +228,10 @@ function learnCount(enrId, stepId) {
 
 // ---- Course page pieces (design 2026-11-16: calm, no "Module" wording, one
 // line icon per step, domain letters for lessons) ----------------------------
-const STEP_ICO = { agree: 'file-text', learn: 'book', exam: 'clock', certificate: 'award', practicum: 'user-check', session: 'users' };
-const STEP_SHORT = { agree: 'Policies', learn: 'Coursework', exam: 'Exam', certificate: 'Certificate', practicum: 'Practicum', session: 'Session' };
+const STEP_ICO = { agree: 'file-text', learn: 'book', exam: 'clock', certificate: 'award', practicum: 'user-check', session: 'school', gap: 'calendar', result: 'file-text' };
+const STEP_SHORT = { agree: 'Policies', learn: 'Coursework', exam: 'Exam', certificate: 'Certificate', practicum: 'Practicum', session: 'Training', gap: 'Review' };
+const stepIcon = (s) => (s.kind === 'result' && s.config?.mode === 'oral' ? 'users' : STEP_ICO[s.kind] ?? 'sparkles');
+const stepShort = (s) => (s.kind === 'learn' && itemsOf(s.id).some((i) => i.kind === 'video') ? 'Videos' : STEP_SHORT[s.kind] ?? s.title);
 
 // "Module 5 — Skill Acquisition 1 (goals, prompting…)" → { title, sub }
 function lessonName(t) {
@@ -214,6 +245,7 @@ const metaOf = (it) => (domainOf(it) ? String(it.note ?? '') : '');
 
 function lessonAction(it) {
   const url = safeUrl(it.url);
+  if (it.kind === 'video' && !url) return '<span class="muted small nowrap">Link from Admin</span>';
   if (it.kind === 'document' && it.body) return `<button type="button" class="small-btn" data-read="${esc(it.id)}">Read</button>`;
   if (canvaEmbed(url)) return `<button type="button" class="small-btn" data-canva="${esc(it.id)}">${icon('player-play')} Open</button>`;
   if (url) return `<a class="small-btn" href="${esc(url)}" target="_blank" rel="noopener noreferrer">Open</a>`;
@@ -226,7 +258,7 @@ function lessonRow(it, enr, ico = null) {
   const { title, sub } = lessonName(it.title);
   const done = !!enr && mine.done.some((x) => x.enrollment_id === enr.id && x.item_id === it.id);
   const tile = d ? `<span class="lesson-tile d-${esc(d)}" aria-hidden="true">${esc(d)}</span>`
-    : `<span class="lesson-tile d-read" aria-hidden="true">${icon(ico || (it.kind === 'document' ? 'books' : 'link'))}</span>`;
+    : `<span class="lesson-tile d-read" aria-hidden="true">${icon(ico || (it.kind === 'document' ? 'books' : it.kind === 'video' ? 'player-play' : 'link'))}</span>`;
   const meta = d ? metaOf(it) : (it.note ? it.note : '');
   const tick = enr ? `<label class="tick" title="Mark as done">
       <input type="checkbox" data-enr="${esc(enr.id)}" data-item="${esc(it.id)}"${done ? ' checked' : ''}${enr.status === 'active' && canTick(it) ? '' : ' disabled'}>
@@ -251,7 +283,7 @@ function stepShell(step, n, state, inner, extra = '', defaultOpen = state === 'c
     <details data-fold="${esc(step.id)}"${open ? ' open' : ''}>
       <summary class="cstep-head">
         <span class="cstep-num" aria-hidden="true">${state === 'done' ? icon('check') : n}</span>
-        <span class="cstep-ico" aria-hidden="true">${icon(STEP_ICO[step.kind] ?? 'sparkles')}</span>
+        <span class="cstep-ico" aria-hidden="true">${icon(stepIcon(step))}</span>
         <h3>${esc(step.title)}</h3>${extra}
         ${state === 'done' ? '<span class="chip ok cstep-tag">Done</span>' : ''}
         <span class="cstep-chev" aria-hidden="true">${icon('chevron-down')}</span>
@@ -271,6 +303,12 @@ function stepStates(prog, enr) {
     if (s.kind === 'learn') { const it = itemsOf(s.id); return it.length > 0 && it.every((i) => mine.done.some((d) => d.enrollment_id === enr.id && d.item_id === i.id)); }
     if (s.kind === 'exam') return mine.attempts.some((a) => a.enrollment_id === enr.id && a.step_id === s.id && a.passed);
     if (s.kind === 'certificate') return mine.certificates.some((c) => c.enrollment_id === enr.id);
+    if (s.kind === 'session') return hoursFor(enr.id, s.id) >= (s.config?.target_hours ?? Infinity);
+    if (s.kind === 'result' || s.kind === 'practicum') return !!resultFor(enr.id, s.id)?.passed;
+    if (s.kind === 'gap') { // done once anything after it has a result
+      const later = steps.filter((x) => x.sort_order > s.sort_order && ['result', 'practicum'].includes(x.kind));
+      return later.some((x) => resultFor(enr.id, x.id));
+    }
     return false;
   };
   let currentSet = false;
@@ -285,9 +323,10 @@ function courseHero(prog, enr, statusChip) {
   const steps = stepsOf(prog.key);
   const lessons = steps.filter((s) => s.kind === 'learn').flatMap((s) => itemsOf(s.id));
   const mods = lessons.filter((i) => domainOf(i));
+  const vids = lessons.filter((i) => i.kind === 'video');
   const hrs = lessons.reduce((t, i) => t + hoursOf(i), 0);
-  const doneN = enr ? lessons.filter((i) => mine.done.some((d) => d.enrollment_id === enr.id && d.item_id === i.id)).length : 0;
-  const pct = lessons.length ? Math.round((doneN / lessons.length) * 100) : 0;
+  const prg = progressOf(prog, enr);
+  const pct = prg.total ? Math.round((prg.done / prg.total) * 100) : 0;
   const states = stepStates(prog, enr);
   let due = '';
   if (enr?.due_on && enr.status === 'active') {
@@ -307,13 +346,15 @@ function courseHero(prog, enr, statusChip) {
     ${prog.summary ? `<p class="course-sum">${esc(prog.summary)}</p>` : ''}
     <div class="course-pills">
       ${mods.length ? `<span class="pill">${icon('book')} ${mods.length} lessons${hrs ? ` · about ${Math.round(hrs)} h` : ''}</span>` : ''}
+      ${vids.length ? `<span class="pill">${icon('player-play')} ${vids.length} videos</span>` : ''}
+      ${steps.filter((x) => x.kind === 'session').map((x) => `<span class="pill">${icon('school')} ${x.config?.target_hours ?? ''} h in-person training</span>`).join('')}
       ${due}
     </div>
     ${enr ? `<div class="course-progress" data-progress="${esc(enr.id)}">
       <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><span style="width:${pct}%"></span></div>
-      <span class="small muted" data-progress-text>${doneN} of ${lessons.length} done</span></div>` : ''}
+      <span class="small muted" data-progress-text>${esc(progressText(prg))}</span></div>` : ''}
     <ol class="course-path" aria-label="Course steps">${steps.map((s, i) => `
-      <li class="${states[i]}"${states[i] === 'current' ? ' aria-current="step"' : ''}><span>${states[i] === 'done' ? icon('check') : i + 1}</span>${esc(STEP_SHORT[s.kind] ?? s.title)}</li>`).join('')}
+      <li class="${states[i]}"${states[i] === 'current' ? ' aria-current="step"' : ''}><span>${states[i] === 'done' ? icon('check') : i + 1}</span>${esc(stepShort(s))}</li>`).join('')}
     </ol>
   </header>`;
 }
@@ -414,7 +455,182 @@ function stepHtml(step, enr, n = 1, state = 'todo') {
       : '<p class="muted small">Unlocks when you pass the exam.</p>', '', !!cert);
   }
 
+  if (step.kind === 'session') {
+    const target = step.config?.target_hours ?? 0;
+    const got = hoursFor(enr.id, step.id);
+    const pct = target ? Math.min(100, Math.round((got / target) * 100)) : 0;
+    const log = (mine.hours || []).filter((h) => h.enrollment_id === enr.id && h.step_id === step.id);
+    return stepShell(step, n, state, `
+      <div class="course-progress"><div class="progress"><span style="width:${pct}%"></span></div>
+        <span class="small muted">${fmtHours(got)} of ${target} hours</span></div>
+      ${log.length ? `<ul class="hours-list">${log.map((h) => `<li><span>${esc(fmtDate(h.held_on))}</span><span>${esc(h.topic || 'Training session')}</span><span class="nowrap">${fmtHours(h.hours)} h</span></li>`).join('')}</ul>`
+        : '<p class="muted small">Your supervisor records each session here.</p>'}`,
+      ` <span class="muted small step-count">${fmtHours(got)} / ${target} h</span>`);
+  }
+
+  if (step.kind === 'gap') {
+    return stepShell(step, n, state, step.config?.days ? `<div class="course-pills"><span class="pill">${icon('calendar')} ${Math.round(step.config.days / 7)} weeks</span></div>` : '');
+  }
+
+  if (step.kind === 'result') {
+    const r = resultFor(enr.id, step.id);
+    const c = step.config || {};
+    const facts = `<div class="course-pills">
+      ${c.mode === 'paper' ? `<span class="pill">${icon('file-text')} On paper at CARE</span>` : ''}
+      ${c.mode === 'oral' ? `<span class="pill">${icon('users')} Oral, with the examiners</span>` : ''}
+      ${c.duration_min ? `<span class="pill">${icon('clock')} ${fmtMinutes(c.duration_min)}</span>` : ''}
+    </div>`;
+    const body = !r ? '<p class="muted small">Your supervisor records the result after the exam.</p>'
+      : r.passed ? `<p class="ok-text">${icon('check')} Passed${r.held_on ? ` · ${esc(fmtDate(r.held_on))}` : ''}</p>`
+        : `<p>Not passed this time${r.held_on ? ` (${esc(fmtDate(r.held_on))})` : ''}. Your supervisor will talk with you about the next step.</p>`;
+    return stepShell(step, n, state, `${r?.passed ? '' : facts}${body}`);
+  }
+
+  if (step.kind === 'practicum') {
+    return stepShell(step, n, state, practicumHtml(step, enr, false));
+  }
+
   return stepShell(step, n, state, '<p class="muted small">Coming soon.</p>');
+}
+
+// ---- helpers for recorded steps ---------------------------------------------
+const fmtHours = (h) => String(Math.round(Number(h || 0) * 10) / 10);
+const fmtMinutes = (m) => (m % 60 ? `${Math.floor(m / 60) ? `${Math.floor(m / 60)} h ` : ''}${m % 60} min` : `${m / 60} hour${m === 60 ? '' : 's'}`);
+function hoursFor(enrId, stepId, list = mine.hours) {
+  return (list || []).filter((h) => h.enrollment_id === enrId && h.step_id === stepId).reduce((t, h) => t + Number(h.hours), 0);
+}
+function resultFor(enrId, stepId, list = mine.results) {
+  return (list || []).find((r) => r.enrollment_id === enrId && r.step_id === stepId);
+}
+
+// Practicum: the evaluation slots (Prep 1–4, Clinic 1–4, Technical skills).
+function practicumSlots(step) {
+  const form = step.config?.practicum;
+  if (!form) return [];
+  const out = [];
+  for (const sec of form.sections) {
+    if (sec.key === 'skills') out.push({ section: 'skills', seq: 0, label: 'Technical skills', sec });
+    else for (let k = 1; k <= (sec.count || 1); k += 1) out.push({ section: sec.key, seq: k, label: `${sec.label} ${k}`, sec });
+  }
+  return out;
+}
+const evalFor = (list, enrId, stepId, slot) => (list || []).find((e) => e.enrollment_id === enrId && e.step_id === stepId && e.section === slot.section && e.seq === slot.seq);
+
+// Summary of one filled form: "5 of 7 +" or "18 of 21 tasks".
+function evalSummary(slot, ev) {
+  if (!ev) return '';
+  if (slot.section === 'skills') {
+    const items = slot.sec.groups.flatMap((g) => g.items);
+    const doneN = items.filter((it) => Object.values(ev.marks?.[it.n] || {}).some(Boolean)).length;
+    return `${doneN} of ${items.length} tasks`;
+  }
+  const plus = slot.sec.items.filter((_, i) => ev.marks?.[i + 1] === '+').length;
+  return `${plus} of ${slot.sec.items.length} +`;
+}
+
+// The pass rule, as a hint for the supervisor (they still record the result).
+function practicumCheck(step, enrId, list) {
+  const form = step.config?.practicum;
+  if (!form) return null;
+  const okLast = (key) => {
+    const sec = form.sections.find((x) => x.key === key);
+    const ev = (list || []).find((e) => e.enrollment_id === enrId && e.step_id === step.id && e.section === key && e.seq === sec.count);
+    return !!ev && sec.items.every((_, i) => ['+', 'n/a'].includes(ev.marks?.[i + 1]));
+  };
+  const skillsSec = form.sections.find((x) => x.key === 'skills');
+  const sk = (list || []).find((e) => e.enrollment_id === enrId && e.step_id === step.id && e.section === 'skills');
+  const skillsOk = !!sk && skillsSec.groups.flatMap((g) => g.items).every((it) => Object.values(sk.marks?.[it.n] || {}).some(Boolean));
+  return { prep: okLast('prep'), clinic: okLast('clinic'), skills: skillsOk };
+}
+
+function practicumHtml(step, enr, team, list = team ? null : mine.evals, result = null) {
+  const slots = practicumSlots(step);
+  if (!slots.length) return '<p class="muted small">The practicum checklist will appear here soon.</p>';
+  const r = result ?? resultFor(enr.id, step.id);
+  const filled = slots.filter((sl) => evalFor(list, enr.id, step.id, sl)).length;
+  return `
+    ${r ? (r.passed ? `<p class="ok-text">${icon('check')} Practicum passed${r.held_on ? ` · ${esc(fmtDate(r.held_on))}` : ''}</p>`
+      : '<p>Practicum not passed yet. Your supervisor will talk with you about the next step.</p>') : ''}
+    <p class="small muted">${filled} of ${slots.length} evaluations filled in</p>
+    <ul class="pr-slots">${slots.map((sl) => {
+      const ev = evalFor(list, enr.id, step.id, sl);
+      return `<li class="${ev ? 'filled' : ''}">
+        <span class="pr-label">${esc(sl.label)}</span>
+        <span class="pr-meta small muted">${ev ? `${ev.held_on ? esc(fmtDate(ev.held_on)) : ''}${ev.case_code ? ` · ${esc(ev.case_code)}` : ''} · ${esc(evalSummary(sl, ev))}` : 'Not yet'}</span>
+        ${ev || team ? `<button type="button" class="small-btn" data-pr="${esc(step.id)}|${esc(enr.id)}|${esc(sl.section)}|${sl.seq}">${team ? (ev ? 'Edit' : 'Fill in') : 'View'}</button>` : ''}
+      </li>`;
+    }).join('')}</ul>`;
+}
+
+// Read-only (trainee) or editable (assessor) checklist for one slot.
+function practicumDialog(step, enr, slot, ev, { editable, who = '', onSaved } = {}) {
+  const form = step.config.practicum;
+  const dlg = panelEl.querySelector('#tr-dlg');
+  const marks = ev?.marks || {};
+  const markSelect = (name, val) => editable
+    ? `<select name="${name}" aria-label="Mark">${['', ...form.marks].map((m) => `<option value="${esc(m)}"${val === m ? ' selected' : ''}>${m ? esc(m) : '–'}</option>`).join('')}</select>`
+    : `<span class="pr-mark ${val === '+' ? 'plus' : val ? '' : 'none'}">${esc(val || '–')}</span>`;
+  const keys = `<details class="pr-keys"><summary>Marking keys</summary>${form.keys.map((k) => `<p class="small"><strong>${esc(k.title)}</strong></p>
+    <ul class="small">${k.rows.map(([m, t]) => `<li><strong>${esc(m)}</strong> ${esc(t)}</li>`).join('')}</ul>`).join('')}</details>`;
+  let rows;
+  if (slot.section === 'skills') {
+    rows = slot.sec.groups.map((g) => `<h4>${esc(g.title)}</h4><ol class="pr-items" start="${g.items[0].n}">${g.items.map((it) => `
+      <li><span class="pr-text">${esc(it.text)}</span>
+        <span class="pr-methods">${it.methods.map((m) => editable
+          ? `<label class="check"><input type="checkbox" name="s${it.n}_${m}"${marks[it.n]?.[m] ? ' checked' : ''}> <span>${esc(form.methods[m])}</span></label>`
+          : `<span class="chip${marks[it.n]?.[m] ? ' ok' : ''}">${marks[it.n]?.[m] ? '✓ ' : ''}${esc(form.methods[m])}</span>`).join('')}</span></li>`).join('')}</ol>`).join('');
+  } else {
+    rows = `<ol class="pr-items">${slot.sec.items.map((t, i) => `<li><span class="pr-text">${esc(t)}</span>${markSelect(`m${i + 1}`, marks[i + 1])}</li>`).join('')}</ol>`;
+  }
+  dlg.innerHTML = `
+    <form method="dialog" class="pr-form">
+      <h2>${esc(slot.label)}${who ? ` · ${esc(who)}` : ''}</h2>
+      <p class="muted small">${esc(slot.sec.title)}. ${esc(slot.sec.note || '')}</p>
+      ${slot.section === 'skills' ? '' : (editable
+        ? `<div class="grid2"><label>Case (3-letter code) <input name="case" maxlength="3" pattern="[A-Za-z]{3}" value="${esc(ev?.case_code || '')}" placeholder="ABC"></label>
+           <label>Date <input name="held" type="date" value="${esc(ev?.held_on || todayLocal())}"></label></div>`
+        : `<p class="small">${ev?.held_on ? esc(fmtDate(ev.held_on)) : ''}${ev?.case_code ? ` · case ${esc(ev.case_code)}` : ''}</p>`)}
+      ${slot.section === 'skills' && editable ? `<label>Date <input name="held" type="date" value="${esc(ev?.held_on || todayLocal())}"></label>` : ''}
+      ${slot.section === 'skills' ? '' : keys}
+      ${rows}
+      ${editable ? `<label>Comment for the trainee <textarea name="comment" rows="3" maxlength="2000">${esc(ev?.comment || '')}</textarea></label>`
+        : ev?.comment ? `<div class="pr-comment"><p class="small muted">Comment</p><p>${esc(ev.comment)}</p></div>` : ''}
+      <p class="muted small">Cases are written as 3-letter codes only. Never a child's name.</p>
+      <p class="msg" role="status" hidden></p>
+      <div class="dlg-actions"><span class="spacer"></span>
+        <button type="button" data-act="close">${editable ? 'Cancel' : 'Close'}</button>
+        ${editable ? '<button type="submit" class="primary">Save</button>' : ''}</div>
+    </form>`;
+  const f = dlg.querySelector('form');
+  f.querySelector('[data-act="close"]').addEventListener('click', () => dlg.close());
+  if (editable) {
+    f.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const msg = f.querySelector('.msg');
+      const out = {};
+      if (slot.section === 'skills') {
+        for (const it of slot.sec.groups.flatMap((g) => g.items)) {
+          const m = {};
+          for (const k of it.methods) if (f[`s${it.n}_${k}`].checked) m[k] = true;
+          if (Object.keys(m).length) out[it.n] = m;
+        }
+      } else {
+        slot.sec.items.forEach((_, i) => { const v = f[`m${i + 1}`].value; if (v) out[i + 1] = v; });
+      }
+      const code = f.case ? f.case.value.trim().toUpperCase() : '';
+      if (code && !/^[A-Z]{3}$/.test(code)) { msg.hidden = false; msg.dataset.kind = 'error'; msg.textContent = 'The case code is exactly 3 letters (e.g. ABC).'; return; }
+      try {
+        await saveEval({
+          enrollment_id: enr.id, step_id: step.id, section: slot.section, seq: slot.seq,
+          case_code: code || null, held_on: f.held?.value || null, marks: out,
+          comment: f.comment.value.trim() || null, assessor_id: ctx.me.id,
+        });
+        dlg.close();
+        await onSaved?.();
+      } catch (err) { msg.hidden = false; msg.dataset.kind = 'error'; msg.textContent = err.message; }
+    });
+  }
+  if (!dlg.open) dlg.showModal();
 }
 
 // ---------------------------------------------------------------------------
@@ -848,90 +1064,338 @@ async function drawTeam(programKey) {
     body.innerHTML = `<p class="error">Could not load trainees: ${esc(e.message)}</p>`;
     return;
   }
-  const learnItems = stepsOf(programKey).filter((s) => s.kind === 'learn').flatMap((s) => itemsOf(s.id));
-  const agreeSteps = stepsOf(programKey).filter((s) => s.kind === 'agree');
-  const examStep = stepsOf(programKey).find((s) => s.kind === 'exam');
+  const prog = content.programs.find((p) => p.key === programKey);
+  const steps = stepsOf(programKey);
+  const learnItems = steps.filter((s) => s.kind === 'learn').flatMap((s) => itemsOf(s.id));
+  const agreeSteps = steps.filter((s) => s.kind === 'agree');
+  const examStep = steps.find((s) => s.kind === 'exam');
   const maxAttempts = examStep?.config?.max_attempts ?? 1;
+  const sessionSteps = steps.filter((s) => s.kind === 'session');
+  const recSteps = steps.filter((s) => s.kind === 'result' || s.kind === 'practicum');
   const rows = data.enrollments.filter((e) => e.status !== 'withdrawn');
-  const assignBtn = ctx.roles.includes('admin')
-    ? `<p><button type="button" class="primary" data-assign>+ Assign people</button></p>` : '';
-  const wireAssign = () => body.querySelector('[data-assign]')?.addEventListener('click', () => assignDialog(programKey, people, data));
+  const nameOf = (id) => { const p = people.find((x) => x.id === id); return p ? (p.nickname || p.full_name) : 'Unknown'; };
+  const isSup = ctx.roles.includes('supervisor');
+  const assessor = ctx.roles.some((r) => ['admin', 'supervisor', 'qcd'].includes(r));
+  const tools = [
+    isAdmin() ? '<button type="button" class="primary" data-assign>+ Assign people</button>' : '',
+    prog?.promotes_to && (isSup || isAdmin()) ? '<button type="button" data-recommend>+ Recommend someone</button>' : '',
+    assessor && sessionSteps.length && rows.some((e) => e.status === 'active') ? `<button type="button" data-group-hours>${icon('school')} Log a group session</button>` : '',
+  ].filter(Boolean).join(' ');
+  const wireTools = () => {
+    body.querySelector('[data-assign]')?.addEventListener('click', () => assignDialog(programKey, people, data));
+    body.querySelector('[data-recommend]')?.addEventListener('click', () => recommendDialog(programKey, people, data));
+    body.querySelector('[data-group-hours]')?.addEventListener('click', () => hoursDialog(programKey, sessionSteps[0], rows.filter((e) => e.status === 'active'), nameOf, data));
+  };
   if (!rows.length) {
-    body.innerHTML = `${assignBtn}<p class="muted">No one is in this programme yet.</p>`;
-    wireAssign();
+    body.innerHTML = `${tools ? `<p class="row-actions">${tools}</p>` : ''}<p class="muted">No one is in this programme yet.</p>`;
+    wireTools();
     return;
   }
-  const order = { active: 0, recommended: 1, not_passed: 2, passed: 3 };
+  const order = { recommended: 0, active: 1, not_passed: 2, passed: 3 };
   rows.sort((a, b) => (order[a.status] ?? 9) - (order[b.status] ?? 9));
+  const hasDue = rows.some((e) => e.due_on);
+  const learnLabel = learnItems.some((i) => i.kind === 'video') ? 'Videos' : 'Lessons';
 
-  body.innerHTML = `${assignBtn}
+  const head = ['Person', 'Status', 'Started', ...(hasDue ? ['Finish by'] : []),
+    ...(agreeSteps.length ? ['Policies'] : []), ...(learnItems.length ? [learnLabel] : []), ...(examStep ? ['Exam'] : []),
+    ...sessionSteps.map(() => 'Hours'), ...recSteps.map((s) => s.title), ''];
+
+  body.innerHTML = `${tools ? `<p class="row-actions">${tools}</p>` : ''}
     <div class="table-wrap"><table class="team-table">
-      <thead><tr><th>Person</th><th>Status</th><th>Started</th><th>Finish by</th><th>Policies</th><th>Lessons</th><th>Exam</th><th></th></tr></thead>
+      <thead><tr>${head.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead>
       <tbody>${rows.map((e) => {
         const p = people.find((x) => x.id === e.therapist_id);
-        const name = p ? (p.nickname || p.full_name) : 'Unknown';
-        const doneN = learnItems.filter((i) => data.done.some((d) => d.enrollment_id === e.id && d.item_id === i.id)).length;
-        const atts = data.results.filter((r) => r.enrollment_id === e.id);
-        const last = atts[0];
-        const passed = atts.some((r) => r.passed);
-        const left = maxAttempts + (e.extra_attempts ?? 0) - atts.length;
-        const agreed = agreeSteps.length ? agreeSteps.every((s) => data.stepsDone.some((d) => d.enrollment_id === e.id && d.step_id === s.id)) : null;
-        let exam = '<span class="muted">Not started</span>';
-        if (last?.status === 'in_progress') exam = 'In progress';
-        else if (last) {
-          const best = passed ? atts.find((r) => r.passed) : last;
-          exam = `${best.passed ? '<span class="ok-text">Passed</span>' : '<span class="error">Not passed</span>'}
-            · ${Number(best.score)}/${Number(best.total)}${best.time_used_min ? ` · ${best.time_used_min} min` : ''}
-            ${atts.length > 1 ? `<span class="muted small"> (${atts.length} attempts)</span>` : ''}`;
+        const name = nameOf(e.therapist_id);
+        const active = e.status === 'active';
+        const cells = [];
+        cells.push(`<td><strong>${esc(name)}</strong>${p?.track === 'abat' ? ' <span class="chip track-abat">ABAT</span>' : ''}
+          ${e.status === 'recommended' ? `<div class="muted small">Recommended by ${esc(nameOf(e.recommended_by))}${e.reason ? `: “${esc(e.reason)}”` : ''}</div>` : ''}</td>`);
+        cells.push(`<td>${esc(STATUS_LABEL[e.status] ?? e.status)}${e.promoted_on ? `<div class="ok-text small">Promoted ${esc(fmtDate(e.promoted_on))}</div>` : ''}</td>`);
+        cells.push(`<td>${esc(fmtDate(e.started_on))}</td>`);
+        if (hasDue) {
+          cells.push(`<td class="nowrap">${e.due_on ? esc(fmtDate(e.due_on)) : '—'}${active && e.due_on && e.due_on < todayLocal() ? ' <span class="chip warn">Overdue</span>' : ''}
+            ${isAdmin() && active ? `<button type="button" class="small-btn" data-due="${esc(e.id)}" data-name="${esc(name)}" data-date="${esc(e.due_on ?? '')}" aria-label="Change finish date">Change</button>` : ''}</td>`);
         }
-        if (canReview()) {
-          const subs = atts.filter((r) => r.status === 'submitted').slice().reverse();
-          if (subs.length) exam += `<div>${subs.map((r, n) => `<button type="button" class="link small" data-review="${esc(r.attempt_id)}">Review${subs.length > 1 ? ` #${n + 1}` : ''}</button>`).join(' · ')}</div>`;
+        if (agreeSteps.length) {
+          const agreed = agreeSteps.every((s) => data.stepsDone.some((d) => d.enrollment_id === e.id && d.step_id === s.id));
+          cells.push(`<td>${agreed ? '<span class="ok-text">✓ Agreed</span>' : '<span class="muted">Not yet</span>'}</td>`);
+        }
+        if (learnItems.length) {
+          const doneN = learnItems.filter((i) => data.done.some((d) => d.enrollment_id === e.id && d.item_id === i.id)).length;
+          cells.push(`<td>${doneN}/${learnItems.length}</td>`);
+        }
+        let retakeBtn = '';
+        if (examStep) {
+          const atts = data.results.filter((r) => r.enrollment_id === e.id);
+          const last = atts[0];
+          const passed = atts.some((r) => r.passed);
+          const left = maxAttempts + (e.extra_attempts ?? 0) - atts.length;
+          let exam = '<span class="muted">Not started</span>';
+          if (last?.status === 'in_progress') exam = 'In progress';
+          else if (last) {
+            const best = passed ? atts.find((r) => r.passed) : last;
+            exam = `${best.passed ? '<span class="ok-text">Passed</span>' : '<span class="error">Not passed</span>'}
+              · ${Number(best.score)}/${Number(best.total)}${best.time_used_min ? ` · ${best.time_used_min} min` : ''}
+              ${atts.length > 1 ? `<span class="muted small"> (${atts.length} attempts)</span>` : ''}`;
+          }
+          if (canReview()) {
+            const subs = atts.filter((r) => r.status === 'submitted').slice().reverse();
+            if (subs.length) exam += `<div>${subs.map((r, n) => `<button type="button" class="link small" data-review="${esc(r.attempt_id)}">Review${subs.length > 1 ? ` #${n + 1}` : ''}</button>`).join(' · ')}</div>`;
+          }
+          cells.push(`<td>${exam}</td>`);
+          if (canRetake() && active && atts.length && !passed && left <= 0 && last?.status !== 'in_progress') {
+            retakeBtn = `<button type="button" class="small-btn" data-retake="${esc(e.id)}" data-name="${esc(name)}">Allow extra attempt</button>`;
+          }
+        }
+        for (const st of sessionSteps) {
+          const got = hoursFor(e.id, st.id, data.hours);
+          cells.push(`<td class="nowrap">${fmtHours(got)} / ${esc(st.config?.target_hours ?? '?')} h
+            ${assessor && (active || got) ? `<button type="button" class="small-btn" data-hours="${esc(e.id)}|${esc(st.id)}">${active ? 'Log' : 'View'}</button>` : ''}</td>`);
+        }
+        for (const st of recSteps) {
+          const r = resultFor(e.id, st.id, data.stepResults);
+          const score = r && r.score != null ? ` · ${Number(r.score)}${r.full_score ? `/${Number(r.full_score)}` : ''}` : '';
+          let cell = r ? `${r.passed ? '<span class="ok-text">Passed</span>' : '<span class="error">Not passed</span>'}${score}${r.held_on ? `<div class="muted small">${esc(fmtDate(r.held_on))}</div>` : ''}`
+            : '<span class="muted">—</span>';
+          if (st.kind === 'practicum') {
+            const filled = practicumSlots(st).filter((sl) => evalFor(data.evals, e.id, st.id, sl)).length;
+            cell = `<div class="small">${filled}/${practicumSlots(st).length} forms</div>${cell}
+              ${(assessor || ctx.roles.includes('hr')) && e.status !== 'recommended' ? `<div><button type="button" class="small-btn" data-checklist="${esc(e.id)}|${esc(st.id)}">Checklist</button></div>` : ''}`;
+          }
+          if (assessor && active) cell += `<div><button type="button" class="link small" data-record="${esc(e.id)}|${esc(st.id)}">${r ? 'Edit result' : 'Record result'}</button></div>`;
+          cells.push(`<td>${cell}</td>`);
         }
         const cert = data.certificates.find((c) => c.enrollment_id === e.id);
         const actions = [
           cert ? `<button type="button" class="small-btn" data-tcert="${esc(cert.id)}">Certificate</button>` : '',
-          canRetake() && e.status === 'active' && atts.length && !passed && left <= 0 && last?.status !== 'in_progress'
-            ? `<button type="button" class="small-btn" data-retake="${esc(e.id)}" data-name="${esc(name)}">Allow extra attempt</button>` : '',
-        ].join(' ');
-        return `<tr>
-          <td><strong>${esc(name)}</strong>${p?.track === 'abat' ? ' <span class="chip track-abat">ABAT</span>' : ''}</td>
-          <td>${esc(STATUS_LABEL[e.status] ?? e.status)}</td>
-          <td>${esc(fmtDate(e.started_on))}</td>
-          <td class="nowrap">${e.due_on ? esc(fmtDate(e.due_on)) : '—'}${e.status === 'active' && e.due_on && e.due_on < todayLocal() ? ' <span class="chip warn">Overdue</span>' : ''}
-            ${isAdmin() && e.status === 'active' ? `<button type="button" class="small-btn" data-due="${esc(e.id)}" data-name="${esc(name)}" data-date="${esc(e.due_on ?? '')}" aria-label="Change finish date">Change</button>` : ''}</td>
-          <td>${agreed === null ? '—' : agreed ? '<span class="ok-text">✓ Agreed</span>' : '<span class="muted">Not yet</span>'}</td>
-          <td>${learnItems.length ? `${doneN}/${learnItems.length}` : '—'}</td>
-          <td>${exam}</td>
-          <td>${actions}</td>
-        </tr>`;
+          retakeBtn,
+          isAdmin() && e.status === 'recommended' ? `<button type="button" class="small-btn primary" data-approve="${esc(e.id)}">Approve</button> <button type="button" class="small-btn" data-decline="${esc(e.id)}" data-name="${esc(name)}">Decline</button>` : '',
+          isAdmin() && e.status === 'passed' && prog?.promotes_to && !e.promoted_on && !(p?.roles || []).includes(prog.promotes_to)
+            ? `<button type="button" class="small-btn primary" data-promote="${esc(e.id)}" data-name="${esc(name)}">Promote to ${esc(RANK_NAME[prog.promotes_to] ?? prog.promotes_to)}</button>` : '',
+        ].filter(Boolean).join(' ');
+        cells.push(`<td>${actions}</td>`);
+        return `<tr>${cells.join('')}</tr>`;
       }).join('')}</tbody>
     </table></div>
-    <p class="muted small">Trainees see their own score and a summary by domain, but never which questions they got wrong. Answer reviews are for admins, supervisors and QCD.</p>`;
+    ${examStep ? '<p class="muted small">Trainees see their own score and a summary by domain, but never which questions they got wrong. Answer reviews are for admins, supervisors and QCD.</p>' : ''}
+    ${recSteps.length ? '<p class="muted small">Recorded results: trainees see pass / not pass and the date only; scores and notes are for the team. Practicum marks and comments are shared with the trainee.</p>' : ''}`;
 
-  wireAssign();
+  wireTools();
+  const redraw = () => drawTeam(programKey);
   for (const b of body.querySelectorAll('[data-retake]')) {
     b.addEventListener('click', async () => {
       if (!confirm(`${b.dataset.name} has used all their attempts. Allow one extra attempt?`)) return;
       b.disabled = true;
-      try {
-        await allowRetake(b.dataset.retake);
-        await drawTeam(programKey);
-      } catch (e) {
-        alert(e.message);
-        b.disabled = false;
-      }
+      try { await allowRetake(b.dataset.retake); await redraw(); } catch (e) { alert(e.message); b.disabled = false; }
     });
   }
-  for (const b of body.querySelectorAll('[data-review]')) {
-    b.addEventListener('click', () => showReview(b.dataset.review));
+  for (const b of body.querySelectorAll('[data-review]')) b.addEventListener('click', () => showReview(b.dataset.review));
+  for (const b of body.querySelectorAll('[data-due]')) b.addEventListener('click', () => dueDialog(b.dataset.due, b.dataset.name, b.dataset.date, programKey));
+  for (const b of body.querySelectorAll('[data-tcert]')) b.addEventListener('click', () => showCertificate(data.certificates.find((c) => c.id === b.dataset.tcert)));
+  for (const b of body.querySelectorAll('[data-approve]')) {
+    b.addEventListener('click', async () => {
+      b.disabled = true;
+      try { await approveRecommendation(b.dataset.approve, ctx.me.id, todayLocal()); await redraw(); } catch (e) { alert(e.message); b.disabled = false; }
+    });
   }
-  for (const b of body.querySelectorAll('[data-due]')) {
-    b.addEventListener('click', () => dueDialog(b.dataset.due, b.dataset.name, b.dataset.date, programKey));
+  for (const b of body.querySelectorAll('[data-decline]')) {
+    b.addEventListener('click', async () => {
+      if (!confirm(`Decline the recommendation for ${b.dataset.name}?`)) return;
+      try { await declineRecommendation(b.dataset.decline); await redraw(); } catch (e) { alert(e.message); }
+    });
   }
-  for (const b of body.querySelectorAll('[data-tcert]')) {
-    b.addEventListener('click', () => showCertificate(data.certificates.find((c) => c.id === b.dataset.tcert)));
+  for (const b of body.querySelectorAll('[data-promote]')) {
+    b.addEventListener('click', async () => {
+      const to = RANK_NAME[prog.promotes_to] ?? prog.promotes_to;
+      if (!confirm(`Promote ${b.dataset.name} to ${to}? Their rank and badge change straight away.`)) return;
+      b.disabled = true;
+      try { await promote(b.dataset.promote); await redraw(); } catch (e) { alert(e.message); b.disabled = false; }
+    });
   }
+  for (const b of body.querySelectorAll('[data-hours]')) {
+    b.addEventListener('click', () => {
+      const [enrId, stepId] = b.dataset.hours.split('|');
+      hoursDialog(programKey, content.steps.find((x) => x.id === stepId), rows.filter((x) => x.id === enrId), nameOf, data, true);
+    });
+  }
+  for (const b of body.querySelectorAll('[data-record]')) {
+    b.addEventListener('click', () => {
+      const [enrId, stepId] = b.dataset.record.split('|');
+      const enr = rows.find((x) => x.id === enrId);
+      recordDialog(programKey, content.steps.find((x) => x.id === stepId), enr, nameOf(enr.therapist_id), resultFor(enrId, stepId, data.stepResults), data);
+    });
+  }
+  for (const b of body.querySelectorAll('[data-checklist]')) {
+    b.addEventListener('click', () => {
+      const [enrId, stepId] = b.dataset.checklist.split('|');
+      const enr = rows.find((x) => x.id === enrId);
+      checklistDialog(programKey, content.steps.find((x) => x.id === stepId), enr, nameOf(enr.therapist_id), data, assessor && enr.status === 'active');
+    });
+  }
+}
+
+const RANK_NAME = { therapist: 'Junior therapist', senior: 'Senior', qcd: 'QCD', supervisor: 'Supervisor' };
+
+// Supervisor (or admin): recommend a Junior therapist for this programme.
+function recommendDialog(programKey, people, data) {
+  const prog = content.programs.find((p) => p.key === programKey);
+  const open = new Set(data.enrollments.filter((e) => ['active', 'recommended', 'passed'].includes(e.status)).map((e) => e.therapist_id));
+  // Senior training is for Junior therapists; QCD training for Seniors.
+  const fromRank = { senior: 'therapist', qcd: 'senior' }[prog.promotes_to];
+  const eligible = people.filter((p) => p.status !== 'exited' && p.track !== 'abat' && rankOf(p.roles) === fromRank && !open.has(p.id))
+    .sort((a, b) => (a.nickname || a.full_name).localeCompare(b.nickname || b.full_name));
+  const dlg = panelEl.querySelector('#tr-dlg');
+  dlg.innerHTML = `
+    <form method="dialog" class="person-form">
+      <h2>Recommend for ${esc(prog.title)}</h2>
+      ${eligible.length ? `<label>Who? <select name="who" required><option value="">Choose…</option>${eligible.map((p) => `<option value="${esc(p.id)}">${esc(p.nickname ? `${p.nickname} (${p.full_name})` : p.full_name)}</option>`).join('')}</select></label>
+        <label>Why are you recommending them? <textarea name="reason" rows="3" maxlength="500" required></textarea></label>
+        <p class="muted small">An admin approves the recommendation, then their training place opens.</p>`
+        : `<p class="muted">Nobody eligible right now (${esc(RANK_NAME[fromRank] ?? '')}s without a place).</p>`}
+      <p class="msg" role="status" hidden></p>
+      <div class="dlg-actions"><span class="spacer"></span>
+        <button type="button" data-act="cancel">Cancel</button>
+        <button type="submit" class="primary"${eligible.length ? '' : ' disabled'}>Recommend</button></div>
+    </form>`;
+  const f = dlg.querySelector('form');
+  f.querySelector('[data-act="cancel"]').addEventListener('click', () => dlg.close());
+  f.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    try {
+      await recommend(programKey, f.who.value, f.reason.value.trim(), ctx.me.id);
+      dlg.close();
+      await drawTeam(programKey);
+    } catch (e) { const m = f.querySelector('.msg'); m.hidden = false; m.dataset.kind = 'error'; m.textContent = e.message; }
+  });
+  dlg.showModal();
+}
+
+// Log in-person training hours: for one person (with their log) or the group.
+function hoursDialog(programKey, step, enrs, nameOf, data, single = false) {
+  const dlg = panelEl.querySelector('#tr-dlg');
+  const log = single ? data.hours.filter((h) => h.enrollment_id === enrs[0].id && h.step_id === step.id) : [];
+  const canAdd = enrs.some((e) => e.status === 'active');
+  dlg.innerHTML = `
+    <form method="dialog" class="person-form">
+      <h2>${single ? `Training hours · ${esc(nameOf(enrs[0].therapist_id))}` : 'Log a group session'}</h2>
+      ${single ? (log.length ? `<ul class="hours-list">${log.map((h) => `<li><span>${esc(fmtDate(h.held_on))}</span><span>${esc(h.topic || 'Training session')}</span>
+          <span class="nowrap">${fmtHours(h.hours)} h <button type="button" class="link small" data-del="${esc(h.id)}">Remove</button></span></li>`).join('')}</ul>`
+        : '<p class="muted small">No sessions yet.</p>') : ''}
+      ${canAdd ? `
+      <div class="grid2">
+        <label>Date <input name="held" type="date" required value="${todayLocal()}"></label>
+        <label>Hours <input name="hours" type="number" min="0.5" max="12" step="0.5" required value="2"></label>
+      </div>
+      <label>Topic <input name="topic" maxlength="200" placeholder="e.g. Running clinic prep"></label>
+      ${single ? '' : `<fieldset class="assign-list"><legend>Who attended?</legend>${enrs.map((e) => `
+        <label class="check"><input type="checkbox" name="who" value="${esc(e.id)}" checked> <span>${esc(nameOf(e.therapist_id))}</span></label>`).join('')}</fieldset>`}` : ''}
+      <p class="msg" role="status" hidden></p>
+      <div class="dlg-actions"><span class="spacer"></span>
+        <button type="button" data-act="cancel">Close</button>
+        ${canAdd ? '<button type="submit" class="primary">Add session</button>' : ''}</div>
+    </form>`;
+  const f = dlg.querySelector('form');
+  const say = (t) => { const m = f.querySelector('.msg'); m.hidden = false; m.dataset.kind = 'error'; m.textContent = t; };
+  f.querySelector('[data-act="cancel"]').addEventListener('click', () => dlg.close());
+  for (const b of f.querySelectorAll('[data-del]')) {
+    b.addEventListener('click', async () => {
+      if (!confirm('Remove this session from their hours?')) return;
+      try { await removeHours(b.dataset.del); dlg.close(); await drawTeam(programKey); } catch (e) { say(e.message); }
+    });
+  }
+  f.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const ids = single ? [enrs[0].id] : [...f.querySelectorAll('input[name="who"]:checked')].map((b) => b.value);
+    if (!ids.length) return say('Tick who attended.');
+    try {
+      await logHours(ids.map((id) => ({ enrollment_id: id, step_id: step.id, held_on: f.held.value, hours: Number(f.hours.value), topic: f.topic.value.trim() || null, recorded_by: ctx.me.id })));
+      dlg.close();
+      await drawTeam(programKey);
+    } catch (e) { say(e.message); }
+  });
+  dlg.showModal();
+}
+
+// Record a written / oral exam or practicum result.
+function recordDialog(programKey, step, enr, name, current, data) {
+  const c = step.config || {};
+  const dlg = panelEl.querySelector('#tr-dlg');
+  const hint = step.kind === 'practicum' ? practicumCheck(step, enr.id, data.evals) : null;
+  dlg.innerHTML = `
+    <form method="dialog" class="person-form">
+      <h2>${esc(step.title)} · ${esc(name)}</h2>
+      ${hint ? `<ul class="pr-check small">
+        <li class="${hint.prep ? 'ok-text' : 'muted'}">${hint.prep ? '✓' : '○'} Last clinic prep: every item +</li>
+        <li class="${hint.clinic ? 'ok-text' : 'muted'}">${hint.clinic ? '✓' : '○'} Last clinic: every item +</li>
+        <li class="${hint.skills ? 'ok-text' : 'muted'}">${hint.skills ? '✓' : '○'} Technical skills: every task completed</li></ul>` : ''}
+      <div class="grid2">
+        <label>Date <input name="held" type="date" value="${esc(current?.held_on || todayLocal())}"></label>
+        ${step.kind === 'practicum' ? '' : `<label>Score <span class="muted small">(optional)</span>
+          <span class="score-pair"><input name="score" type="number" min="0" step="0.5" value="${esc(current?.score ?? '')}"> / <input name="full" type="number" min="1" step="0.5" value="${esc(current?.full_score ?? c.full_score ?? '')}"></span></label>`}
+      </div>
+      ${c.pass_score ? `<p class="muted small">Pass mark: ${esc(c.pass_score)}${c.full_score ? ` of ${esc(c.full_score)}` : ''}.</p>` : ''}
+      <fieldset class="pills"><legend>Result</legend>
+        <label class="pill"><input type="radio" name="passed" value="1"${current?.passed === true ? ' checked' : ''} required><span>Passed</span></label>
+        <label class="pill"><input type="radio" name="passed" value="0"${current?.passed === false ? ' checked' : ''}><span>Not passed</span></label>
+      </fieldset>
+      <label>Note for the team <span class="muted small">(the trainee doesn't see this)</span><textarea name="note" rows="2" maxlength="1000">${esc(current?.note || '')}</textarea></label>
+      <p class="msg" role="status" hidden></p>
+      <div class="dlg-actions"><span class="spacer"></span>
+        <button type="button" data-act="cancel">Cancel</button>
+        <button type="submit" class="primary">Save result</button></div>
+    </form>`;
+  const f = dlg.querySelector('form');
+  // Suggest pass / not pass from the score.
+  f.score?.addEventListener('input', () => {
+    if (c.pass_score && f.score.value !== '') f.querySelector(`input[name="passed"][value="${Number(f.score.value) >= c.pass_score ? 1 : 0}"]`).checked = true;
+  });
+  f.querySelector('[data-act="cancel"]').addEventListener('click', () => dlg.close());
+  f.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    try {
+      const res = await recordResult(enr.id, step.id, {
+        passed: f.passed.value === '1', score: f.score?.value !== '' && f.score ? Number(f.score.value) : null,
+        full: f.full?.value ? Number(f.full.value) : null, heldOn: f.held.value, note: f.note.value.trim(),
+      });
+      dlg.close();
+      if (res?.completed) alert(`${name} has completed the programme. 🎉 A certificate has been issued.`);
+      await drawTeam(programKey);
+    } catch (e) { const m = f.querySelector('.msg'); m.hidden = false; m.dataset.kind = 'error'; m.textContent = e.message; }
+  });
+  dlg.showModal();
+}
+
+// The practicum checklist for one trainee: pick a form to fill in or read.
+function checklistDialog(programKey, step, enr, name, data, editable) {
+  const dlg = panelEl.querySelector('#tr-dlg');
+  const hint = practicumCheck(step, enr.id, data.evals);
+  dlg.innerHTML = `
+    <div class="person-form">
+      <h2>Practicum checklist · ${esc(name)}</h2>
+      <p class="muted small">${esc(step.config?.practicum?.pass_rule || '')}</p>
+      <ul class="pr-check small">
+        <li class="${hint.prep ? 'ok-text' : 'muted'}">${hint.prep ? '✓' : '○'} Last clinic prep: every item +</li>
+        <li class="${hint.clinic ? 'ok-text' : 'muted'}">${hint.clinic ? '✓' : '○'} Last clinic: every item +</li>
+        <li class="${hint.skills ? 'ok-text' : 'muted'}">${hint.skills ? '✓' : '○'} Technical skills: every task completed</li></ul>
+      ${practicumHtml(step, enr, editable, data.evals, resultFor(enr.id, step.id, data.stepResults))}
+      <div class="dlg-actions"><span class="spacer"></span><button type="button" data-act="close">Close</button></div>
+    </div>`;
+  dlg.querySelector('[data-act="close"]').addEventListener('click', () => dlg.close());
+  for (const b of dlg.querySelectorAll('[data-pr]')) {
+    b.addEventListener('click', () => {
+      const [, , section, seq] = b.dataset.pr.split('|');
+      const slot = practicumSlots(step).find((x) => x.section === section && x.seq === Number(seq));
+      practicumDialog(step, enr, slot, evalFor(data.evals, enr.id, step.id, slot), {
+        editable, who: name,
+        onSaved: async () => {
+          await drawTeam(programKey);
+          const fresh = await loadTeamProgram(programKey);
+          checklistDialog(programKey, step, enr, name, fresh, editable);
+        },
+      });
+    });
+  }
+  if (!dlg.open) dlg.showModal();
 }
 
 // Admin: give CARE staff a place on a programme (applicants are added automatically).
