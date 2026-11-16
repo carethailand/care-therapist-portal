@@ -231,3 +231,10 @@ Home shows the latest year badge (it replaces the one before) plus Passed probat
 ## Step 17 — One Learning Hub tab (added 2026-11-16)
 
 **Run** `supabase/migrations/20261116001800_merge_learning_tabs.sql`. Learning Hub, Resource Links and Journal Library (placeholders) become one tab, **Learning Hub**, with those as sections when it's built.
+
+## Step 18 — ABAT Coursework page design (added 2026-11-16)
+
+1. **Run** `supabase/migrations/20261116001900_abat_coursework.sql` (renames the course to *ABAT Coursework*, says "lessons" instead of "modules", adds an empty accreditation line).
+2. **Publish** the app (run the SQL first: the new page reads the accreditation line).
+
+The course page now has a header (name, summary, lessons and hours, finish-by date, progress bar, step path) and folding steps: the step you're on is open, the others closed. Lessons show a coloured domain letter (A–G) and a round tick. To show "Qualified by QABA" (or similar) under the course name, fill in **Accreditation line** in ⚙️ Admin → Training content → Course settings.

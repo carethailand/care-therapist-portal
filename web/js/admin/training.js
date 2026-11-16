@@ -56,7 +56,7 @@ async function drawTabSwitch() {
     if (!m) { el.innerHTML = ''; return; }
     el.innerHTML = `<p>${m.enabled
       ? '✅ The <strong>Training</strong> tab is <strong>visible</strong> to staff and applicants.'
-      : '🙈 The <strong>Training</strong> tab is <strong>hidden</strong> from staff (only admins can see it). Switch it on when the modules and questions are ready.'}
+      : '🙈 The <strong>Training</strong> tab is <strong>hidden</strong> from staff (only admins can see it). Switch it on when the lessons and questions are ready.'}
       <button type="button" class="small-btn" id="tc-toggle">${m.enabled ? 'Hide from staff' : 'Show to staff'}</button></p>`;
     el.querySelector('#tc-toggle').addEventListener('click', async (ev) => {
       if (!m.enabled && !confirm('Show the Training tab to everyone it applies to now?')) return;
@@ -81,7 +81,9 @@ function drawBody() {
       <form class="course-settings person-form">
         <div class="grid2">
           <label>Course name <input name="title" required value="${esc(prog.title)}"></label>
+          <label>Accreditation line <input name="accr" value="${esc(prog.accreditation ?? '')}" placeholder="e.g. Qualified by QABA"></label>
         </div>
+        <p class="muted small">The accreditation line shows under the course name with a small award icon. Leave it empty until it's confirmed.</p>
         <div class="grid2">
           <label>Finish within (weeks): CARE new hires <input name="weeksnew" type="number" min="1" max="104" value="${esc(prog.enrolment_weeks_new_hire ?? '')}" placeholder="same as below"></label>
           <label>Finish within (weeks): ABAT learners / everyone else <input name="weeks" type="number" min="1" max="104" value="${esc(prog.enrolment_weeks ?? '')}" placeholder="no limit"></label>
@@ -102,6 +104,7 @@ function drawBody() {
     try {
       await saveProgram(prog.key, {
         title: cs.title.value.trim(),
+        accreditation: cs.accr.value.trim() || null,
         summary: cs.summary.value.trim() || null,
         enrolment_weeks: cs.weeks.value ? Number(cs.weeks.value) : null,
         enrolment_weeks_new_hire: cs.weeksnew.value ? Number(cs.weeksnew.value) : null,
@@ -143,7 +146,7 @@ function drawLearn(step, el) {
           <button type="button" class="small-btn" data-edit="${esc(it.id)}">Edit</button>
           <button type="button" class="small-btn" data-del="${esc(it.id)}">Remove</button>
         </span>
-      </li>`).join('')}</ol>` : '<p class="muted">No modules yet.</p>'}
+      </li>`).join('')}</ol>` : '<p class="muted">No lessons yet.</p>'}
     <p><button type="button" class="primary" data-add>+ Add ${step.kind === 'agree' ? 'document' : 'module'}</button></p>`;
 
   el.querySelector('[data-add]').addEventListener('click', () => itemDialog(step, null, items));

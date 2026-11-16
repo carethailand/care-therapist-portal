@@ -1,6 +1,9 @@
 // A few Tabler outline icons (https://tabler.io/icons, MIT licence), inlined
 // so the Portal doesn't download a 1 MB icon font. icon('home') → <svg>.
 const PATHS = {
+ "check": "<path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\"/> <path d=\"M5 12l5 5l10 -10\" />",
+ "player-play": "<path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\"/> <path d=\"M7 4v16l13 -8z\" />",
+ "chevron-down": "<path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\"/> <path d=\"M6 9l6 6l6 -6\" />",
  "home": "<path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\"/> <path d=\"M5 12l-2 0l9 -9l9 9l-2 0\" /> <path d=\"M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7\" /> <path d=\"M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6\" />",
  "route": "<path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\"/> <path d=\"M3 19a2 2 0 1 0 4 0a2 2 0 0 0 -4 0\" /> <path d=\"M19 7a2 2 0 1 0 0 -4a2 2 0 0 0 0 4z\" /> <path d=\"M11 19h5.5a3.5 3.5 0 0 0 0 -7h-8a3.5 3.5 0 0 1 0 -7h4.5\" />",
  "school": "<path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\"/> <path d=\"M22 9l-10 -4l-10 4l10 4l10 -4v6\" /> <path d=\"M6 10.6v5.4a6 3 0 0 0 12 0v-5.4\" />",

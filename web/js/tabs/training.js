@@ -9,10 +9,9 @@ import { rankOf } from '../labels.js';
 import { docHtml } from '../doc-text.js';
 import { listStaff } from '../data.js';
 import { esc, fmtDate, todayLocal } from '../ui.js';
+import { icon } from '../icons.js';
 
 const TEAM = ['admin', 'hr', 'supervisor', 'qcd'];
-const ITEM_ICON = { canva: '🎨', pdf: '📄', video: '▶️', link: '🔗', document: '📄', other: '📎' };
-const STEP_ICON = { agree: '🤝', learn: '📖', exam: '📝', session: '👥', gap: '⏸', result: '📄', practicum: '✅', certificate: '🎓' };
 const STATUS_LABEL = {
   recommended: 'Recommended · waiting for admin approval',
   active: 'In progress',
@@ -52,7 +51,7 @@ function examLocks(step, enr) {
   if (step.config?.require_modules) {
     const items = stepsOf(step.program_key).filter((s) => s.kind === 'learn').flatMap((s) => itemsOf(s.id));
     const n = items.filter((i) => mine.done.some((d) => d.enrollment_id === enr.id && d.item_id === i.id)).length;
-    if (n < items.length) locks.push(`Finish all the course modules first (${n} of ${items.length} done).`);
+    if (n < items.length) locks.push(`Finish all the lessons first (${n} of ${items.length} done).`);
   }
   return locks;
 }
@@ -128,6 +127,8 @@ function drawHome() {
         const card = box.closest('[data-step]');
         const count = card?.querySelector('.step-count');
         if (count) count.textContent = learnCount(box.dataset.enr, card.dataset.step);
+        box.closest('.lesson')?.classList.toggle('done', box.checked);
+        updateProgress(box.dataset.enr);
       } catch (e) {
         box.checked = !box.checked;
         alert(e.message);
@@ -135,6 +136,11 @@ function drawHome() {
         box.disabled = false;
       }
     });
+  }
+  // Remember only what the person opens/closes (the browser also fires
+  // "toggle" when a step is drawn open, which mustn't count).
+  for (const d of panelEl.querySelectorAll('details[data-fold]')) {
+    d.querySelector('summary').addEventListener('click', () => stepOpen.set(d.dataset.fold, !d.open));
   }
   for (const b of panelEl.querySelectorAll('[data-start-exam]')) {
     b.addEventListener('click', () => confirmStart(content.steps.find((s) => s.id === b.dataset.startExam), b.dataset.resume === '1'));
@@ -173,101 +179,202 @@ function drawHome() {
   }
 }
 
+function updateProgress(enrId) {
+  const box = panelEl.querySelector(`[data-progress="${CSS.escape(enrId)}"]`);
+  const enr = mine.enrollments.find((e) => e.id === enrId);
+  if (!box || !enr) return;
+  const lessons = stepsOf(enr.program_key).filter((s) => s.kind === 'learn').flatMap((s) => itemsOf(s.id));
+  const n = lessons.filter((i) => mine.done.some((d) => d.enrollment_id === enrId && d.item_id === i.id)).length;
+  const pct = lessons.length ? Math.round((n / lessons.length) * 100) : 0;
+  box.querySelector('.progress span').style.width = `${pct}%`;
+  box.querySelector('.progress').setAttribute('aria-valuenow', pct);
+  box.querySelector('[data-progress-text]').textContent = `${n} of ${lessons.length} done`;
+}
+
 function learnCount(enrId, stepId) {
   const items = itemsOf(stepId);
   const n = items.filter((i) => mine.done.some((d) => d.enrollment_id === enrId && d.item_id === i.id)).length;
   return `${n} of ${items.length} done`;
 }
 
+// ---- Course page pieces (design 2026-11-16: calm, no "Module" wording, one
+// line icon per step, domain letters for lessons) ----------------------------
+const STEP_ICO = { agree: 'file-text', learn: 'book', exam: 'clock', certificate: 'award', practicum: 'user-check', session: 'users' };
+const STEP_SHORT = { agree: 'Policies', learn: 'Coursework', exam: 'Exam', certificate: 'Certificate', practicum: 'Practicum', session: 'Session' };
+
+// "Module 5 — Skill Acquisition 1 (goals, prompting…)" → { title, sub }
+function lessonName(t) {
+  const clean = String(t ?? '').replace(/^\s*module\s*\d+\s*[—–:-]\s*/i, '');
+  const m = /^(.*?)\s*\(([^)]+)\)\s*$/.exec(clean);
+  return m ? { title: m[1], sub: m[2] } : { title: clean, sub: '' };
+}
+const domainOf = (it) => (/domain\s+([A-Z])\b/i.exec(it.note ?? '') || [])[1]?.toUpperCase() || '';
+const hoursOf = (it) => Number((/([\d.]+)\s*h\b/.exec(it.note ?? '') || [])[1] || 0);
+const metaOf = (it) => (domainOf(it) ? String(it.note ?? '') : '');
+
+function lessonAction(it) {
+  const url = safeUrl(it.url);
+  if (it.kind === 'document' && it.body) return `<button type="button" class="small-btn" data-read="${esc(it.id)}">Read</button>`;
+  if (canvaEmbed(url)) return `<button type="button" class="small-btn" data-canva="${esc(it.id)}">${icon('player-play')} Open</button>`;
+  if (url) return `<a class="small-btn" href="${esc(url)}" target="_blank" rel="noopener noreferrer">Open</a>`;
+  return '<span class="muted small nowrap">Coming soon</span>';
+}
+
+// One lesson row. enr = null for a read-only preview.
+function lessonRow(it, enr, ico = null) {
+  const d = domainOf(it);
+  const { title, sub } = lessonName(it.title);
+  const done = !!enr && mine.done.some((x) => x.enrollment_id === enr.id && x.item_id === it.id);
+  const tile = d ? `<span class="lesson-tile d-${esc(d)}" aria-hidden="true">${esc(d)}</span>`
+    : `<span class="lesson-tile d-read" aria-hidden="true">${icon(ico || (it.kind === 'document' ? 'books' : 'link'))}</span>`;
+  const meta = d ? metaOf(it) : (it.note ? it.note : '');
+  const tick = enr ? `<label class="tick" title="Mark as done">
+      <input type="checkbox" data-enr="${esc(enr.id)}" data-item="${esc(it.id)}"${done ? ' checked' : ''}${enr.status === 'active' && canTick(it) ? '' : ' disabled'}>
+      <span class="tick-box">${icon('check')}</span><span class="sr-only">Done: ${esc(title)}</span></label>` : '';
+  return `<li class="lesson${done ? ' done' : ''}">
+    ${tile}
+    <span class="lesson-main">
+      <span class="lesson-title">${esc(title)}</span>
+      ${sub ? `<span class="lesson-sub">${esc(sub)}</span>` : ''}
+      ${meta ? `<span class="lesson-meta">${esc(meta)}</span>` : ''}
+    </span>
+    <span class="lesson-act">${lessonAction(it)}${tick}</span>
+  </li>`;
+}
+
+// Each step folds open/closed. By default the step you're on is open and the
+// others are closed; what you open or close stays that way until you leave the tab.
+const stepOpen = new Map(); // step id → true/false (chosen by the person)
+function stepShell(step, n, state, inner, extra = '', defaultOpen = state === 'current') {
+  const open = stepOpen.has(step.id) ? stepOpen.get(step.id) : defaultOpen;
+  return `<li class="cstep ${state}" data-kind="${esc(step.kind)}"${step.kind === 'learn' ? ` data-step="${esc(step.id)}"` : ''}>
+    <details data-fold="${esc(step.id)}"${open ? ' open' : ''}>
+      <summary class="cstep-head">
+        <span class="cstep-num" aria-hidden="true">${state === 'done' ? icon('check') : n}</span>
+        <span class="cstep-ico" aria-hidden="true">${icon(STEP_ICO[step.kind] ?? 'sparkles')}</span>
+        <h3>${esc(step.title)}</h3>${extra}
+        ${state === 'done' ? '<span class="chip ok cstep-tag">Done</span>' : ''}
+        <span class="cstep-chev" aria-hidden="true">${icon('chevron-down')}</span>
+      </summary>
+      ${step.details ? `<p class="cstep-details">${esc(step.details)}</p>` : ''}
+      ${inner}
+    </details>
+  </li>`;
+}
+
+// Where someone is: which steps are done, and which is current.
+function stepStates(prog, enr) {
+  const steps = stepsOf(prog.key);
+  const done = (s) => {
+    if (!enr) return false;
+    if (s.kind === 'agree') return !!agreedOn(enr.id, s.id);
+    if (s.kind === 'learn') { const it = itemsOf(s.id); return it.length > 0 && it.every((i) => mine.done.some((d) => d.enrollment_id === enr.id && d.item_id === i.id)); }
+    if (s.kind === 'exam') return mine.attempts.some((a) => a.enrollment_id === enr.id && a.step_id === s.id && a.passed);
+    if (s.kind === 'certificate') return mine.certificates.some((c) => c.enrollment_id === enr.id);
+    return false;
+  };
+  let currentSet = false;
+  return steps.map((s) => {
+    if (done(s)) return 'done';
+    if (enr && !currentSet) { currentSet = true; return 'current'; }
+    return 'todo';
+  });
+}
+
+function courseHero(prog, enr, statusChip) {
+  const steps = stepsOf(prog.key);
+  const lessons = steps.filter((s) => s.kind === 'learn').flatMap((s) => itemsOf(s.id));
+  const mods = lessons.filter((i) => domainOf(i));
+  const hrs = lessons.reduce((t, i) => t + hoursOf(i), 0);
+  const doneN = enr ? lessons.filter((i) => mine.done.some((d) => d.enrollment_id === enr.id && d.item_id === i.id)).length : 0;
+  const pct = lessons.length ? Math.round((doneN / lessons.length) * 100) : 0;
+  const states = stepStates(prog, enr);
+  let due = '';
+  if (enr?.due_on && enr.status === 'active') {
+    const days = Math.round((Date.parse(enr.due_on) - Date.parse(todayLocal())) / 86400000);
+    due = days < 0 ? `<span class="pill warn">${icon('clock')} Finish date passed (${esc(fmtDate(enr.due_on))})</span>`
+      : `<span class="pill">${icon('clock')} Finish by ${esc(fmtDate(enr.due_on))} · ${days === 0 ? 'today' : `${days} day${days === 1 ? '' : 's'} left`}</span>`;
+  }
+  return `<header class="course-hero">
+    <div class="course-top">
+      <div>
+        <p class="level-kicker">Training</p>
+        <h2>${esc(prog.title)}</h2>
+        ${prog.accreditation ? `<p class="course-accr">${icon('award')} ${esc(prog.accreditation)}</p>` : ''}
+      </div>
+      ${statusChip}
+    </div>
+    ${prog.summary ? `<p class="course-sum">${esc(prog.summary)}</p>` : ''}
+    <div class="course-pills">
+      ${mods.length ? `<span class="pill">${icon('book')} ${mods.length} lessons${hrs ? ` · about ${Math.round(hrs)} h` : ''}</span>` : ''}
+      ${due}
+    </div>
+    ${enr ? `<div class="course-progress" data-progress="${esc(enr.id)}">
+      <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><span style="width:${pct}%"></span></div>
+      <span class="small muted" data-progress-text>${doneN} of ${lessons.length} done</span></div>` : ''}
+    <ol class="course-path" aria-label="Course steps">${steps.map((s, i) => `
+      <li class="${states[i]}"${states[i] === 'current' ? ' aria-current="step"' : ''}><span>${states[i] === 'done' ? icon('check') : i + 1}</span>${esc(STEP_SHORT[s.kind] ?? s.title)}</li>`).join('')}
+    </ol>
+  </header>`;
+}
+
 function previewCard(prog) {
   const steps = stepsOf(prog.key);
-  const itemLine = (it) => {
-    const url = safeUrl(it.url);
-    let action = '<span class="muted small nowrap">Link coming soon</span>';
-    if (it.kind === 'document' && it.body) action = `<button type="button" class="small-btn" data-read="${esc(it.id)}">Read</button>`;
-    else if (canvaEmbed(url)) action = `<button type="button" class="small-btn" data-canva="${esc(it.id)}">View</button>`;
-    else if (url) action = `<a class="small-btn" href="${esc(url)}" target="_blank" rel="noopener noreferrer">Open</a>`;
-    return `<li><span>${ITEM_ICON[it.kind] ?? '•'} ${esc(it.title)}${it.note ? ` <span class="muted small">${esc(it.note)}</span>` : ''}</span>${action}</li>`;
-  };
   return `
-    <section class="card program-card preview-card">
-      <div class="page-head">
-        <h2>${esc(prog.title)}</h2>
-        <span class="chip">Preview</span>
-      </div>
-      ${prog.summary ? `<p class="muted">${esc(prog.summary)}</p>` : ''}
-      <p class="lock-note">🔒 You can look through the course. To take part and sit the exam, an admin needs to assign you. Ask your supervisor if you'd like to join.</p>
-      <ol class="steps">${steps.map((s) => `
-        <li class="step">
-          <div class="step-head"><span class="step-icon" aria-hidden="true">${STEP_ICON[s.kind] ?? '•'}</span><strong>${esc(s.title)}</strong></div>
-          ${['learn', 'agree'].includes(s.kind) && itemsOf(s.id).length
-            ? `<ul class="items">${itemsOf(s.id).map(itemLine).join('')}</ul>`
-            : s.kind === 'exam' ? '<p class="muted small">Opens when you are assigned.</p>'
-            : s.details ? `<p class="muted small">${esc(s.details)}</p>` : ''}
-        </li>`).join('')}</ol>
+    <section class="card course preview-card">
+      ${courseHero(prog, null, '<span class="chip">Preview</span>')}
+      <p class="lock-note">${icon('lock')} You can look through the course. To take part and sit the exam, an admin needs to assign you. Ask your supervisor if you'd like to join.</p>
+      <ol class="csteps">${steps.map((s, i) => stepShell(s, i + 1, 'todo',
+        ['learn', 'agree'].includes(s.kind) && itemsOf(s.id).length
+          ? `<ul class="lessons">${itemsOf(s.id).map((it) => lessonRow(it, null)).join('')}</ul>`
+          : s.kind === 'exam' ? `${examFacts(s)}<p class="muted small">Opens when you are assigned.</p>` : '', '', s.kind === 'learn')).join('')}</ol>
     </section>`;
 }
 
 function programCard(enr) {
   const prog = content.programs.find((p) => p.key === enr.program_key);
   if (!prog) return '';
+  const states = stepStates(prog, enr);
+  const chip = `<span class="chip ${enr.status === 'passed' ? 'ok' : 'stage'}">${esc(STATUS_LABEL[enr.status] ?? enr.status)}</span>`;
   return `
-    <section class="card program-card">
-      <div class="page-head">
-        <h2>${esc(prog.title)}</h2>
-        <span class="chip ${enr.status === 'passed' ? 'ok' : 'stage'}">${esc(STATUS_LABEL[enr.status] ?? enr.status)}</span>
-      </div>
-      ${prog.summary ? `<p class="muted">${esc(prog.summary)}</p>` : ''}
-      ${enr.due_on && enr.status === 'active'
-        ? (enr.due_on < todayLocal()
-          ? `<p class="small error">⚠️ The finish date (${esc(fmtDate(enr.due_on))}) has passed. Please talk to your supervisor.</p>`
-          : `<p class="small">🗓 Started ${esc(fmtDate(enr.started_on))} · please finish the modules <strong>and the exam</strong> by <strong>${esc(fmtDate(enr.due_on))}</strong></p>`)
-        : ''}
-      <ol class="steps">${stepsOf(prog.key).map((s) => stepHtml(s, enr)).join('')}</ol>
+    <section class="card course">
+      ${courseHero(prog, enr, chip)}
+      <ol class="csteps">${stepsOf(prog.key).map((s, i) => stepHtml(s, enr, i + 1, states[i])).join('')}</ol>
     </section>`;
 }
 
-function stepHtml(step, enr) {
-  const head = (extra = '') => `<div class="step-head"><span class="step-icon" aria-hidden="true">${STEP_ICON[step.kind] ?? '•'}</span>
-    <strong>${esc(step.title)}</strong>${extra}</div>
-    ${step.details ? `<p class="muted small">${esc(step.details)}</p>` : ''}`;
+function examFacts(step) {
+  const c = step.config || {};
+  const max = c.max_attempts ?? 1;
+  return `<div class="course-pills">
+    <span class="pill">${icon('clock')} ${esc(c.time_limit_min ?? 120)} minutes</span>
+    ${c.pass_mark ? `<span class="pill">Pass mark ${esc(c.pass_mark)}%</span>` : ''}
+    <span class="pill">${max === 1 ? 'One attempt' : `${max} attempts${c.retake_wait_days ? `, ${c.retake_wait_days} days apart` : ''}`}</span>
+  </div>`;
+}
+
+function stepHtml(step, enr, n = 1, state = 'todo') {
   const active = enr.status === 'active';
 
   if (step.kind === 'agree') {
     const docs = itemsOf(step.id);
     const done = agreedOn(enr.id, step.id);
     const names = docs.map((d) => d.title).join(' and ');
-    return `<li class="step">${head()}
-      <ul class="items">${docs.map((d) => `<li><span>📄 ${esc(d.title)}</span>
-        <button type="button" class="small-btn" data-read="${esc(d.id)}">Read</button></li>`).join('')}</ul>
+    return stepShell(step, n, state, `
+      <ul class="lessons">${docs.map((d) => lessonRow(d, null, 'file-text')).join('')}</ul>
       ${done
-        ? `<p class="ok-text">✅ You agreed on ${esc(new Date(done.done_at).toLocaleDateString('en-GB', { timeZone: 'Asia/Bangkok', dateStyle: 'medium' }))}.</p>`
+        ? `<p class="ok-text">${icon('check')} You agreed on ${esc(new Date(done.done_at).toLocaleDateString('en-GB', { timeZone: 'Asia/Bangkok', dateStyle: 'medium' }))}.</p>`
         : active ? `<label class="check agree-box"><input type="checkbox" data-agree-box="${esc(step.id)}">
               <span>I have read and agree to the ${esc(names || 'course policies')}.</span></label>
             <button type="button" class="primary" data-agree="${esc(step.id)}" data-enr="${esc(enr.id)}" disabled>I agree</button>`
-          : ''}
-    </li>`;
+          : ''}`);
   }
 
   if (step.kind === 'learn') {
     const items = itemsOf(step.id);
-    return `<li class="step" data-step="${esc(step.id)}">
-      ${head(items.length ? ` <span class="muted small step-count">${esc(learnCount(enr.id, step.id))}</span>` : '')}
-      ${items.length ? `<ul class="items">${items.map((it) => {
-        const done = mine.done.some((d) => d.enrollment_id === enr.id && d.item_id === it.id);
-        const url = safeUrl(it.url);
-        const ready = canTick(it);
-        let action = '<span class="muted small nowrap">Link coming soon</span>';
-        if (it.kind === 'document' && it.body) action = `<button type="button" class="small-btn" data-read="${esc(it.id)}">Read</button>`;
-        else if (canvaEmbed(url)) action = `<button type="button" class="small-btn" data-canva="${esc(it.id)}">View</button>`;
-        else if (url) action = `<a class="small-btn" href="${esc(url)}" target="_blank" rel="noopener noreferrer">Open</a>`;
-        return `<li>
-          <label class="check"><input type="checkbox" data-enr="${esc(enr.id)}" data-item="${esc(it.id)}"${done ? ' checked' : ''}${active && ready ? '' : ' disabled'}>
-            <span>${ITEM_ICON[it.kind] ?? '•'} ${esc(it.title)}${it.note ? ` <span class="muted small">${esc(it.note)}</span>` : ''}</span></label>
-          ${action}
-        </li>`;
-      }).join('')}</ul>` : '<p class="muted small">The modules will appear here soon.</p>'}
-    </li>`;
+    return stepShell(step, n, state,
+      items.length ? `<ul class="lessons">${items.map((it) => lessonRow(it, enr)).join('')}</ul>` : '<p class="muted small">The lessons will appear here soon.</p>',
+      items.length ? ` <span class="muted small step-count">${esc(learnCount(enr.id, step.id))}</span>` : '');
   }
 
   if (step.kind === 'exam') {
@@ -276,40 +383,38 @@ function stepHtml(step, enr) {
     const passed = atts.some((a) => a.passed);
     const max = step.config?.max_attempts ?? 1;
     const left = max + (enr.extra_attempts ?? 0) - atts.length;
-    const mins = step.config?.time_limit_min ?? 120;
     const wait = step.config?.retake_wait_days ?? 0;
     const lastSub = atts.filter((a) => a.submitted_at).sort((a, b) => b.submitted_at.localeCompare(a.submitted_at))[0];
     const reSitFrom = lastSub && wait ? new Date(Date.parse(lastSub.submitted_at) + wait * 86400000) : null;
     const locks = examLocks(step, enr);
-    const rules = `${mins} minutes · ${max === 1 ? 'one attempt' : `up to ${max} attempts`}${wait && max > 1 ? `, at least ${wait} days apart` : ''} · the timer keeps running even if you close the page.`;
     let body;
-    if (passed) body = '<p class="ok-text">✅ Passed</p>';
+    if (passed) body = `<p class="ok-text">${icon('check')} Passed</p>`;
     else if (open && active) body = `<p>You have started this exam. The timer is still running.</p>
       <button type="button" class="primary" data-start-exam="${esc(step.id)}" data-resume="1">Continue exam</button>`;
     else if (atts.length && left <= 0) body = '<p>Thank you for taking the exam. You didn\'t pass this time. Your supervisor will talk with you about the next step.</p>';
     else if (!active) body = '<p class="muted small">Not open.</p>';
-    else if (locks.length) body = `<p class="muted small">${esc(rules)}</p><ul class="locks">${locks.map((l) => `<li>🔒 ${esc(l)}</li>`).join('')}</ul>`;
+    else if (locks.length) body = `<ul class="locks">${locks.map((l) => `<li>${icon('lock')} ${esc(l)}</li>`).join('')}</ul>`;
     else if (reSitFrom && reSitFrom > new Date()) {
       const reSitDay = reSitFrom.toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
-      body = `<p>You didn't pass last time. You can re-sit from <strong>${esc(reSitFrom.toLocaleString('en-GB', { timeZone: 'Asia/Bangkok', dateStyle: 'medium', timeStyle: 'short' }))}</strong>. Use the time to review the modules.</p>
+      body = `<p>You didn't pass last time. You can re-sit from <strong>${esc(reSitFrom.toLocaleString('en-GB', { timeZone: 'Asia/Bangkok', dateStyle: 'medium', timeStyle: 'short' }))}</strong>. Use the time to review the lessons.</p>
         ${enr.due_on && reSitDay > enr.due_on ? `<p class="error small">⚠️ That is after your finish date (${esc(fmtDate(enr.due_on))}). Please talk to your supervisor about an extension.</p>` : ''}`;
     }
-    else body = `<p class="muted small">${esc(rules)}</p>
+    else body = `<p class="muted small">The timer keeps running even if you close the page.</p>
       ${atts.length ? `<p>You may re-sit the exam (${left} attempt${left === 1 ? '' : 's'} left).</p>` : ''}
       <button type="button" class="primary" data-start-exam="${esc(step.id)}">${atts.length ? 'Start re-sit' : 'Start exam'}</button>`;
     const subs = atts.filter((a) => a.status === 'submitted').sort((a, b) => a.submitted_at.localeCompare(b.submitted_at));
-    const results = subs.length ? `<p class="small">${subs.map((a, n) => `<button type="button" class="link" data-summary="${esc(a.id)}">📊 My results${subs.length > 1 ? ` (attempt ${n + 1})` : ''}</button>`).join(' · ')}</p>` : '';
-    return `<li class="step">${head()}${body}${results}</li>`;
+    const results = subs.length ? `<p class="small">${subs.map((a, k) => `<button type="button" class="link" data-summary="${esc(a.id)}">My results${subs.length > 1 ? ` (attempt ${k + 1})` : ''}</button>`).join(' · ')}</p>` : '';
+    return stepShell(step, n, state, `${passed ? '' : examFacts(step)}${body}${results}`);
   }
 
   if (step.kind === 'certificate') {
     const cert = mine.certificates.find((c) => c.enrollment_id === enr.id);
-    return `<li class="step">${head()}
-      ${cert ? `<button type="button" class="primary" data-cert="${esc(cert.id)}">🎓 View certificate</button>`
-             : '<p class="muted small">Unlocks when you pass the exam.</p>'}</li>`;
+    return stepShell(step, n, state, cert
+      ? `<button type="button" class="primary" data-cert="${esc(cert.id)}">${icon('award')} View certificate</button>`
+      : '<p class="muted small">Unlocks when you pass the exam.</p>', '', !!cert);
   }
 
-  return `<li class="step">${head()}<p class="muted small">Coming soon.</p></li>`;
+  return stepShell(step, n, state, '<p class="muted small">Coming soon.</p>');
 }
 
 // ---------------------------------------------------------------------------
@@ -761,7 +866,7 @@ async function drawTeam(programKey) {
 
   body.innerHTML = `${assignBtn}
     <div class="table-wrap"><table class="team-table">
-      <thead><tr><th>Person</th><th>Status</th><th>Started</th><th>Finish by</th><th>Policies</th><th>Modules</th><th>Exam</th><th></th></tr></thead>
+      <thead><tr><th>Person</th><th>Status</th><th>Started</th><th>Finish by</th><th>Policies</th><th>Lessons</th><th>Exam</th><th></th></tr></thead>
       <tbody>${rows.map((e) => {
         const p = people.find((x) => x.id === e.therapist_id);
         const name = p ? (p.nickname || p.full_name) : 'Unknown';

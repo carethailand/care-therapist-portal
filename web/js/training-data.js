@@ -20,7 +20,7 @@ function friendly(error) {
 // ---------------------------------------------------------------------------
 export async function loadContent() {
   const [programs, steps, items] = await Promise.all([
-    supa.from('training_programs').select('key,title,summary,sort_order,enabled,certificate,certificate_title,provider_name,certificate_note,enrolment_weeks,enrolment_weeks_new_hire').order('sort_order').then(must),
+    supa.from('training_programs').select('key,title,summary,accreditation,sort_order,enabled,certificate,certificate_title,provider_name,certificate_note,enrolment_weeks,enrolment_weeks_new_hire').order('sort_order').then(must),
     supa.from('training_steps').select('id,program_key,sort_order,kind,title,details,config').order('sort_order').then(must),
     supa.from('training_items').select('id,step_id,sort_order,title,url,kind,note,body').order('sort_order').then(must),
   ]);

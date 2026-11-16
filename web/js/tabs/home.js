@@ -147,7 +147,7 @@ async function drawTraining(el, me) {
        <a class="btn-clay" href="#/training">View certificate ${icon('arrow-right')}</a>`
     : `<p class="level-kicker">Training</p><h2>${esc(prog?.title ?? 'Training')}</h2>
        <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><span style="width:${pct}%"></span></div>
-       <p class="muted small">${done} of ${items.length} modules${enr.due_on ? ` · ${overdue ? '<span class="error">finish date passed</span>' : `finish by ${esc(fmtDate(enr.due_on))}`}` : ''}</p>
+       <p class="muted small">${done} of ${items.length} lessons${enr.due_on ? ` · ${overdue ? '<span class="error">finish date passed</span>' : `finish by ${esc(fmtDate(enr.due_on))}`}` : ''}</p>
        <a class="btn-clay" href="#/training">Continue training ${icon('arrow-right')}</a>`;
   el.hidden = false;
 }
