@@ -6,6 +6,7 @@ import { signIn, signOut, sendPasswordReset, setPassword, currentUser } from './
 import { loadMe, loadRoles, loadModules } from './data.js';
 import { $, esc, showView, setMessage } from './ui.js';
 import { icon } from './icons.js';
+import * as theme from './theme.js';
 
 // Built tabs. Anything not listed here renders the "coming soon" card.
 const TABS = {
@@ -33,6 +34,20 @@ const canAdmin = () => state.roles.some((r) => r === 'admin' || r === 'hr');
 const state = { me: null, roles: [], modules: [], visible: [] };
 
 for (const el of document.querySelectorAll('.app-version')) el.textContent = APP_VERSION;
+
+// Colour mode button(s): Auto → Light → Dark.
+function drawThemeButtons() {
+  const c = theme.getChoice();
+  for (const b of document.querySelectorAll('.theme-btn')) {
+    b.innerHTML = `${icon(theme.iconName(c))}<span>${theme.label(c)}</span>`;
+    b.title = `Colour mode: ${theme.label(c)}. Tap to change.`;
+  }
+}
+theme.apply();
+drawThemeButtons();
+for (const b of document.querySelectorAll('.theme-btn')) {
+  b.addEventListener('click', () => { theme.setChoice(theme.next(theme.getChoice())); drawThemeButtons(); });
+}
 
 // ---------------------------------------------------------------------------
 // Start-up
