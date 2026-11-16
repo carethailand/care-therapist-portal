@@ -46,6 +46,13 @@ export function milestones(me, roles, longest = false) {
   }
   if (THERAPIST_RANKS.includes(rankOf(roles))) {
     list.push({ key: 'longest', label: 'Longest-serving therapist', img: file('longest'), earned: !!longest, on: null });
+    // Advancement badges: earned with the rank (current Seniors and above
+    // count as having completed Senior training before the Portal).
+    const r = rankOf(roles);
+    const atLeast = (k) => THERAPIST_RANKS.indexOf(r) >= THERAPIST_RANKS.indexOf(k);
+    list.push({ key: 'senior-training', label: 'Senior Therapist Training', img: file('senior-training'), earned: atLeast('senior'), on: null, lockText: 'Unlocks when you complete Senior Therapist Training' });
+    if (atLeast('senior')) list.push({ key: 'qcd-training', label: 'QCD Training', img: file('qcd-training'), earned: atLeast('qcd'), on: null, lockText: 'Unlocks when you complete QCD Training' });
+    if (atLeast('qcd')) list.push({ key: 'supervisor', label: 'Supervisor', img: file('supervisor'), earned: atLeast('supervisor'), on: null, lockText: 'Unlocks when you become a Supervisor' });
   }
   return list;
 }

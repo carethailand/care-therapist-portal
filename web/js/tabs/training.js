@@ -149,6 +149,28 @@ function drawHome() {
   for (const d of panelEl.querySelectorAll('details[data-fold]')) {
     d.querySelector('summary').addEventListener('click', () => stepOpen.set(d.dataset.fold, !d.open));
   }
+  const showSteps = (card, key, show) => {
+    const list = card.querySelector(`[data-steps="${CSS.escape(key)}"]`);
+    const btn = card.querySelector(`[data-steps-toggle="${CSS.escape(key)}"]`);
+    if (!list || !btn) return;
+    list.hidden = !show;
+    if (show) courseOpen.add(key); else courseOpen.delete(key);
+    btn.setAttribute('aria-expanded', String(show));
+    btn.innerHTML = `${show ? 'Hide steps' : 'Show steps'} ${icon('chevron-down')}`;
+  };
+  for (const b of panelEl.querySelectorAll('[data-steps-toggle]')) {
+    b.addEventListener('click', () => showSteps(b.closest('.course'), b.dataset.stepsToggle, !courseOpen.has(b.dataset.stepsToggle)));
+  }
+  // Tapping a step in the path opens the steps with that one unfolded.
+  for (const b of panelEl.querySelectorAll('[data-goto]')) {
+    b.addEventListener('click', () => {
+      const card = b.closest('.course');
+      const key = card.querySelector('[data-steps]')?.dataset.steps;
+      showSteps(card, key, true);
+      const d = card.querySelector(`details[data-fold="${CSS.escape(b.dataset.goto)}"]`);
+      if (d) { d.open = true; stepOpen.set(b.dataset.goto, true); d.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    });
+  }
   for (const b of panelEl.querySelectorAll('#my-training [data-pr]')) {
     b.addEventListener('click', () => {
       const [stepId, enrId, section, seq] = b.dataset.pr.split('|');
@@ -278,6 +300,9 @@ function lessonRow(it, enr, ico = null) {
 // (Songg 2026-11-16: "all closed, leave only a brief step"); what you open or
 // close stays that way until you leave the tab.
 const stepOpen = new Map(); // step id → true/false (chosen by the person)
+// The course card shows only its header until "Show steps" (or a step in the
+// path) is tapped. Remembered while you stay on the tab.
+const courseOpen = new Set(); // programme keys
 function stepShell(step, n, state, inner, status = '', defaultOpen = false) {
   const open = stepOpen.has(step.id) ? stepOpen.get(step.id) : defaultOpen;
   return `<li class="cstep ${state}" data-kind="${esc(step.kind)}"${step.kind === 'learn' ? ` data-step="${esc(step.id)}"` : ''}>
@@ -355,8 +380,9 @@ function courseHero(prog, enr, statusChip) {
       <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><span style="width:${pct}%"></span></div>
       <span class="small muted" data-progress-text>${esc(progressText(prg))}</span></div>` : ''}
     <ol class="course-path" aria-label="Course steps">${steps.map((s, i) => `
-      <li class="${states[i]}"${states[i] === 'current' ? ' aria-current="step"' : ''}><span>${states[i] === 'done' ? icon('check') : i + 1}</span>${esc(stepShort(s))}</li>`).join('')}
+      <li class="${states[i]}"${states[i] === 'current' ? ' aria-current="step"' : ''}><button type="button" class="path-btn" data-goto="${esc(s.id)}"><span>${states[i] === 'done' ? icon('check') : i + 1}</span>${esc(stepShort(s))}</button></li>`).join('')}
     </ol>
+    <button type="button" class="course-toggle" data-steps-toggle="${esc(prog.key)}" aria-expanded="${courseOpen.has(prog.key)}">${courseOpen.has(prog.key) ? 'Hide steps' : 'Show steps'} ${icon('chevron-down')}</button>
   </header>`;
 }
 
@@ -366,7 +392,7 @@ function previewCard(prog) {
     <section class="card course preview-card">
       ${courseHero(prog, null, '<span class="chip">Preview</span>')}
       <p class="lock-note">${icon('lock')} You can look through the course. To take part and sit the exam, an admin needs to assign you. Ask your supervisor if you'd like to join.</p>
-      <ol class="csteps">${steps.map((s, i) => stepShell(s, i + 1, 'todo',
+      <ol class="csteps" data-steps="${esc(prog.key)}"${courseOpen.has(prog.key) ? '' : ' hidden'}>${steps.map((s, i) => stepShell(s, i + 1, 'todo',
         ['learn', 'agree'].includes(s.kind) && itemsOf(s.id).length
           ? `<ul class="lessons">${itemsOf(s.id).map((it) => lessonRow(it, null)).join('')}</ul>`
           : s.kind === 'exam' ? `${examFacts(s)}<p class="muted small">Opens when you are assigned.</p>` : '', previewStatus(s))).join('')}</ol>
@@ -381,7 +407,7 @@ function programCard(enr) {
   return `
     <section class="card course">
       ${courseHero(prog, enr, chip)}
-      <ol class="csteps">${stepsOf(prog.key).map((s, i) => stepHtml(s, enr, i + 1, states[i])).join('')}</ol>
+      <ol class="csteps" data-steps="${esc(prog.key)}"${courseOpen.has(prog.key) ? '' : ' hidden'}>${stepsOf(prog.key).map((s, i) => stepHtml(s, enr, i + 1, states[i])).join('')}</ol>
     </section>`;
 }
 

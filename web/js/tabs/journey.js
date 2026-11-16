@@ -82,7 +82,8 @@ async function drawMilestones(el, me, roles) {
   const today = todayLocal();
   el.innerHTML = `<ul class="ms-list">${list.map((m) => {
     const when = m.earned
-      ? (m.key === 'longest' ? 'Held now' : m.on && m.on <= today ? `Earned ${fmtDate(m.on)}` : 'Earned')
+      ? (m.lockText ? 'Earned' : m.key === 'longest' ? 'Held now' : m.on && m.on <= today ? `Earned ${fmtDate(m.on)}` : 'Earned')
+      : m.lockText ? m.lockText
       : m.key === 'longest' ? 'For the therapist who has been at CARE the longest'
         : m.on ? `Unlocks ${fmtDate(m.on)}` : m.key === 'probation' ? 'Unlocks when you pass probation' : 'Unlocks once your start date is set';
     return `<li class="ms-item${m.earned ? ' earned' : ' locked'}">

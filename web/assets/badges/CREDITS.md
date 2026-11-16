@@ -24,5 +24,5 @@ From **Vecteezy.com** (free licence: credit "Vecteezy.com" with a link where pos
 
 | Files | Source | Changes |
 |---|---|---|
-| `../milestones/*.svg` | "A set of blason icons" (Vecteezy 122800) | Shapes taken from the vector file, recoloured for CARE; stars (= years), numbers, ribbon words, crowns and the check mark added |
+| `../milestones/*.svg` (incl. senior-training, qcd-training, supervisor) | "A set of blason icons" (Vecteezy 122800) | Shapes taken from the vector file, recoloured for CARE; stars (= years), numbers, letters (S, Q, SV), ribbon words, crowns and the check mark added |
 | `../stickers/*.png` | "Kids motivational school reward stickers and encouragement" (Vecteezy 48915603) and "Set of motivational reward stickers with cartoon characters" (Vecteezy 79455394) | Each sticker cut out as a round transparent image |
