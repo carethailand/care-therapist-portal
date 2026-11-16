@@ -3,7 +3,7 @@
 // annual leave allowance. Children appear only as case codes (e.g. "AVM").
 import {
   loadLeaveRef, loadMyLeave, submitLeave, cancelLeave, staffPicklist, countDays, daysUntil,
-  loadTeamLeave, decideLeave, markNotified, saveEntitlement,
+  loadTeamLeave, decideLeave, markNotified, saveEntitlement, arrangeSession,
 } from '../leave-data.js';
 import { listStaff } from '../data.js';
 import { esc, fmtDate, todayLocal } from '../ui.js';
@@ -157,10 +157,16 @@ async function drawMine() {
 
 function sessionsText(r, people) {
   if (!r.sessions?.length) return '';
-  return `<ul class="lv-sessions">${r.sessions.map((s) => `<li><strong>${esc(s.case_code)}</strong> · ${esc(fmtDate(s.session_date))}${s.session_time ? ` ${esc(s.session_time)}` : ''} →
-    ${s.cover_kind === 'cover' ? `covered by ${esc(nameOf(people, s.covering_therapist_id) || 'a colleague')}`
-      : `make-up ${esc(fmtDate(s.makeup_date))}${s.makeup_time ? ` ${esc(s.makeup_time)}` : ''}`}</li>`).join('')}</ul>`;
+  return `<ul class="lv-sessions">${r.sessions.map((s) => `<li><strong>${esc(s.case_code)}</strong> · ${esc(fmtDate(s.session_date))}${s.session_time ? ` ${esc(s.session_time)}` : ''} → ${esc(arrangementText(s, people))}</li>`).join('')}</ul>`;
 }
+
+function arrangementText(s, people) {
+  if (s.cover_kind === 'cover') return `covered by ${nameOf(people, s.covering_therapist_id) || 'a colleague'}`;
+  if (s.cover_kind === 'makeup') return `make-up ${fmtDate(s.makeup_date)}${s.makeup_time ? ` ${s.makeup_time}` : ''}`;
+  if (s.cover_kind === 'cancelled') return 'cancelled';
+  return 'waiting for admin';
+}
+const unarranged = (r) => r.sessions.filter((s) => !s.cover_kind).length;
 
 function requestRow(r, { mine = false, people = picklist, team = false } = {}) {
   const [label, cls] = STATUS[r.status];
@@ -187,8 +193,6 @@ function requestRow(r, { mine = false, people = picklist, team = false } = {}) {
 function requestDialog(bal) {
   const dlg = panelEl.querySelector('#lv-dlg');
   const today = todayLocal();
-  const staffOptions = picklist.filter((p) => p.id !== ctx.me.id)
-    .map((p) => `<option value="${esc(p.id)}">${esc(p.nickname ? `${p.nickname} (${p.full_name})` : p.full_name)}</option>`).join('');
   dlg.innerHTML = `
     <form method="dialog" class="person-form">
       <h2>Request leave</h2>
@@ -214,7 +218,7 @@ function requestDialog(bal) {
 
       <fieldset>
         <legend>Sessions you'll miss</legend>
-        <p class="muted small">Talk to your team or the scheduler first. For each session, give the covering therapist <em>or</em> a make-up session.
+        <p class="muted small">List each session you'll miss. An admin will decide what happens to it: <strong>cancelled</strong>, <strong>covered</strong> by a colleague, or a <strong>make-up</strong> session.
           Use the <strong>3-letter case code only</strong> (e.g. AVM), never a child's name.</p>
         <div data-sessions></div>
         <button type="button" class="small-btn" data-addsession>+ Add a session</button>
@@ -273,18 +277,7 @@ function requestDialog(bal) {
       <input name="case" placeholder="AVM" maxlength="3" minlength="3" pattern="[A-Z]{3}" required aria-label="Case code (3 letters)" title="3-letter case code, e.g. AVM" class="case-input">
       <input name="sdate" type="date" required aria-label="Session date" value="${esc(form.start.value)}">
       <input name="stime" placeholder="10:15–12:15" maxlength="20" aria-label="Session time">
-      <select name="how" aria-label="Covered or make-up"><option value="cover">Covered by</option><option value="makeup">Make-up session</option></select>
-      <select name="who" aria-label="Covering therapist"><option value="">Choose…</option>${staffOptions}</select>
-      <input name="mdate" type="date" aria-label="Make-up date" hidden>
-      <input name="mtime" placeholder="Make-up time" maxlength="20" aria-label="Make-up time" hidden>
       <button type="button" class="small-btn" aria-label="Remove session">✕</button>`;
-    const how = row.querySelector('[name="how"]');
-    how.addEventListener('change', () => {
-      const mk = how.value === 'makeup';
-      row.querySelector('[name="who"]').hidden = mk;
-      row.querySelector('[name="mdate"]').hidden = !mk;
-      row.querySelector('[name="mtime"]').hidden = !mk;
-    });
     row.querySelector('button').addEventListener('click', () => row.remove());
     row.querySelector('[name="case"]').addEventListener('input', (e) => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3); });
     box.append(row);
@@ -298,14 +291,8 @@ function requestDialog(bal) {
     const sessions = [];
     for (const row of box.querySelectorAll('.session-row')) {
       const g = (n) => row.querySelector(`[name="${n}"]`).value.trim();
-      const how = g('how');
-      if (how === 'cover' && !g('who')) { msg.hidden = false; msg.dataset.kind = 'error'; msg.textContent = 'Choose the covering therapist for each session, or switch it to a make-up session.'; return; }
-      if (how === 'makeup' && !g('mdate')) { msg.hidden = false; msg.dataset.kind = 'error'; msg.textContent = 'Give the make-up date for each make-up session.'; return; }
-      sessions.push({
-        case_code: g('case'), session_date: g('sdate'), session_time: g('stime') || null, cover_kind: how,
-        covering_therapist_id: how === 'cover' ? g('who') : null,
-        makeup_date: how === 'makeup' ? g('mdate') : null, makeup_time: how === 'makeup' ? (g('mtime') || null) : null,
-      });
+      if (!/^[A-Z]{3}$/.test(g('case'))) { msg.hidden = false; msg.dataset.kind = 'error'; msg.textContent = 'Each session needs a 3-letter case code (e.g. AVM).'; return; }
+      sessions.push({ case_code: g('case'), session_date: g('sdate'), session_time: g('stime') || null });
     }
     const btn = form.querySelector('[type="submit"]');
     btn.disabled = true;
@@ -337,6 +324,10 @@ function teamActions(r) {
     out.push(`<button type="button" class="small-btn primary" data-approve="${esc(r.id)}">Approve</button>`);
     out.push(`<button type="button" class="small-btn" data-decline="${esc(r.id)}">Decline</button>`);
   }
+  if (isAdmin() && ['pending', 'approved'].includes(r.status) && r.sessions?.length) {
+    const n = unarranged(r);
+    out.push(`<button type="button" class="small-btn${n ? ' primary' : ''}" data-arrange="${esc(r.id)}">${n ? `Arrange sessions (${n})` : 'Change sessions'}</button>`);
+  }
   if (r.status === 'approved' && isAdmin() && !r.families_notified_on && r.sessions?.length) {
     out.push(`<button type="button" class="small-btn" data-notified="${esc(r.id)}">Families notified</button>`);
   }
@@ -357,7 +348,8 @@ async function drawTeam() {
   }
   const staff = people.filter((p) => p.status !== 'exited' && p.track !== 'abat' && rankOf(p.roles) !== 'applicant');
   const shown = data.requests.filter((r) => teamFilter === 'all' || r.status === teamFilter
-    || (teamFilter === 'notify' && r.status === 'approved' && !r.families_notified_on && r.sessions.length));
+    || (teamFilter === 'notify' && r.status === 'approved' && !r.families_notified_on && r.sessions.length)
+    || (teamFilter === 'arrange' && ['pending', 'approved'].includes(r.status) && unarranged(r) > 0));
   const waiting = data.requests.filter((r) => r.status === 'pending').length;
 
   box.innerHTML = `
@@ -366,6 +358,7 @@ async function drawTeam() {
         <h2>Team requests ${waiting ? `<span class="chip warn">${waiting} waiting</span>` : ''}</h2>
         <select id="lv-filter" aria-label="Show">
           <option value="pending"${teamFilter === 'pending' ? ' selected' : ''}>Waiting for HR</option>
+          <option value="arrange"${teamFilter === 'arrange' ? ' selected' : ''}>Sessions to arrange</option>
           <option value="notify"${teamFilter === 'notify' ? ' selected' : ''}>Families not yet notified</option>
           <option value="approved"${teamFilter === 'approved' ? ' selected' : ''}>Approved</option>
           <option value="all"${teamFilter === 'all' ? ' selected' : ''}>All ${year}</option>
@@ -404,8 +397,13 @@ async function drawTeam() {
       act(() => decideLeave(b.dataset.decline, false, note));
     });
   }
+  for (const b of box.querySelectorAll('[data-arrange]')) {
+    b.addEventListener('click', () => arrangeDialog(data.requests.find((r) => r.id === b.dataset.arrange), people));
+  }
   for (const b of box.querySelectorAll('[data-notified]')) {
     b.addEventListener('click', () => {
+      const r = data.requests.find((x) => x.id === b.dataset.notified);
+      if (unarranged(r) && !confirm(`${unarranged(r)} session(s) aren't arranged yet. Mark the families as notified anyway?`)) return;
       const d = prompt('Date the families were notified (YYYY-MM-DD):', todayLocal());
       if (d === null) return;
       if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) { alert('Please use the format YYYY-MM-DD.'); return; }
@@ -424,6 +422,77 @@ async function drawTeam() {
       printForm(p, data.entitlements.find((e) => e.therapist_id === p.id), data.requests.filter((r) => r.therapist_id === p.id), people);
     });
   }
+}
+
+// Admin: decide what happens to each missed session.
+function arrangeDialog(r, people) {
+  const dlg = panelEl.querySelector('#lv-dlg');
+  const who = nameOf(people, r.therapist_id);
+  const staff = people.filter((p) => p.id !== r.therapist_id && p.status !== 'exited' && p.track !== 'abat'
+    && ['therapist', 'senior', 'qcd', 'supervisor'].some((x) => p.roles.includes(x)));
+  const options = (sel) => staff.map((p) => `<option value="${esc(p.id)}"${p.id === sel ? ' selected' : ''}>${esc(p.nickname ? `${p.nickname} (${p.full_name})` : p.full_name)}</option>`).join('');
+  dlg.innerHTML = `
+    <form method="dialog" class="person-form">
+      <h2>Missed sessions: ${esc(who)}</h2>
+      <p class="muted small">${esc(r.type)} · ${esc(range(r))}. Decide what happens to each session.</p>
+      ${r.sessions.map((s) => `
+        <div class="arrange-row" data-sid="${esc(s.id)}">
+          <p class="arrange-what"><strong>${esc(s.case_code)}</strong> · ${esc(fmtDate(s.session_date))}${s.session_time ? ` · ${esc(s.session_time)}` : ''}</p>
+          <div class="arrange-how">
+            <select name="kind" aria-label="What happens">
+              <option value=""${!s.cover_kind ? ' selected' : ''}>Not decided yet</option>
+              <option value="cancelled"${s.cover_kind === 'cancelled' ? ' selected' : ''}>Cancelled</option>
+              <option value="cover"${s.cover_kind === 'cover' ? ' selected' : ''}>Covered by</option>
+              <option value="makeup"${s.cover_kind === 'makeup' ? ' selected' : ''}>Make-up session</option>
+            </select>
+            <select name="who" aria-label="Covering therapist"><option value="">Choose…</option>${options(s.covering_therapist_id)}</select>
+            <input name="mdate" type="date" aria-label="Make-up date" value="${esc(s.makeup_date ?? '')}">
+            <input name="mtime" placeholder="Make-up time" maxlength="20" aria-label="Make-up time" value="${esc(s.makeup_time ?? '')}">
+          </div>
+        </div>`).join('')}
+      <p class="msg" role="status" hidden></p>
+      <div class="dlg-actions"><span class="spacer"></span>
+        <button type="button" data-act="cancel">Cancel</button>
+        <button type="submit" class="primary">Save</button></div>
+    </form>`;
+  const form = dlg.querySelector('form');
+  const show = (row) => {
+    const k = row.querySelector('[name="kind"]').value;
+    row.querySelector('[name="who"]').hidden = k !== 'cover';
+    row.querySelector('[name="mdate"]').hidden = k !== 'makeup';
+    row.querySelector('[name="mtime"]').hidden = k !== 'makeup';
+  };
+  for (const row of form.querySelectorAll('.arrange-row')) {
+    show(row);
+    row.querySelector('[name="kind"]').addEventListener('change', () => show(row));
+  }
+  form.querySelector('[data-act="cancel"]').addEventListener('click', () => dlg.close());
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const msg = form.querySelector('.msg');
+    const btn = form.querySelector('[type="submit"]');
+    const changes = [];
+    for (const row of form.querySelectorAll('.arrange-row')) {
+      const s = r.sessions.find((x) => x.id === row.dataset.sid);
+      const g = (n) => row.querySelector(`[name="${n}"]`).value.trim();
+      const kind = g('kind') || null;
+      if (kind === 'cover' && !g('who')) { msg.hidden = false; msg.dataset.kind = 'error'; msg.textContent = `Choose who covers ${s.case_code} on ${fmtDate(s.session_date)}.`; return; }
+      if (kind === 'makeup' && !g('mdate')) { msg.hidden = false; msg.dataset.kind = 'error'; msg.textContent = `Give the make-up date for ${s.case_code}.`; return; }
+      const next = { kind, cover: kind === 'cover' ? g('who') : null, mdate: kind === 'makeup' ? g('mdate') : null, mtime: kind === 'makeup' ? (g('mtime') || null) : null };
+      const same = (s.cover_kind || null) === next.kind && (s.covering_therapist_id || null) === next.cover
+        && (s.makeup_date || null) === next.mdate && (s.makeup_time || null) === next.mtime;
+      if (!same) changes.push([s.id, next]);
+    }
+    btn.disabled = true;
+    try {
+      for (const [id, n] of changes) await arrangeSession(id, n.kind, n.cover, n.mdate, n.mtime);
+      dlg.close();
+      await drawTeam();
+    } catch (e) {
+      msg.hidden = false; msg.dataset.kind = 'error'; msg.textContent = e.message; btn.disabled = false;
+    }
+  });
+  dlg.showModal();
 }
 
 function entitlementDialog(p, ent) {
@@ -485,7 +554,7 @@ function printForm(person, ent, requests, people) {
       <p class="small">Annual leave entitlement ${year}: <strong>${ent ? Number(ent.al_days) : '—'}</strong> days${ent && Number(ent.carry_over_days) ? ` (+ ${Number(ent.carry_over_days)} carried over, use by ${esc(fmtDate(ent.carry_over_until))})` : ''}
         · Total leave taken: ${totals.map((t) => `${esc(t.code)} ${t.days}`).join(' · ')}</p>
       <table class="lf-table">
-        <thead><tr><th>Submitted</th><th>Type</th><th>Reason</th><th>Start</th><th>End</th><th>Days</th><th>Sessions (case · date · time → cover / make-up)</th><th>Status · approved by / date</th><th>Families notified</th></tr></thead>
+        <thead><tr><th>Submitted</th><th>Type</th><th>Reason</th><th>Start</th><th>End</th><th>Days</th><th>Sessions (case · date · time → arranged)</th><th>Status · approved by / date</th><th>Families notified</th></tr></thead>
         <tbody>${rows.map((r) => `<tr>
           <td>${esc(fmtDate(String(r.submitted_at).slice(0, 10)))}</td>
           <td>${esc(r.type)}${r.kind ? ` (${esc(kindLabel(r.kind))})` : ''}</td>
@@ -493,7 +562,7 @@ function printForm(person, ent, requests, people) {
           <td>${esc(fmtDate(r.start_date))}${r.half_day ? ` ${r.half_day === 'am' ? 'am' : 'pm'}` : ''}</td>
           <td>${esc(fmtDate(r.end_date))}</td>
           <td>${Number(r.days)}</td>
-          <td>${r.sessions.map((s) => `${esc(s.case_code)} · ${esc(fmtDate(s.session_date))} ${esc(s.session_time || '')} → ${s.cover_kind === 'cover' ? esc(nameOf(people, s.covering_therapist_id)) : `make-up ${esc(fmtDate(s.makeup_date))} ${esc(s.makeup_time || '')}`}`).join('<br>') || '—'}</td>
+          <td>${r.sessions.map((s) => `${esc(s.case_code)} · ${esc(fmtDate(s.session_date))} ${esc(s.session_time || '')} → ${esc(arrangementText(s, people))}`).join('<br>') || '—'}</td>
           <td>${esc(STATUS[r.status][0])}${r.decided_at ? ` · ${esc(nameOf(people, r.decided_by))} ${esc(fmtDate(String(r.decided_at).slice(0, 10)))}` : ''}</td>
           <td>${r.families_notified_on ? `${esc(fmtDate(r.families_notified_on))}${r.notified_by ? ` · ${esc(nameOf(people, r.notified_by))}` : ''}` : ''}</td>
         </tr>`).join('') || '<tr><td colspan="9">No leave recorded.</td></tr>'}</tbody>

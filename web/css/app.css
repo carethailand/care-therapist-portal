@@ -564,3 +564,10 @@ fieldset { min-width: 0; }
 .dlg label.check input { width: auto; }
 .session-row > * { min-width: 0; }
 @media (max-width: 640px) { .grid2 { grid-template-columns: minmax(0, 1fr); } }
+/* Leave: admin arranges missed sessions */
+.arrange-row { border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; background: var(--surface-raised); }
+.arrange-what { margin: 0 0 8px; }
+.arrange-how { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.arrange-how [hidden] { display: none !important; }
+.session-row { grid-template-columns: 90px 1fr 1fr auto; }
+@media (max-width: 640px) { .session-row { grid-template-columns: 1fr 1fr; } }

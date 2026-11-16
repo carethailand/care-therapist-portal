@@ -51,7 +51,7 @@ export async function loadLeaveRef() {
 export const staffPicklist = () => supa.rpc('staff_picklist').then(must);
 
 const REQ_COLS = 'id,therapist_id,type,kind,reason,start_date,end_date,half_day,days,status,submitted_at,decided_by,decided_at,decision_note,families_notified_on,notified_by';
-const SES_COLS = 'id,request_id,case_code,session_date,session_time,cover_kind,covering_therapist_id,makeup_date,makeup_time';
+const SES_COLS = 'id,request_id,case_code,session_date,session_time,cover_kind,covering_therapist_id,makeup_date,makeup_time,arranged_by,arranged_at';
 
 async function withSessions(requests) {
   const ids = requests.map((r) => r.id);
@@ -105,5 +105,8 @@ export async function loadTeamLeave(year) {
 
 export const decideLeave = (id, approve, note) => supa.rpc('leave_decide', { p_id: id, p_approve: approve, p_note: note }).then(must);
 export const markNotified = (id, date) => supa.rpc('leave_mark_notified', { p_id: id, p_date: date }).then(must);
+// Admin: what happens to one missed session ('cancelled' | 'cover' | 'makeup' | null).
+export const arrangeSession = (id, kind, cover, makeupDate, makeupTime) =>
+  supa.rpc('leave_session_arrange', { p_session: id, p_kind: kind, p_cover: cover, p_makeup_date: makeupDate, p_makeup_time: makeupTime }).then(must);
 export const saveEntitlement = (row) =>
   supa.from('leave_entitlements').upsert(row, { onConflict: 'therapist_id,year' }).then(must);

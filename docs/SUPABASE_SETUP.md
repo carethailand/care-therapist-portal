@@ -189,4 +189,6 @@ The login helper already allows HR to create logins for applicants (redeployed b
 4. In the **Leave & HR** tab → *Annual leave allowances*, set each person's **AL days** for the year (+ carry-over for the admin team, use-by date).
 5. Switch the tab on for staff: Table Editor → `app_modules` → `leave` → `enabled = true` (or ask Claude to add a switch).
 
-**Who does what:** therapists request leave and see their balances; **HR approves or declines** (admins can too); an **admin ticks "Families notified"**. Days are counted Monday–Saturday (Sundays skipped), half days allowed; people can correct the number. Sessions are recorded by **3-letter case code only** (e.g. AVM); the database refuses anything else. Each person's year can be saved as a PDF laid out like the paper form.
+**Run also** `20261116001200_leave_session_arrangements.sql` (after 011).
+
+**Who does what:** therapists request leave, list the sessions they'll miss, and see their balances; an **admin decides each missed session** (cancelled / covered by / make-up) with *Arrange sessions*; **HR approves or declines** (admins can too); an **admin ticks "Families notified"**. Days are counted Monday–Saturday (Sundays skipped), half days allowed; people can correct the number. Sessions are recorded by **3-letter case code only** (e.g. AVM); the database refuses anything else. Each person's year can be saved as a PDF laid out like the paper form.
