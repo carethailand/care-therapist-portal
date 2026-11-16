@@ -13,6 +13,7 @@ This Portal holds **staff and training records**: who someone is, their journey,
 8. **Every SQL file or snippet starts with a name line** (`-- (keep) Name` or `-- (test) Name`) so saved queries in the SQL Editor stay tidy.
 9. **Songg runs SQL; tools don't.** Write SQL for Songg to run in the dashboard. Don't run queries against either Supabase project directly.
 10. **Exports stay out of GitHub.** "Download record" (PDF) and "Export everyone" (Excel) contain staff personal data. They belong in CARE's Google Drive. `.gitignore` blocks `*.xlsx`/`*.csv`; never commit a PDF export either.
+11. **Exam questions and answers live only in the database's `private` schema.** The browser gets questions through `exam_start()` without answers; marking is server-side. Never add exam files (questions.json etc.) to this repo; admins import them through ⚙️ Admin → Training content.
 
 ## Do not break
 - `AUTH_STORAGE_KEY = 'care_portal_auth'` in `config.js`. The Binder uses `'care_auth'` on the same github.io address; sharing a key would sign people out of one app when they use the other.

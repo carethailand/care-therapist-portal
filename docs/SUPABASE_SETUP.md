@@ -159,3 +159,24 @@ The login helper already allows HR to create logins for applicants (redeployed b
 - **New CARE hire:** Who is this? = *CARE staff / new hire*, role *Applicant*, stage *Interview*. Move them along the stages. When they pass overlap session 8 and sign the contract, set the stage to **Probation**. They become a Therapist automatically.
 - **ABAT learner:** Who is this? = *ABAT course only*. They're always Applicant only. Stage *Online course + exam* → **Certified** when they pass.
 - Filter the list with **CARE staff / New hires / ABAT learners**.
+
+## Step 12 — Training tab: ABAT Coursework (added 2026-11-16)
+
+1. **Run** `supabase/migrations/20261116000700_training_abat.sql`, then `20261116000800_training_policies_attempts.sql` (policies to agree, all-modules rule, attempts + waiting days), in the SQL Editor (one file; Supabase may show the "destructive operations" warning because of `revoke`/`delete` inside the functions. That's expected; click **Run query**).
+2. **Run** `supabase/checks/rls_check.sql` again. It must return **no rows**.
+3. **ABAT content:** run *Portal training content / 1 ABAT / ABAT course setup – run once in Supabase.sql* (kept off GitHub), then in ⚙️ Admin → Training content → ABAT exam → **Import from file…** choose *ABAT Readiness Exam – Portal import file.json*.
+4. In the Portal: **⚙️ Admin → Training content**:
+   - **Course modules:** add each Canva / PDF / video link (shared as "anyone with the link can view").
+   - **ABAT exam:** set the time limit and pass mark, then **Import from file…** (old `questions.json`) or **+ Add question**.
+   - When it's ready, click **Show to staff** to switch the Training tab on.
+
+**How it works**
+- Applicants get a place on ABAT Coursework automatically when their stage is *Online course + exam*.
+- Exam questions and answers are stored in the database's private area. The trainee's browser never receives the answers; marking happens on the server, with a server-side timer.
+- Attempts and the waiting time between them are exam settings (ABAT: 2 attempts, 7 days apart). Trainees must agree to the course policies and tick every module first. An admin or supervisor can **Allow extra attempt** from the Trainees list.
+- Each person gets a **finish-by date** when they start: ABAT course = **2 weeks for CARE new hires, 6 weeks for ABAT learners** (Course settings). Admins can change one person's date from the Trainees list (e.g. an approved extension); late people show as *Overdue*. The exam is part of that period: after the date, no new exam attempt can start until an admin extends the date.
+- Canva modules are shown inside the Portal (no link on screen). To cut off a shared link, turn the public link off in Canva, make a new one, and paste it into the module.
+- Questions and options are shuffled for every attempt. Trainees see pass / not pass, their score and a summary by domain (A–G), never which questions they got wrong. Admins, supervisors and QCD can open **Review** for any attempt: every question with their answer, the correct answer and ✓/✗ (Save as PDF possible). Needs file `20261116000900_exam_review.sql`.
+- Passing gives a certificate (with a number) and a timeline entry. ABAT learners move to *Certified* automatically. CARE new hires: move them to *Role-play + orientation* yourself.
+
+⚠️ The old Training portal repo (`therapist-onboarding-training`) is public and contains `questions.json` **with the answer key** and `trainees.json` with PINs. Make that repo private (GitHub → repo → Settings → Danger Zone → Change visibility) and consider refreshing the questions before using them here. Never put exam files in this repo.

@@ -9,12 +9,14 @@ import { $, esc, showView, setMessage } from './ui.js';
 // Built tabs. Anything not listed here renders the "coming soon" card.
 const TABS = {
   journey: () => import('./tabs/journey.js'),
+  training: () => import('./tabs/training.js'),
 };
 const comingSoon = () => import('./tabs/coming-soon.js');
 
 // Admin pages: reached from the ⚙️ button, not the tab bar.
 const ADMIN_PAGES = {
-  staff: { load: () => import('./admin/staff.js'), roles: ['admin', 'hr'] },
+  staff: { label: 'People', load: () => import('./admin/staff.js'), roles: ['admin', 'hr'] },
+  training: { label: 'Training content', load: () => import('./admin/training.js'), roles: ['admin'] },
 };
 const canAdmin = () => state.roles.some((r) => r === 'admin' || r === 'hr');
 
@@ -91,9 +93,13 @@ async function route() {
     if (page && state.roles.some((r) => page.roles.includes(r))) {
       for (const a of document.querySelectorAll('#tabs a')) a.removeAttribute('aria-current');
       $('#admin-btn').setAttribute('aria-current', 'page');
-      panel.innerHTML = '<p class="muted">Loading…</p>';
+      const key = want.slice(6);
+      const mine = Object.entries(ADMIN_PAGES).filter(([, pg]) => state.roles.some((r) => pg.roles.includes(r)));
+      panel.innerHTML = `${mine.length > 1 ? `<nav class="subnav" aria-label="Admin pages">${mine.map(([k, pg]) =>
+        `<a href="#/admin/${k}"${k === key ? ' aria-current="page"' : ''}>${esc(pg.label)}</a>`).join('')}</nav>` : ''}
+        <div id="admin-page"><p class="muted">Loading…</p></div>`;
       const mod = await page.load();
-      await mod.render(panel, { me: state.me, roles: state.roles });
+      await mod.render(panel.querySelector('#admin-page'), { me: state.me, roles: state.roles });
       return;
     }
   }
