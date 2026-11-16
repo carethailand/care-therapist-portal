@@ -674,3 +674,16 @@ fieldset { min-width: 0; }
 .ms-name { font-weight: 500; font-size: .9rem; }
 .ms-word { font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--clay); font-weight: 600; }
 @media (max-width: 600px) { .ms-list { grid-template-columns: repeat(2, 1fr); } }
+
+/* Kudos board fix (P5b): cards share the full width (one card fills the row),
+   and the sticker floats in the corner with the text wrapping round it. */
+.kudos-list { grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
+.kudos-card.has-sticker, .kudos-list.compact .kudos-card.has-sticker { padding-right: 16px; min-height: 0; }
+.kudos-card .kudos-stk, .kudos-list.compact .kudos-stk {
+  position: static; float: right; width: 84px; height: 84px; margin: 0 -4px 8px 12px;
+  shape-outside: circle(50%); shape-margin: 6px;
+}
+.kudos-list.compact .kudos-stk { width: 60px; height: 60px; }
+.kudos-card::after { content: ""; display: block; clear: both; }
+/* Home shows a short preview; the full text is on the board. */
+.kudos-list.compact .kudos-text { display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; }
