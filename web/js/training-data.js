@@ -30,7 +30,7 @@ export async function loadContent() {
 // ---------------------------------------------------------------------------
 // The signed-in trainee
 // ---------------------------------------------------------------------------
-const HOURS_COLS = 'id,enrollment_id,step_id,held_on,hours,topic';
+const HOURS_COLS = 'id,enrollment_id,step_id,held_on,hours,topic,chapters';
 const EVAL_COLS = 'id,enrollment_id,step_id,section,seq,case_code,held_on,marks,comment,assessor_id,updated_at';
 
 export async function loadMyTraining(meId) {

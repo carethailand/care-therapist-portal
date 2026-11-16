@@ -859,3 +859,14 @@ fieldset { min-width: 0; }
 .pr-form { min-width: 0; }
 .dlg:has(.pr-form) { width: min(700px, 94vw); box-sizing: border-box; }
 .pr-items { padding-right: 4px; }
+/* Senior in-person chapters (P7c) */
+.ch-count { margin: 12px 0 4px; }
+.chapters { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px 16px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); counter-reset: none; }
+.chapters li { display: flex; align-items: center; gap: 8px; font-size: .9rem; color: var(--muted); }
+.chapters li.done { color: var(--text); }
+.ch-num { flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line-strong); font-size: .72rem; }
+.ch-num .ico { width: 13px; height: 13px; }
+.chapters li.done .ch-num { background: var(--accent-fill); border-color: var(--accent-fill); color: #fff; }
+.ch-h { margin: 14px 0 0; font-size: .9rem; color: var(--muted); font-weight: 500; }
+.ch-pick { display: grid; gap: 2px; max-height: 40vh; overflow: auto; }
+.ch-pick .check { font-size: .9rem; }

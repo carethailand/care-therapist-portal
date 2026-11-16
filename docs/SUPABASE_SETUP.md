@@ -246,3 +246,7 @@ The course page now has a header (name, summary, lessons and hours, finish-by da
 3. **Publish** the app.
 
 **How it works:** a supervisor taps *+ Recommend someone* (Junior therapists only) with a reason; an admin taps **Approve**. Trainees tick videos themselves (admin sends the links). Supervisors/QCD/admin log in-person hours (*Log a group session* or per person), record the written and oral exam results (score / full score + pass / not pass), and fill the practicum checklist (Prep 1–4, Clinic 1–4, technical skills) in the Portal; the checklist shows the pass rule as ticks. Trainees see pass / not pass + date for exams, and their practicum marks and comments. When the oral exam (the last step) is recorded as passed and every recorded step is passed, the place is completed and a certificate is issued; an admin then taps **Promote to Senior** (rank and badge change, timeline entry).
+
+## Step 20 — Senior in-person chapters (added 2026-11-16)
+
+**Run** `supabase/migrations/20261116002100_senior_chapters.sql` (after Step 19), then publish. The in-person training step lists the 14 chapters; when logging a session, the supervisor ticks the chapters covered. Trainees see each chapter ticked once covered; the Trainees table shows hours and chapters (e.g. 16 / 40 h · 6/14 chapters).

@@ -460,10 +460,14 @@ function stepHtml(step, enr, n = 1, state = 'todo') {
     const got = hoursFor(enr.id, step.id);
     const pct = target ? Math.min(100, Math.round((got / target) * 100)) : 0;
     const log = (mine.hours || []).filter((h) => h.enrollment_id === enr.id && h.step_id === step.id);
+    const topics = step.config?.topics || [];
+    const covered = chaptersCovered(log);
     return stepShell(step, n, state, `
       <div class="course-progress"><div class="progress"><span style="width:${pct}%"></span></div>
         <span class="small muted">${fmtHours(got)} of ${target} hours</span></div>
-      ${log.length ? `<ul class="hours-list">${log.map((h) => `<li><span>${esc(fmtDate(h.held_on))}</span><span>${esc(h.topic || 'Training session')}</span><span class="nowrap">${fmtHours(h.hours)} h</span></li>`).join('')}</ul>`
+      ${topics.length ? `<p class="small muted ch-count">${covered.size} of ${topics.length} chapters covered</p>
+        <ol class="chapters">${topics.map((t, i) => `<li class="${covered.has(i + 1) ? 'done' : ''}"><span class="ch-num">${covered.has(i + 1) ? icon('check') : i + 1}</span><span>${esc(t)}</span></li>`).join('')}</ol>` : ''}
+      ${log.length ? `<h4 class="ch-h">Sessions</h4><ul class="hours-list">${log.map((h) => sessionLine(h, topics)).join('')}</ul>`
         : '<p class="muted small">Your supervisor records each session here.</p>'}`,
       ` <span class="muted small step-count">${fmtHours(got)} / ${target} h</span>`);
   }
@@ -494,6 +498,15 @@ function stepHtml(step, enr, n = 1, state = 'todo') {
 }
 
 // ---- helpers for recorded steps ---------------------------------------------
+const chaptersCovered = (log) => new Set((log || []).flatMap((h) => h.chapters || []));
+const chapterText = (h) => ((h.chapters || []).length ? `Ch ${[...h.chapters].sort((a, b) => a - b).join(', ')}` : '');
+function sessionLine(h, topics, extra = '') {
+  const ch = chapterText(h);
+  const names = (h.chapters || []).map((c) => topics[c - 1]).filter(Boolean).join(' · ');
+  return `<li><span>${esc(fmtDate(h.held_on))}</span>
+    <span>${ch ? `<strong>${esc(ch)}</strong>${names ? ` <span class="muted small">${esc(names)}</span>` : ''}` : ''}${h.topic ? `${ch ? '<br>' : ''}<span class="small">${esc(h.topic)}</span>` : ''}${!ch && !h.topic ? 'Training session' : ''}</span>
+    <span class="nowrap">${fmtHours(h.hours)} h${extra}</span></li>`;
+}
 const fmtHours = (h) => String(Math.round(Number(h || 0) * 10) / 10);
 const fmtMinutes = (m) => (m % 60 ? `${Math.floor(m / 60) ? `${Math.floor(m / 60)} h ` : ''}${m % 60} min` : `${m / 60} hour${m === 60 ? '' : 's'}`);
 function hoursFor(enrId, stepId, list = mine.hours) {
@@ -1149,7 +1162,9 @@ async function drawTeam(programKey) {
         }
         for (const st of sessionSteps) {
           const got = hoursFor(e.id, st.id, data.hours);
-          cells.push(`<td class="nowrap">${fmtHours(got)} / ${esc(st.config?.target_hours ?? '?')} h
+          const nTopics = (st.config?.topics || []).length;
+          const covered = chaptersCovered(data.hours.filter((h) => h.enrollment_id === e.id && h.step_id === st.id)).size;
+          cells.push(`<td class="nowrap">${fmtHours(got)} / ${esc(st.config?.target_hours ?? '?')} h${nTopics ? `<div class="muted small">${covered}/${nTopics} chapters</div>` : ''}
             ${assessor && (active || got) ? `<button type="button" class="small-btn" data-hours="${esc(e.id)}|${esc(st.id)}">${active ? 'Log' : 'View'}</button>` : ''}</td>`);
         }
         for (const st of recSteps) {
@@ -1275,18 +1290,21 @@ function hoursDialog(programKey, step, enrs, nameOf, data, single = false) {
   const dlg = panelEl.querySelector('#tr-dlg');
   const log = single ? data.hours.filter((h) => h.enrollment_id === enrs[0].id && h.step_id === step.id) : [];
   const canAdd = enrs.some((e) => e.status === 'active');
+  const topics = step.config?.topics || [];
+  const covered = chaptersCovered(log);
   dlg.innerHTML = `
     <form method="dialog" class="person-form">
       <h2>${single ? `Training hours · ${esc(nameOf(enrs[0].therapist_id))}` : 'Log a group session'}</h2>
-      ${single ? (log.length ? `<ul class="hours-list">${log.map((h) => `<li><span>${esc(fmtDate(h.held_on))}</span><span>${esc(h.topic || 'Training session')}</span>
-          <span class="nowrap">${fmtHours(h.hours)} h <button type="button" class="link small" data-del="${esc(h.id)}">Remove</button></span></li>`).join('')}</ul>`
+      ${single ? (log.length ? `<ul class="hours-list">${log.map((h) => sessionLine(h, topics, ` <button type="button" class="link small" data-del="${esc(h.id)}">Remove</button>`)).join('')}</ul>`
         : '<p class="muted small">No sessions yet.</p>') : ''}
       ${canAdd ? `
       <div class="grid2">
         <label>Date <input name="held" type="date" required value="${todayLocal()}"></label>
         <label>Hours <input name="hours" type="number" min="0.5" max="12" step="0.5" required value="2"></label>
       </div>
-      <label>Topic <input name="topic" maxlength="200" placeholder="e.g. Running clinic prep"></label>
+      ${topics.length ? `<fieldset class="ch-pick"><legend>Chapters covered</legend>${topics.map((t, i) => `
+        <label class="check"><input type="checkbox" name="ch" value="${i + 1}"${covered.has(i + 1) ? '' : ''}> <span><strong>${i + 1}</strong> ${esc(t)}${single && covered.has(i + 1) ? ' <span class="muted small">(covered)</span>' : ''}</span></label>`).join('')}</fieldset>` : ''}
+      <label>Notes <span class="muted small">(optional)</span> <input name="topic" maxlength="200" placeholder="${topics.length ? 'e.g. Role-play on clinic prep' : 'e.g. Running clinic prep'}"></label>
       ${single ? '' : `<fieldset class="assign-list"><legend>Who attended?</legend>${enrs.map((e) => `
         <label class="check"><input type="checkbox" name="who" value="${esc(e.id)}" checked> <span>${esc(nameOf(e.therapist_id))}</span></label>`).join('')}</fieldset>`}` : ''}
       <p class="msg" role="status" hidden></p>
@@ -1307,8 +1325,10 @@ function hoursDialog(programKey, step, enrs, nameOf, data, single = false) {
     ev.preventDefault();
     const ids = single ? [enrs[0].id] : [...f.querySelectorAll('input[name="who"]:checked')].map((b) => b.value);
     if (!ids.length) return say('Tick who attended.');
+    const chapters = [...f.querySelectorAll('input[name="ch"]:checked')].map((b) => Number(b.value));
+    if (topics.length && !chapters.length && !f.topic.value.trim()) return say('Tick the chapters covered (or write a note).');
     try {
-      await logHours(ids.map((id) => ({ enrollment_id: id, step_id: step.id, held_on: f.held.value, hours: Number(f.hours.value), topic: f.topic.value.trim() || null, recorded_by: ctx.me.id })));
+      await logHours(ids.map((id) => ({ enrollment_id: id, step_id: step.id, held_on: f.held.value, hours: Number(f.hours.value), topic: f.topic.value.trim() || null, ...(topics.length ? { chapters } : {}), recorded_by: ctx.me.id })));
       dlg.close();
       await drawTeam(programKey);
     } catch (e) { say(e.message); }
