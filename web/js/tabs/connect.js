@@ -44,7 +44,6 @@ function teamSees(m) {
     || (m.send_to === 'person' && !!m.forwarded_at && has('admin', 'hr'));
 }
 const toMe = (m) => m.send_to === 'person' && m.recipient_id === ctx.me.id;
-const hasTeamInbox = () => has('admin', 'hr', 'supervisor', 'qcd', 'senior');
 
 function workingDaysSince(iso) {
   const [y, m, d] = iso.split('-').map(Number);
@@ -68,10 +67,9 @@ export async function render(panel, context) {
       <section class="card" id="od-write"><p class="muted">Loading…</p></section>
       <section class="card" id="od-mine"><p class="muted">Loading…</p></section>
     </div>
-    <section class="card" id="od-tome" hidden></section>
-    ${has('admin') ? '<section class="card" id="od-kudosq" hidden></section>' : ''}
-    ${hasTeamInbox() ? '<section class="card" id="od-team"><p class="muted">Loading the inbox…</p></section>' : ''}
     ${isStaff() ? '<section class="card" id="od-board"></section>' : ''}
+    ${has('admin') ? '<section class="card" id="od-kudosq" hidden></section>' : ''}
+    <div id="od-teams">${myTeams().map((t) => `<section class="card od-team" id="od-team-${t.key}"><p class="muted">Loading ${esc(t.label)}…</p></section>`).join('')}</div>
     <dialog id="od-dlg" class="dlg od-dlg"></dialog>`;
   try { staff = await loadPeople(); } catch { staff = []; }
   drawWrite();
@@ -79,7 +77,22 @@ export async function render(panel, context) {
 }
 
 async function refreshAll() {
-  await Promise.all([drawMine(), drawInboxes(), drawKudosQueue(), drawBoard()]);
+  let visible = [];
+  try { visible = await visibleMessages(); } catch { visible = []; }
+  await Promise.all([drawMine(visible), drawKudosQueue(), drawBoard()]);
+  for (const t of myTeams()) drawTeam(t, visible.filter(t.match));
+}
+
+// The team inboxes this person has, in this order.
+function myTeams() {
+  return [
+    { key: 'admin', label: 'Admin inbox', member: has('admin', 'hr'),
+      match: (m) => ['admin', 'both'].includes(m.send_to) || (m.send_to === 'person' && !!m.forwarded_at) },
+    { key: 'sup', label: 'Supervisor & QCD inbox', member: has('supervisor', 'qcd'),
+      match: (m) => ['sup', 'both'].includes(m.send_to) },
+    { key: 'senior', label: 'Senior inbox', member: has('senior'),
+      match: (m) => m.send_to === 'senior' },
+  ].filter((t) => t.member);
 }
 
 // ---------------------------------------------------------------------------
@@ -178,13 +191,14 @@ function rowHtml(m, { mode = 'mine' } = {}) {
   const [kl, ki] = KIND[m.kind];
   const [sl, sc] = STATUS[m.status];
   const from = mode === 'mine' ? '' : ` · <span class="muted">${m.anonymous ? 'Anonymous' : esc(nameOf(m.sender_id) || 'Staff')}</span>`;
+  const tag = mode === 'mine' ? '<span class="chip">Sent</span>' : mode === 'to-me' ? '<span class="chip stage">To you</span>' : '';
   const extra = [
     m.anonymous && mode === 'mine' ? 'sent anonymously (only you can see it\'s yours)' : '',
     m.kudos_status === 'requested' ? 'kudos board: waiting for Admin' : m.kudos_status === 'posted' ? 'on the Kudos board 🎉' : '',
     mode === 'team' && m.forwarded_at ? 'passed on by the recipient' : '',
     mode === 'team' && m.assigned_to ? `${nameOf(m.assigned_to) || 'someone'} is on it` : '',
   ].filter(Boolean).join(' · ');
-  return `<li class="od-row" data-open="${esc(m.id)}" tabindex="0" role="button">
+  return `<li class="od-row" data-open="${esc(m.id)}" data-viewer="${mode === 'mine' ? 'sender' : mode === 'to-me' ? 'recipient' : 'team'}" tabindex="0" role="button">
     <span class="od-kind">${icon(ki)}</span>
     <span class="od-main">
       <span class="od-title">${esc(kl)} · ${esc(TOPIC[m.topic])}${from}</span>
@@ -192,68 +206,55 @@ function rowHtml(m, { mode = 'mine' } = {}) {
       <span class="muted small">${esc(fmtDate(bkkDate(m.created_at)))} · to ${esc(toLabel(m))}${extra ? ` · ${esc(extra)}` : ''}</span>
     </span>
     <span class="od-side">
+      ${tag}
       <span class="chip ${sc}">${esc(sl)}</span>
       ${mode === 'team' && waitingTooLong(m) ? `<span class="chip warn">Over ${REPLY_DAYS} working days</span>` : ''}
     </span>
   </li>`;
 }
 
-async function drawMine() {
+async function drawMine(visible) {
   const box = panelEl.querySelector('#od-mine');
-  let all = [];
-  try { all = await myMessages(); } catch (e) { box.innerHTML = `<p class="error">${esc(e.message)}</p>`; return; }
-  box.innerHTML = `<h2>My messages</h2>
-    ${all.length ? `<ul class="od-list">${all.map((m) => rowHtml(m, { mode: 'mine' })).join('')}</ul>`
-      : '<p class="muted">Messages you send appear here, with their progress and our replies.</p>'}`;
-  wireOpen(box, all, 'sender');
+  let sent = [];
+  try { sent = await myMessages(); } catch (e) { box.innerHTML = `<p class="error">${esc(e.message)}</p>`; return; }
+  const toMeList = visible.filter(toMe);
+  const all = [...sent.map((m) => ({ m, mode: 'mine' })), ...toMeList.map((m) => ({ m, mode: 'to-me' }))]
+    .sort((a, b) => String(b.m.created_at).localeCompare(String(a.m.created_at)));
+  box.innerHTML = `<h2>Personal inbox</h2>
+    ${all.length ? `<ul class="od-list">${all.map((x) => rowHtml(x.m, { mode: x.mode })).join('')}</ul>`
+      : '<p class="muted">Messages you send, and messages sent to you personally, appear here with their replies.</p>'}`;
+  wireOpen(box, all.map((x) => x.m));
 }
 
-async function drawInboxes() {
-  let all = [];
-  try { all = await visibleMessages(); } catch { return; }
-  // Messages sent to me personally
-  const mine = all.filter(toMe);
-  const toMeBox = panelEl.querySelector('#od-tome');
-  toMeBox.hidden = !mine.length;
-  if (mine.length) {
-    toMeBox.innerHTML = `<h2>Messages to you</h2>
-      <ul class="od-list">${mine.map((m) => rowHtml(m, { mode: 'to-me' })).join('')}</ul>`;
-    wireOpen(toMeBox, mine, 'recipient');
-  }
-  if (!hasTeamInbox()) return;
-  drawTeam(all.filter(teamSees));
-}
-
-let teamFilter = 'open';
-let kindFilter = '';
-function drawTeam(list) {
-  const box = panelEl.querySelector('#od-team');
+const filters = {}; // per inbox: { status, kind }
+function drawTeam(team, list) {
+  const box = panelEl.querySelector(`#od-team-${team.key}`);
+  const f = (filters[team.key] ??= { status: 'open', kind: '' });
   const open = list.filter((m) => m.status !== 'resolved');
   const late = open.filter(waitingTooLong).length;
-  const shown = list.filter((m) => (teamFilter === 'all' || (teamFilter === 'open' ? m.status !== 'resolved' : m.status === 'resolved'))
-    && (!kindFilter || m.kind === kindFilter));
-  const teams = [has('admin', 'hr') && 'Admin team', has('supervisor', 'qcd') && 'Supervisor & QCD team', has('senior') && 'Senior team'].filter(Boolean);
+  const shown = list.filter((m) => (f.status === 'all' || (f.status === 'open' ? m.status !== 'resolved' : m.status === 'resolved'))
+    && (!f.kind || m.kind === f.kind));
   box.innerHTML = `
     <div class="page-head">
-      <h2>Team inbox ${open.length ? `<span class="chip">${open.length} open</span>` : ''} ${late ? `<span class="chip warn">${late} waiting over ${REPLY_DAYS} days</span>` : ''}</h2>
+      <h2>${esc(team.label)} ${open.length ? `<span class="chip">${open.length} open</span>` : ''} ${late ? `<span class="chip warn">${late} over ${REPLY_DAYS} days</span>` : ''}</h2>
       <span class="spacer"></span>
-      <select id="od-kind" aria-label="Kind"><option value="">All kinds</option>${Object.entries(KIND).map(([k, [l]]) => `<option value="${k}"${kindFilter === k ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>
-      <select id="od-status" aria-label="Show">
-        <option value="open"${teamFilter === 'open' ? ' selected' : ''}>Open</option>
-        <option value="resolved"${teamFilter === 'resolved' ? ' selected' : ''}>Resolved</option>
-        <option value="all"${teamFilter === 'all' ? ' selected' : ''}>All</option>
+      <select data-f="kind" aria-label="Kind"><option value="">All kinds</option>${Object.entries(KIND).map(([k, [l]]) => `<option value="${k}"${f.kind === k ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>
+      <select data-f="status" aria-label="Show">
+        <option value="open"${f.status === 'open' ? ' selected' : ''}>Open</option>
+        <option value="resolved"${f.status === 'resolved' ? ' selected' : ''}>Resolved</option>
+        <option value="all"${f.status === 'all' ? ' selected' : ''}>All</option>
       </select>
     </div>
-    <p class="muted small">You see messages sent to: ${esc(teams.join(', '))}. Anonymous messages never have a name attached.</p>
     ${shown.length ? `<ul class="od-list">${shown.map((m) => rowHtml(m, { mode: 'team' })).join('')}</ul>` : '<p class="muted">Nothing here.</p>'}`;
-  box.querySelector('#od-status').addEventListener('change', (e) => { teamFilter = e.target.value; drawTeam(list); });
-  box.querySelector('#od-kind').addEventListener('change', (e) => { kindFilter = e.target.value; drawTeam(list); });
-  wireOpen(box, list, 'team');
+  for (const sel of box.querySelectorAll('select[data-f]')) {
+    sel.addEventListener('change', () => { f[sel.dataset.f] = sel.value; drawTeam(team, list); });
+  }
+  wireOpen(box, list);
 }
 
-function wireOpen(box, list, viewer) {
+function wireOpen(box, list) {
   for (const li of box.querySelectorAll('[data-open]')) {
-    const go = () => openThread(list.find((m) => m.id === li.dataset.open), viewer);
+    const go = () => openThread(list.find((m) => m.id === li.dataset.open), li.dataset.viewer);
     li.addEventListener('click', go);
     li.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
   }

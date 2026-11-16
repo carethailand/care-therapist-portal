@@ -631,3 +631,8 @@ fieldset { min-width: 0; }
 .od-codebox summary { cursor: pointer; font-weight: 500; }
 .od-codebox[open] summary { margin-bottom: 8px; }
 #od-code { padding-top: 16px; padding-bottom: 16px; }
+/* CARE Connect layout (2026-11-16): wider on computers; inboxes stacked */
+@media (min-width: 1000px) { #panel { max-width: 1120px; } }
+.od-grid { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
+.od-team .page-head h2 { font-size: 1.25rem; }
+#od-teams .card { margin-bottom: 16px; }
