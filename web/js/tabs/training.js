@@ -189,7 +189,7 @@ function drawHome() {
   }
   if (isTeam()) {
     const sel = panelEl.querySelector('#team-prog');
-    sel.addEventListener('change', () => drawTeam(sel.value));
+    sel.addEventListener('change', () => { teamOpen = null; drawTeam(sel.value); });
     if (sel.value) drawTeam(sel.value);
     else panelEl.querySelector('#team-body').innerHTML = '<p class="muted">No programmes are switched on yet.</p>';
   }
@@ -223,7 +223,7 @@ function updateProgress(enrId) {
 function learnCount(enrId, stepId) {
   const items = itemsOf(stepId);
   const n = items.filter((i) => mine.done.some((d) => d.enrollment_id === enrId && d.item_id === i.id)).length;
-  return `${n} of ${items.length} done`;
+  return `${n} of ${items.length} ${items.some((i) => i.kind === 'video') ? 'watched' : 'done'}`;
 }
 
 // ---- Course page pieces (design 2026-11-16: calm, no "Module" wording, one
@@ -274,18 +274,19 @@ function lessonRow(it, enr, ico = null) {
   </li>`;
 }
 
-// Each step folds open/closed. By default the step you're on is open and the
-// others are closed; what you open or close stays that way until you leave the tab.
+// Each step folds open/closed. Every step starts closed with a one-line status
+// (Songg 2026-11-16: "all closed, leave only a brief step"); what you open or
+// close stays that way until you leave the tab.
 const stepOpen = new Map(); // step id → true/false (chosen by the person)
-function stepShell(step, n, state, inner, extra = '', defaultOpen = state === 'current') {
+function stepShell(step, n, state, inner, status = '', defaultOpen = false) {
   const open = stepOpen.has(step.id) ? stepOpen.get(step.id) : defaultOpen;
   return `<li class="cstep ${state}" data-kind="${esc(step.kind)}"${step.kind === 'learn' ? ` data-step="${esc(step.id)}"` : ''}>
     <details data-fold="${esc(step.id)}"${open ? ' open' : ''}>
       <summary class="cstep-head">
         <span class="cstep-num" aria-hidden="true">${state === 'done' ? icon('check') : n}</span>
         <span class="cstep-ico" aria-hidden="true">${icon(stepIcon(step))}</span>
-        <h3>${esc(step.title)}</h3>${extra}
-        ${state === 'done' ? '<span class="chip ok cstep-tag">Done</span>' : ''}
+        <h3>${esc(step.title)}</h3>
+        ${status ? `<span class="cstep-status${state === 'done' ? ' ok' : ''}${step.kind === 'learn' ? ' step-count' : ''}">${esc(status)}</span>` : ''}
         <span class="cstep-chev" aria-hidden="true">${icon('chevron-down')}</span>
       </summary>
       ${step.details ? `<p class="cstep-details">${esc(step.details)}</p>` : ''}
@@ -368,7 +369,7 @@ function previewCard(prog) {
       <ol class="csteps">${steps.map((s, i) => stepShell(s, i + 1, 'todo',
         ['learn', 'agree'].includes(s.kind) && itemsOf(s.id).length
           ? `<ul class="lessons">${itemsOf(s.id).map((it) => lessonRow(it, null)).join('')}</ul>`
-          : s.kind === 'exam' ? `${examFacts(s)}<p class="muted small">Opens when you are assigned.</p>` : '', '', s.kind === 'learn')).join('')}</ol>
+          : s.kind === 'exam' ? `${examFacts(s)}<p class="muted small">Opens when you are assigned.</p>` : '', previewStatus(s))).join('')}</ol>
     </section>`;
 }
 
@@ -396,6 +397,7 @@ function examFacts(step) {
 
 function stepHtml(step, enr, n = 1, state = 'todo') {
   const active = enr.status === 'active';
+  const status = stepStatus(step, enr, myData());
 
   if (step.kind === 'agree') {
     const docs = itemsOf(step.id);
@@ -408,14 +410,13 @@ function stepHtml(step, enr, n = 1, state = 'todo') {
         : active ? `<label class="check agree-box"><input type="checkbox" data-agree-box="${esc(step.id)}">
               <span>I have read and agree to the ${esc(names || 'course policies')}.</span></label>
             <button type="button" class="primary" data-agree="${esc(step.id)}" data-enr="${esc(enr.id)}" disabled>I agree</button>`
-          : ''}`);
+          : ''}`, status);
   }
 
   if (step.kind === 'learn') {
     const items = itemsOf(step.id);
     return stepShell(step, n, state,
-      items.length ? `<ul class="lessons">${items.map((it) => lessonRow(it, enr)).join('')}</ul>` : '<p class="muted small">The lessons will appear here soon.</p>',
-      items.length ? ` <span class="muted small step-count">${esc(learnCount(enr.id, step.id))}</span>` : '');
+      items.length ? `<ul class="lessons">${items.map((it) => lessonRow(it, enr)).join('')}</ul>` : '<p class="muted small">The lessons will appear here soon.</p>', status);
   }
 
   if (step.kind === 'exam') {
@@ -445,14 +446,14 @@ function stepHtml(step, enr, n = 1, state = 'todo') {
       <button type="button" class="primary" data-start-exam="${esc(step.id)}">${atts.length ? 'Start re-sit' : 'Start exam'}</button>`;
     const subs = atts.filter((a) => a.status === 'submitted').sort((a, b) => a.submitted_at.localeCompare(b.submitted_at));
     const results = subs.length ? `<p class="small">${subs.map((a, k) => `<button type="button" class="link" data-summary="${esc(a.id)}">My results${subs.length > 1 ? ` (attempt ${k + 1})` : ''}</button>`).join(' · ')}</p>` : '';
-    return stepShell(step, n, state, `${passed ? '' : examFacts(step)}${body}${results}`);
+    return stepShell(step, n, state, `${passed ? '' : examFacts(step)}${body}${results}`, status);
   }
 
   if (step.kind === 'certificate') {
     const cert = mine.certificates.find((c) => c.enrollment_id === enr.id);
     return stepShell(step, n, state, cert
       ? `<button type="button" class="primary" data-cert="${esc(cert.id)}">${icon('award')} View certificate</button>`
-      : '<p class="muted small">Unlocks when you pass the exam.</p>', '', !!cert);
+      : '<p class="muted small">Unlocks when you pass the exam.</p>', status);
   }
 
   if (step.kind === 'session') {
@@ -468,12 +469,11 @@ function stepHtml(step, enr, n = 1, state = 'todo') {
       ${topics.length ? `<p class="small muted ch-count">${covered.size} of ${topics.length} chapters covered</p>
         <ol class="chapters">${topics.map((t, i) => `<li class="${covered.has(i + 1) ? 'done' : ''}"><span class="ch-num">${covered.has(i + 1) ? icon('check') : i + 1}</span><span>${esc(t)}</span></li>`).join('')}</ol>` : ''}
       ${log.length ? `<h4 class="ch-h">Sessions</h4><ul class="hours-list">${log.map((h) => sessionLine(h, topics)).join('')}</ul>`
-        : '<p class="muted small">Your supervisor records each session here.</p>'}`,
-      ` <span class="muted small step-count">${fmtHours(got)} / ${target} h</span>`);
+        : '<p class="muted small">Your supervisor records each session here.</p>'}`, status);
   }
 
   if (step.kind === 'gap') {
-    return stepShell(step, n, state, step.config?.days ? `<div class="course-pills"><span class="pill">${icon('calendar')} ${Math.round(step.config.days / 7)} weeks</span></div>` : '');
+    return stepShell(step, n, state, step.config?.days ? `<div class="course-pills"><span class="pill">${icon('calendar')} ${Math.round(step.config.days / 7)} weeks</span></div>` : '', status);
   }
 
   if (step.kind === 'result') {
@@ -487,14 +487,66 @@ function stepHtml(step, enr, n = 1, state = 'todo') {
     const body = !r ? '<p class="muted small">Your supervisor records the result after the exam.</p>'
       : r.passed ? `<p class="ok-text">${icon('check')} Passed${r.held_on ? ` · ${esc(fmtDate(r.held_on))}` : ''}</p>`
         : `<p>Not passed this time${r.held_on ? ` (${esc(fmtDate(r.held_on))})` : ''}. Your supervisor will talk with you about the next step.</p>`;
-    return stepShell(step, n, state, `${r?.passed ? '' : facts}${body}`);
+    return stepShell(step, n, state, `${r?.passed ? '' : facts}${body}`, status);
   }
 
   if (step.kind === 'practicum') {
-    return stepShell(step, n, state, practicumHtml(step, enr, false));
+    return stepShell(step, n, state, practicumHtml(step, enr, false), status);
   }
 
   return stepShell(step, n, state, '<p class="muted small">Coming soon.</p>');
+}
+
+// ---- one-line status per step (trainee page and the team's trainee list) -----
+// d: { done, stepsDone, examAtts, results, hours, evals, certs } for one viewer.
+const myData = () => ({ done: mine.done, stepsDone: mine.stepsDone, examAtts: mine.attempts, results: mine.results, hours: mine.hours, evals: mine.evals, certs: mine.certificates });
+function stepStatus(step, e, d, team = false) {
+  const c = step.config || {};
+  switch (step.kind) {
+    case 'agree': return d.stepsDone.some((x) => x.enrollment_id === e.id && x.step_id === step.id) ? 'Agreed' : 'Read and agree';
+    case 'learn': {
+      const items = itemsOf(step.id);
+      const n = items.filter((i) => d.done.some((x) => x.enrollment_id === e.id && x.item_id === i.id)).length;
+      return items.length ? `${n} of ${items.length} ${items.some((i) => i.kind === 'video') ? 'watched' : 'done'}` : '';
+    }
+    case 'exam': {
+      const atts = (d.examAtts || []).filter((a) => a.enrollment_id === e.id && (!a.step_id || a.step_id === step.id));
+      if (atts.some((a) => a.passed)) return 'Passed';
+      if (atts.some((a) => a.status === 'in_progress')) return 'In progress';
+      if (atts.length) return 'Not passed yet';
+      return team ? 'Not started' : (examLocks(step, e).length ? 'Opens after the lessons' : 'Ready to start');
+    }
+    case 'session': {
+      const got = hoursFor(e.id, step.id, d.hours);
+      const topics = (c.topics || []).length;
+      const cov = chaptersCovered((d.hours || []).filter((h) => h.enrollment_id === e.id && h.step_id === step.id)).size;
+      return `${fmtHours(got)} / ${c.target_hours ?? '?'} h${topics ? ` · ${cov}/${topics} chapters` : ''}`;
+    }
+    case 'gap': return c.days ? `${Math.round(c.days / 7)} weeks` : '';
+    case 'result': {
+      const r = resultFor(e.id, step.id, d.results);
+      if (!r) return 'Not yet';
+      const sc = team && r.score != null ? ` · ${Number(r.score)}${r.full_score ? `/${Number(r.full_score)}` : ''}` : '';
+      return `${r.passed ? 'Passed' : 'Not passed'}${sc}`;
+    }
+    case 'practicum': {
+      const r = resultFor(e.id, step.id, d.results);
+      if (r?.passed) return 'Passed';
+      const slots = practicumSlots(step);
+      const filled = slots.filter((sl) => evalFor(d.evals, e.id, step.id, sl)).length;
+      return `${filled} of ${slots.length} forms${r && !r.passed ? ' · not passed' : ''}`;
+    }
+    case 'certificate': return (d.certs || []).some((x) => x.enrollment_id === e.id) ? 'Ready to view' : 'After the last step';
+    default: return '';
+  }
+}
+function previewStatus(s) {
+  if (s.kind === 'learn') { const n = itemsOf(s.id).length; return n ? `${n} ${itemsOf(s.id).some((i) => i.kind === 'video') ? 'videos' : 'lessons'}` : ''; }
+  if (s.kind === 'agree') return `${itemsOf(s.id).length} documents`;
+  if (s.kind === 'exam') return `${s.config?.time_limit_min ?? 120} minutes`;
+  if (s.kind === 'session') return `${s.config?.target_hours ?? ''} h`;
+  if (s.kind === 'gap') return s.config?.days ? `${Math.round(s.config.days / 7)} weeks` : '';
+  return '';
 }
 
 // ---- helpers for recorded steps ---------------------------------------------
@@ -669,7 +721,7 @@ function confirmStart(step, resume) {
     </div>`;
   dlg.querySelector('[data-act="no"]').addEventListener('click', () => dlg.close());
   dlg.querySelector('[data-act="go"]').addEventListener('click', () => { dlg.close(); openExam(step); });
-  dlg.showModal();
+  if (!dlg.open) dlg.showModal();
 }
 
 async function openExam(step) {
@@ -869,7 +921,7 @@ function summaryHtml(sum) {
 async function showSummary(attemptId) {
   const dlg = panelEl.querySelector('#tr-dlg');
   dlg.innerHTML = '<p class="muted">Loading…</p>';
-  dlg.showModal();
+  if (!dlg.open) dlg.showModal();
   try {
     const sum = await examMySummary(attemptId);
     dlg.innerHTML = `<div class="pw-box">
@@ -886,7 +938,7 @@ const LETTERS = 'ABCDEFGH';
 async function showReview(attemptId) {
   const dlg = viewerDialog('review-dlg', 'review-dlg');
   dlg.innerHTML = '<p class="muted">Loading…</p>';
-  dlg.showModal();
+  if (!dlg.open) dlg.showModal();
   let r;
   try {
     r = await examReview(attemptId);
@@ -982,7 +1034,7 @@ export function showCertificate(c, host = panelEl) {
     </div>`;
   dlg.querySelector('[data-act="close"]').addEventListener('click', () => dlg.close());
   dlg.querySelector('[data-act="print"]').addEventListener('click', () => printCertificate(html, c));
-  dlg.showModal();
+  if (!dlg.open) dlg.showModal();
 }
 
 function viewerDialog(id, cls) {
@@ -1020,7 +1072,7 @@ function showDocument(it) {
     window.addEventListener('afterprint', done);
     window.print();
   });
-  dlg.showModal();
+  if (!dlg.open) dlg.showModal();
   dlg.querySelector('.doc-scroll').scrollTop = 0;
 }
 
@@ -1042,7 +1094,7 @@ function showCanva(it) {
   const close = () => { dlg.close(); dlg.innerHTML = ''; };
   dlg.querySelector('[data-act="close"]').addEventListener('click', close);
   dlg.addEventListener('cancel', () => { dlg.innerHTML = ''; }, { once: true });
-  dlg.showModal();
+  if (!dlg.open) dlg.showModal();
 }
 
 function printCertificate(html, c) {
@@ -1066,6 +1118,10 @@ function printCertificate(html, c) {
 // ---------------------------------------------------------------------------
 // Team view: who is where, results with scores, retakes
 // ---------------------------------------------------------------------------
+// The team's view of a programme: tools on top, then one row per trainee
+// (mini step path + where they are now). "Open" shows that trainee's steps
+// with only the actions that make sense for each step.
+let teamOpen = null; // enrolment shown in the trainee panel (re-opened after an action)
 async function drawTeam(programKey) {
   const body = panelEl.querySelector('#team-body');
   body.innerHTML = '<p class="muted">Loading…</p>';
@@ -1079,174 +1135,169 @@ async function drawTeam(programKey) {
   }
   const prog = content.programs.find((p) => p.key === programKey);
   const steps = stepsOf(programKey);
-  const learnItems = steps.filter((s) => s.kind === 'learn').flatMap((s) => itemsOf(s.id));
-  const agreeSteps = steps.filter((s) => s.kind === 'agree');
-  const examStep = steps.find((s) => s.kind === 'exam');
-  const maxAttempts = examStep?.config?.max_attempts ?? 1;
   const sessionSteps = steps.filter((s) => s.kind === 'session');
-  const recSteps = steps.filter((s) => s.kind === 'result' || s.kind === 'practicum');
   const rows = data.enrollments.filter((e) => e.status !== 'withdrawn');
   const nameOf = (id) => { const p = people.find((x) => x.id === id); return p ? (p.nickname || p.full_name) : 'Unknown'; };
   const isSup = ctx.roles.includes('supervisor');
   const assessor = ctx.roles.some((r) => ['admin', 'supervisor', 'qcd'].includes(r));
+  const td = teamData(data);
   const tools = [
     isAdmin() ? '<button type="button" class="primary" data-assign>+ Assign people</button>' : '',
     prog?.promotes_to && (isSup || isAdmin()) ? '<button type="button" data-recommend>+ Recommend someone</button>' : '',
     assessor && sessionSteps.length && rows.some((e) => e.status === 'active') ? `<button type="button" data-group-hours>${icon('school')} Log a group session</button>` : '',
   ].filter(Boolean).join(' ');
-  const wireTools = () => {
-    body.querySelector('[data-assign]')?.addEventListener('click', () => assignDialog(programKey, people, data));
-    body.querySelector('[data-recommend]')?.addEventListener('click', () => recommendDialog(programKey, people, data));
-    body.querySelector('[data-group-hours]')?.addEventListener('click', () => hoursDialog(programKey, sessionSteps[0], rows.filter((e) => e.status === 'active'), nameOf, data));
-  };
-  if (!rows.length) {
-    body.innerHTML = `${tools ? `<p class="row-actions">${tools}</p>` : ''}<p class="muted">No one is in this programme yet.</p>`;
-    wireTools();
-    return;
-  }
   const order = { recommended: 0, active: 1, not_passed: 2, passed: 3 };
-  rows.sort((a, b) => (order[a.status] ?? 9) - (order[b.status] ?? 9));
-  const hasDue = rows.some((e) => e.due_on);
-  const learnLabel = learnItems.some((i) => i.kind === 'video') ? 'Videos' : 'Lessons';
-
-  const head = ['Person', 'Status', 'Started', ...(hasDue ? ['Finish by'] : []),
-    ...(agreeSteps.length ? ['Policies'] : []), ...(learnItems.length ? [learnLabel] : []), ...(examStep ? ['Exam'] : []),
-    ...sessionSteps.map(() => 'Hours'), ...recSteps.map((s) => s.title), ''];
+  rows.sort((a, b) => (order[a.status] ?? 9) - (order[b.status] ?? 9) || nameOf(a.therapist_id).localeCompare(nameOf(b.therapist_id)));
 
   body.innerHTML = `${tools ? `<p class="row-actions">${tools}</p>` : ''}
-    <div class="table-wrap"><table class="team-table">
-      <thead><tr>${head.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead>
-      <tbody>${rows.map((e) => {
-        const p = people.find((x) => x.id === e.therapist_id);
-        const name = nameOf(e.therapist_id);
-        const active = e.status === 'active';
-        const cells = [];
-        cells.push(`<td><strong>${esc(name)}</strong>${p?.track === 'abat' ? ' <span class="chip track-abat">ABAT</span>' : ''}
-          ${e.status === 'recommended' ? `<div class="muted small">Recommended by ${esc(nameOf(e.recommended_by))}${e.reason ? `: “${esc(e.reason)}”` : ''}</div>` : ''}</td>`);
-        cells.push(`<td>${esc(STATUS_LABEL[e.status] ?? e.status)}${e.promoted_on ? `<div class="ok-text small">Promoted ${esc(fmtDate(e.promoted_on))}</div>` : ''}</td>`);
-        cells.push(`<td>${esc(fmtDate(e.started_on))}</td>`);
-        if (hasDue) {
-          cells.push(`<td class="nowrap">${e.due_on ? esc(fmtDate(e.due_on)) : '—'}${active && e.due_on && e.due_on < todayLocal() ? ' <span class="chip warn">Overdue</span>' : ''}
-            ${isAdmin() && active ? `<button type="button" class="small-btn" data-due="${esc(e.id)}" data-name="${esc(name)}" data-date="${esc(e.due_on ?? '')}" aria-label="Change finish date">Change</button>` : ''}</td>`);
-        }
-        if (agreeSteps.length) {
-          const agreed = agreeSteps.every((s) => data.stepsDone.some((d) => d.enrollment_id === e.id && d.step_id === s.id));
-          cells.push(`<td>${agreed ? '<span class="ok-text">✓ Agreed</span>' : '<span class="muted">Not yet</span>'}</td>`);
-        }
-        if (learnItems.length) {
-          const doneN = learnItems.filter((i) => data.done.some((d) => d.enrollment_id === e.id && d.item_id === i.id)).length;
-          cells.push(`<td>${doneN}/${learnItems.length}</td>`);
-        }
-        let retakeBtn = '';
-        if (examStep) {
-          const atts = data.results.filter((r) => r.enrollment_id === e.id);
-          const last = atts[0];
-          const passed = atts.some((r) => r.passed);
-          const left = maxAttempts + (e.extra_attempts ?? 0) - atts.length;
-          let exam = '<span class="muted">Not started</span>';
-          if (last?.status === 'in_progress') exam = 'In progress';
-          else if (last) {
-            const best = passed ? atts.find((r) => r.passed) : last;
-            exam = `${best.passed ? '<span class="ok-text">Passed</span>' : '<span class="error">Not passed</span>'}
-              · ${Number(best.score)}/${Number(best.total)}${best.time_used_min ? ` · ${best.time_used_min} min` : ''}
-              ${atts.length > 1 ? `<span class="muted small"> (${atts.length} attempts)</span>` : ''}`;
-          }
-          if (canReview()) {
-            const subs = atts.filter((r) => r.status === 'submitted').slice().reverse();
-            if (subs.length) exam += `<div>${subs.map((r, n) => `<button type="button" class="link small" data-review="${esc(r.attempt_id)}">Review${subs.length > 1 ? ` #${n + 1}` : ''}</button>`).join(' · ')}</div>`;
-          }
-          cells.push(`<td>${exam}</td>`);
-          if (canRetake() && active && atts.length && !passed && left <= 0 && last?.status !== 'in_progress') {
-            retakeBtn = `<button type="button" class="small-btn" data-retake="${esc(e.id)}" data-name="${esc(name)}">Allow extra attempt</button>`;
-          }
-        }
-        for (const st of sessionSteps) {
-          const got = hoursFor(e.id, st.id, data.hours);
-          const nTopics = (st.config?.topics || []).length;
-          const covered = chaptersCovered(data.hours.filter((h) => h.enrollment_id === e.id && h.step_id === st.id)).size;
-          cells.push(`<td class="nowrap">${fmtHours(got)} / ${esc(st.config?.target_hours ?? '?')} h${nTopics ? `<div class="muted small">${covered}/${nTopics} chapters</div>` : ''}
-            ${assessor && (active || got) ? `<button type="button" class="small-btn" data-hours="${esc(e.id)}|${esc(st.id)}">${active ? 'Log' : 'View'}</button>` : ''}</td>`);
-        }
-        for (const st of recSteps) {
-          const r = resultFor(e.id, st.id, data.stepResults);
-          const score = r && r.score != null ? ` · ${Number(r.score)}${r.full_score ? `/${Number(r.full_score)}` : ''}` : '';
-          let cell = r ? `${r.passed ? '<span class="ok-text">Passed</span>' : '<span class="error">Not passed</span>'}${score}${r.held_on ? `<div class="muted small">${esc(fmtDate(r.held_on))}</div>` : ''}`
-            : '<span class="muted">—</span>';
-          if (st.kind === 'practicum') {
-            const filled = practicumSlots(st).filter((sl) => evalFor(data.evals, e.id, st.id, sl)).length;
-            cell = `<div class="small">${filled}/${practicumSlots(st).length} forms</div>${cell}
-              ${(assessor || ctx.roles.includes('hr')) && e.status !== 'recommended' ? `<div><button type="button" class="small-btn" data-checklist="${esc(e.id)}|${esc(st.id)}">Checklist</button></div>` : ''}`;
-          }
-          if (assessor && active) cell += `<div><button type="button" class="link small" data-record="${esc(e.id)}|${esc(st.id)}">${r ? 'Edit result' : 'Record result'}</button></div>`;
-          cells.push(`<td>${cell}</td>`);
-        }
-        const cert = data.certificates.find((c) => c.enrollment_id === e.id);
-        const actions = [
-          cert ? `<button type="button" class="small-btn" data-tcert="${esc(cert.id)}">Certificate</button>` : '',
-          retakeBtn,
-          isAdmin() && e.status === 'recommended' ? `<button type="button" class="small-btn primary" data-approve="${esc(e.id)}">Approve</button> <button type="button" class="small-btn" data-decline="${esc(e.id)}" data-name="${esc(name)}">Decline</button>` : '',
-          isAdmin() && e.status === 'passed' && prog?.promotes_to && !e.promoted_on && !(p?.roles || []).includes(prog.promotes_to)
-            ? `<button type="button" class="small-btn primary" data-promote="${esc(e.id)}" data-name="${esc(name)}">Promote to ${esc(RANK_NAME[prog.promotes_to] ?? prog.promotes_to)}</button>` : '',
-        ].filter(Boolean).join(' ');
-        cells.push(`<td>${actions}</td>`);
-        return `<tr>${cells.join('')}</tr>`;
-      }).join('')}</tbody>
-    </table></div>
-    ${examStep ? '<p class="muted small">Trainees see their own score and a summary by domain, but never which questions they got wrong. Answer reviews are for admins, supervisors and QCD.</p>' : ''}
-    ${recSteps.length ? '<p class="muted small">Recorded results: trainees see pass / not pass and the date only; scores and notes are for the team. Practicum marks and comments are shared with the trainee.</p>' : ''}`;
+    ${rows.length ? `<ul class="tr-list">${rows.map((e) => {
+      const p = people.find((x) => x.id === e.therapist_id);
+      const name = nameOf(e.therapist_id);
+      const states = steps.map((s) => (stepDoneFor(s, e, td) ? 'done' : 'todo'));
+      const cur = states.indexOf('todo');
+      if (cur >= 0 && e.status === 'active') states[cur] = 'current';
+      const now = e.status === 'recommended'
+        ? `Recommended by ${esc(nameOf(e.recommended_by))}${e.reason ? `: “${esc(e.reason)}”` : ''}`
+        : e.status === 'passed' ? `Completed${e.finished_on ? ` ${esc(fmtDate(e.finished_on))}` : ''}${e.promoted_on ? ` · promoted ${esc(fmtDate(e.promoted_on))}` : ''}`
+          : cur >= 0 ? `Now: <strong>${esc(steps[cur].title)}</strong>${stepStatus(steps[cur], e, td, true) ? ` · ${esc(stepStatus(steps[cur], e, td, true))}` : ''}` : 'All steps done';
+      const late = e.status === 'active' && e.due_on && e.due_on < todayLocal();
+      return `<li class="tr-row">
+        <div class="tr-who"><strong>${esc(name)}</strong>${p?.track === 'abat' ? ' <span class="chip track-abat">ABAT</span>' : ''}
+          <span class="chip ${e.status === 'passed' ? 'ok' : e.status === 'recommended' ? 'warn' : 'stage'}">${esc(e.status === 'recommended' ? 'Recommended' : STATUS_LABEL[e.status] ?? e.status)}</span>
+          ${late ? '<span class="chip warn">Overdue</span>' : ''}</div>
+        <div class="tr-path" aria-hidden="true">${states.map((st, i) => `<span class="${st}" title="${esc(steps[i].title)}"></span>`).join('')}</div>
+        <div class="tr-now small">${now}</div>
+        <div class="tr-act">${e.status === 'recommended' && isAdmin()
+          ? `<button type="button" class="small-btn primary" data-approve="${esc(e.id)}">Approve</button> <button type="button" class="small-btn" data-decline="${esc(e.id)}" data-name="${esc(name)}">Decline</button>`
+          : `<button type="button" class="small-btn" data-open="${esc(e.id)}">Open</button>`}</div>
+      </li>`;
+    }).join('')}</ul>` : '<p class="muted">No one is in this programme yet.</p>'}`;
 
-  wireTools();
-  const redraw = () => drawTeam(programKey);
-  for (const b of body.querySelectorAll('[data-retake]')) {
-    b.addEventListener('click', async () => {
-      if (!confirm(`${b.dataset.name} has used all their attempts. Allow one extra attempt?`)) return;
-      b.disabled = true;
-      try { await allowRetake(b.dataset.retake); await redraw(); } catch (e) { alert(e.message); b.disabled = false; }
-    });
+  body.querySelector('[data-assign]')?.addEventListener('click', () => assignDialog(programKey, people, data));
+  body.querySelector('[data-recommend]')?.addEventListener('click', () => recommendDialog(programKey, people, data));
+  body.querySelector('[data-group-hours]')?.addEventListener('click', () => hoursDialog(programKey, sessionSteps[0], rows.filter((e) => e.status === 'active'), nameOf, data));
+  for (const b of body.querySelectorAll('[data-open]')) {
+    b.addEventListener('click', () => { teamOpen = b.dataset.open; traineePanel(programKey, rows.find((x) => x.id === b.dataset.open), people, data); });
   }
-  for (const b of body.querySelectorAll('[data-review]')) b.addEventListener('click', () => showReview(b.dataset.review));
-  for (const b of body.querySelectorAll('[data-due]')) b.addEventListener('click', () => dueDialog(b.dataset.due, b.dataset.name, b.dataset.date, programKey));
-  for (const b of body.querySelectorAll('[data-tcert]')) b.addEventListener('click', () => showCertificate(data.certificates.find((c) => c.id === b.dataset.tcert)));
   for (const b of body.querySelectorAll('[data-approve]')) {
     b.addEventListener('click', async () => {
       b.disabled = true;
-      try { await approveRecommendation(b.dataset.approve, ctx.me.id, todayLocal()); await redraw(); } catch (e) { alert(e.message); b.disabled = false; }
+      try { await approveRecommendation(b.dataset.approve, ctx.me.id, todayLocal()); await drawTeam(programKey); } catch (e) { alert(e.message); b.disabled = false; }
     });
   }
   for (const b of body.querySelectorAll('[data-decline]')) {
     b.addEventListener('click', async () => {
       if (!confirm(`Decline the recommendation for ${b.dataset.name}?`)) return;
-      try { await declineRecommendation(b.dataset.decline); await redraw(); } catch (e) { alert(e.message); }
+      try { await declineRecommendation(b.dataset.decline); await drawTeam(programKey); } catch (e) { alert(e.message); }
     });
   }
-  for (const b of body.querySelectorAll('[data-promote]')) {
+  // After an action from the trainee panel, show that trainee again.
+  if (teamOpen) {
+    const e = rows.find((x) => x.id === teamOpen);
+    const dlg = panelEl.querySelector('#tr-dlg');
+    if (e && !dlg.open) traineePanel(programKey, e, people, data);
+  }
+}
+
+const teamData = (data) => ({ done: data.done, stepsDone: data.stepsDone, examAtts: data.results, results: data.stepResults, hours: data.hours, evals: data.evals, certs: data.certificates });
+function stepDoneFor(s, e, d) {
+  if (s.kind === 'agree') return d.stepsDone.some((x) => x.enrollment_id === e.id && x.step_id === s.id);
+  if (s.kind === 'learn') { const it = itemsOf(s.id); return it.length > 0 && it.every((i) => d.done.some((x) => x.enrollment_id === e.id && x.item_id === i.id)); }
+  if (s.kind === 'exam') return (d.examAtts || []).some((a) => a.enrollment_id === e.id && a.passed);
+  if (s.kind === 'certificate') return (d.certs || []).some((c) => c.enrollment_id === e.id);
+  if (s.kind === 'session') return hoursFor(e.id, s.id, d.hours) >= (s.config?.target_hours ?? Infinity);
+  if (s.kind === 'result' || s.kind === 'practicum') return !!resultFor(e.id, s.id, d.results)?.passed;
+  if (s.kind === 'gap') return stepsOf(s.program_key).some((x) => x.sort_order > s.sort_order && ['result', 'practicum'].includes(x.kind) && resultFor(e.id, x.id, d.results));
+  return false;
+}
+
+// One trainee, step by step, with the actions for each step.
+function traineePanel(programKey, e, people, data) {
+  const prog = content.programs.find((p) => p.key === programKey);
+  const steps = stepsOf(programKey);
+  const td = teamData(data);
+  const p = people.find((x) => x.id === e.therapist_id);
+  const name = p ? (p.nickname || p.full_name) : 'Unknown';
+  const nameOf = (id) => { const x = people.find((y) => y.id === id); return x ? (x.nickname || x.full_name) : 'Unknown'; };
+  const active = e.status === 'active';
+  const assessor = ctx.roles.some((r) => ['admin', 'supervisor', 'qcd'].includes(r));
+  const maxAttempts = steps.find((s) => s.kind === 'exam')?.config?.max_attempts ?? 1;
+  const cert = data.certificates.find((c) => c.enrollment_id === e.id);
+
+  const stepBlock = (s, i) => {
+    const done = stepDoneFor(s, e, td);
+    const acts = [];
+    let extra = '';
+    if (s.kind === 'exam') {
+      const atts = data.results.filter((r) => r.enrollment_id === e.id);
+      const passed = atts.some((r) => r.passed);
+      const last = atts[0];
+      const best = passed ? atts.find((r) => r.passed) : atts.find((r) => r.status === 'submitted');
+      if (best) extra = `${Number(best.score)}/${Number(best.total)}${best.time_used_min ? ` · ${best.time_used_min} min` : ''}${atts.length > 1 ? ` · ${atts.length} attempts` : ''}`;
+      if (canReview()) atts.filter((r) => r.status === 'submitted').slice().reverse().forEach((r, n, arr) => acts.push(`<button type="button" class="small-btn" data-review="${esc(r.attempt_id)}">Review answers${arr.length > 1 ? ` #${n + 1}` : ''}</button>`));
+      const left = maxAttempts + (e.extra_attempts ?? 0) - atts.length;
+      if (canRetake() && active && atts.length && !passed && left <= 0 && last?.status !== 'in_progress') acts.push(`<button type="button" class="small-btn" data-retake="${esc(e.id)}">Allow extra attempt</button>`);
+    }
+    if (s.kind === 'session' && assessor && (active || hoursFor(e.id, s.id, data.hours))) acts.push(`<button type="button" class="small-btn" data-hours="${esc(s.id)}">${active ? 'Log hours' : 'View hours'}</button>`);
+    if (s.kind === 'practicum' && (assessor || ctx.roles.includes('hr'))) acts.push(`<button type="button" class="small-btn" data-checklist="${esc(s.id)}">Checklist</button>`);
+    if ((s.kind === 'result' || s.kind === 'practicum') && assessor && active) {
+      const r = resultFor(e.id, s.id, data.stepResults);
+      acts.push(`<button type="button" class="small-btn${r ? '' : ' primary'}" data-record="${esc(s.id)}">${r ? 'Edit result' : 'Record result'}</button>`);
+      if (r?.note) extra = `Note: ${r.note}`;
+      if (r?.held_on) extra = `${fmtDate(r.held_on)}${extra ? ` · ${extra}` : ''}`;
+    }
+    if (s.kind === 'certificate' && cert) acts.push(`<button type="button" class="small-btn" data-tcert="${esc(cert.id)}">${icon('award')} Certificate</button>`);
+    return `<li class="tp-step${done ? ' done' : ''}">
+      <span class="cstep-num" aria-hidden="true">${done ? icon('check') : i + 1}</span>
+      <div class="tp-main"><strong>${esc(s.title)}</strong>
+        <span class="small ${done ? 'ok-text' : 'muted'}">${esc(stepStatus(s, e, td, true))}</span>
+        ${extra ? `<span class="small muted">${esc(extra)}</span>` : ''}</div>
+      <div class="tp-act">${acts.join(' ')}</div>
+    </li>`;
+  };
+
+  const dlg = panelEl.querySelector('#tr-dlg');
+  dlg.innerHTML = `
+    <div class="tp">
+      <div class="tp-head">
+        <div><p class="level-kicker">${esc(prog.title)}</p><h2>${esc(name)}</h2>
+          <p class="small muted">${esc(STATUS_LABEL[e.status] ?? e.status)} · started ${esc(fmtDate(e.started_on))}${e.recommended_by ? ` · recommended by ${esc(nameOf(e.recommended_by))}` : ''}</p>
+          ${e.due_on ? `<p class="small">Finish by <strong>${esc(fmtDate(e.due_on))}</strong>${active && e.due_on < todayLocal() ? ' <span class="chip warn">Overdue</span>' : ''}
+            ${isAdmin() && active ? '<button type="button" class="link small" data-due>Change</button>' : ''}</p>` : ''}</div>
+      </div>
+      <ol class="tp-steps">${steps.map(stepBlock).join('')}</ol>
+      ${isAdmin() && e.status === 'passed' && prog.promotes_to && !e.promoted_on && !(p?.roles || []).includes(prog.promotes_to)
+        ? `<p class="tp-promote"><button type="button" class="primary" data-promote>Promote to ${esc(RANK_NAME[prog.promotes_to] ?? prog.promotes_to)}</button></p>` : ''}
+      ${e.promoted_on ? `<p class="ok-text small">Promoted on ${esc(fmtDate(e.promoted_on))}.</p>` : ''}
+      <p class="muted small">${steps.some((s) => s.kind === 'exam') ? 'Trainees see their own score and a summary by domain, never which questions they got wrong. ' : ''}${steps.some((s) => s.kind === 'result') ? 'For recorded exams, trainees see pass / not pass and the date only. Practicum marks and comments are shared with them.' : ''}</p>
+      <div class="dlg-actions"><span class="spacer"></span><button type="button" data-act="close">Close</button></div>
+    </div>`;
+  const redraw = () => drawTeam(programKey);
+  const q = (sel) => dlg.querySelectorAll(sel);
+  dlg.querySelector('[data-act="close"]').addEventListener('click', () => { teamOpen = null; dlg.close(); });
+  dlg.addEventListener('cancel', () => { teamOpen = null; }, { once: true });
+  for (const b of q('[data-review]')) b.addEventListener('click', () => { teamOpen = null; dlg.close(); showReview(b.dataset.review); });
+  for (const b of q('[data-tcert]')) b.addEventListener('click', () => { teamOpen = null; dlg.close(); showCertificate(cert); });
+  for (const b of q('[data-retake]')) {
     b.addEventListener('click', async () => {
-      const to = RANK_NAME[prog.promotes_to] ?? prog.promotes_to;
-      if (!confirm(`Promote ${b.dataset.name} to ${to}? Their rank and badge change straight away.`)) return;
-      b.disabled = true;
-      try { await promote(b.dataset.promote); await redraw(); } catch (e) { alert(e.message); b.disabled = false; }
+      if (!confirm(`${name} has used all their attempts. Allow one extra attempt?`)) return;
+      try { await allowRetake(e.id); dlg.close(); await redraw(); } catch (err) { alert(err.message); }
     });
   }
-  for (const b of body.querySelectorAll('[data-hours]')) {
-    b.addEventListener('click', () => {
-      const [enrId, stepId] = b.dataset.hours.split('|');
-      hoursDialog(programKey, content.steps.find((x) => x.id === stepId), rows.filter((x) => x.id === enrId), nameOf, data, true);
-    });
+  dlg.querySelector('[data-due]')?.addEventListener('click', () => dueDialog(e.id, name, e.due_on ?? '', programKey));
+  dlg.querySelector('[data-promote]')?.addEventListener('click', async () => {
+    const to = RANK_NAME[prog.promotes_to] ?? prog.promotes_to;
+    if (!confirm(`Promote ${name} to ${to}? Their rank and badge change straight away.`)) return;
+    try { await promote(e.id); dlg.close(); await redraw(); } catch (err) { alert(err.message); }
+  });
+  for (const b of q('[data-hours]')) b.addEventListener('click', () => hoursDialog(programKey, content.steps.find((x) => x.id === b.dataset.hours), [e], nameOf, data, true));
+  for (const b of q('[data-record]')) {
+    b.addEventListener('click', () => recordDialog(programKey, content.steps.find((x) => x.id === b.dataset.record), e, name, resultFor(e.id, b.dataset.record, data.stepResults), data));
   }
-  for (const b of body.querySelectorAll('[data-record]')) {
-    b.addEventListener('click', () => {
-      const [enrId, stepId] = b.dataset.record.split('|');
-      const enr = rows.find((x) => x.id === enrId);
-      recordDialog(programKey, content.steps.find((x) => x.id === stepId), enr, nameOf(enr.therapist_id), resultFor(enrId, stepId, data.stepResults), data);
-    });
+  for (const b of q('[data-checklist]')) {
+    b.addEventListener('click', () => checklistDialog(programKey, content.steps.find((x) => x.id === b.dataset.checklist), e, name, data, assessor && active));
   }
-  for (const b of body.querySelectorAll('[data-checklist]')) {
-    b.addEventListener('click', () => {
-      const [enrId, stepId] = b.dataset.checklist.split('|');
-      const enr = rows.find((x) => x.id === enrId);
-      checklistDialog(programKey, content.steps.find((x) => x.id === stepId), enr, nameOf(enr.therapist_id), data, assessor && enr.status === 'active');
-    });
-  }
+  if (!dlg.open) dlg.showModal();
 }
 
 const RANK_NAME = { therapist: 'Junior therapist', senior: 'Senior', qcd: 'QCD', supervisor: 'Supervisor' };
@@ -1282,7 +1333,7 @@ function recommendDialog(programKey, people, data) {
       await drawTeam(programKey);
     } catch (e) { const m = f.querySelector('.msg'); m.hidden = false; m.dataset.kind = 'error'; m.textContent = e.message; }
   });
-  dlg.showModal();
+  if (!dlg.open) dlg.showModal();
 }
 
 // Log in-person training hours: for one person (with their log) or the group.
@@ -1314,7 +1365,7 @@ function hoursDialog(programKey, step, enrs, nameOf, data, single = false) {
     </form>`;
   const f = dlg.querySelector('form');
   const say = (t) => { const m = f.querySelector('.msg'); m.hidden = false; m.dataset.kind = 'error'; m.textContent = t; };
-  f.querySelector('[data-act="cancel"]').addEventListener('click', () => dlg.close());
+  f.querySelector('[data-act="cancel"]').addEventListener('click', () => { dlg.close(); if (teamOpen) drawTeam(programKey); });
   for (const b of f.querySelectorAll('[data-del]')) {
     b.addEventListener('click', async () => {
       if (!confirm('Remove this session from their hours?')) return;
@@ -1333,7 +1384,7 @@ function hoursDialog(programKey, step, enrs, nameOf, data, single = false) {
       await drawTeam(programKey);
     } catch (e) { say(e.message); }
   });
-  dlg.showModal();
+  if (!dlg.open) dlg.showModal();
 }
 
 // Record a written / oral exam or practicum result.
@@ -1369,7 +1420,7 @@ function recordDialog(programKey, step, enr, name, current, data) {
   f.score?.addEventListener('input', () => {
     if (c.pass_score && f.score.value !== '') f.querySelector(`input[name="passed"][value="${Number(f.score.value) >= c.pass_score ? 1 : 0}"]`).checked = true;
   });
-  f.querySelector('[data-act="cancel"]').addEventListener('click', () => dlg.close());
+  f.querySelector('[data-act="cancel"]').addEventListener('click', () => { dlg.close(); if (teamOpen) drawTeam(programKey); });
   f.addEventListener('submit', async (ev) => {
     ev.preventDefault();
     try {
@@ -1382,7 +1433,7 @@ function recordDialog(programKey, step, enr, name, current, data) {
       await drawTeam(programKey);
     } catch (e) { const m = f.querySelector('.msg'); m.hidden = false; m.dataset.kind = 'error'; m.textContent = e.message; }
   });
-  dlg.showModal();
+  if (!dlg.open) dlg.showModal();
 }
 
 // The practicum checklist for one trainee: pick a form to fill in or read.
@@ -1400,7 +1451,7 @@ function checklistDialog(programKey, step, enr, name, data, editable) {
       ${practicumHtml(step, enr, editable, data.evals, resultFor(enr.id, step.id, data.stepResults))}
       <div class="dlg-actions"><span class="spacer"></span><button type="button" data-act="close">Close</button></div>
     </div>`;
-  dlg.querySelector('[data-act="close"]').addEventListener('click', () => dlg.close());
+  dlg.querySelector('[data-act="close"]').addEventListener('click', () => { dlg.close(); if (teamOpen) drawTeam(programKey); });
   for (const b of dlg.querySelectorAll('[data-pr]')) {
     b.addEventListener('click', () => {
       const [, , section, seq] = b.dataset.pr.split('|');
@@ -1461,7 +1512,7 @@ function assignDialog(programKey, people, data) {
       await drawTeam(programKey);
     } catch (e) { msg.hidden = false; msg.dataset.kind = 'error'; msg.textContent = e.message; }
   });
-  dlg.showModal();
+  if (!dlg.open) dlg.showModal();
 }
 
 // Admin: change one person's finish-by date (e.g. an approved extension).
@@ -1478,7 +1529,7 @@ function dueDialog(enrollmentId, name, current, programKey) {
         <button type="submit" class="primary">Save</button></div>
     </form>`;
   const form = dlg.querySelector('form');
-  form.querySelector('[data-act="cancel"]').addEventListener('click', () => dlg.close());
+  form.querySelector('[data-act="cancel"]').addEventListener('click', () => { dlg.close(); if (teamOpen) drawTeam(programKey); });
   form.addEventListener('submit', async (ev) => {
     ev.preventDefault();
     try {
@@ -1489,5 +1540,5 @@ function dueDialog(enrollmentId, name, current, programKey) {
       const msg = form.querySelector('.msg'); msg.hidden = false; msg.textContent = e.message;
     }
   });
-  dlg.showModal();
+  if (!dlg.open) dlg.showModal();
 }

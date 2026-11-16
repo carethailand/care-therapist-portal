@@ -870,3 +870,35 @@ fieldset { min-width: 0; }
 .ch-h { margin: 14px 0 0; font-size: .9rem; color: var(--muted); font-weight: 500; }
 .ch-pick { display: grid; gap: 2px; max-height: 40vh; overflow: auto; }
 .ch-pick .check { font-size: .9rem; }
+
+/* Training: closed steps with a status line; the team's trainee list (P7e) */
+.cstep-status { margin-left: auto; font-size: .85rem; color: var(--muted); text-align: right; }
+.cstep-status.ok { color: var(--ok); }
+.cstep-status + .cstep-chev { margin-left: 4px; }
+.tr-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.tr-row { display: grid; grid-template-columns: minmax(150px, 1.2fr) auto minmax(180px, 2fr) auto; gap: 8px 16px; align-items: center; padding: 12px 14px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface-raised); }
+.tr-who { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tr-path { display: flex; gap: 4px; }
+.tr-path span { width: 12px; height: 12px; border-radius: 50%; border: 1px solid var(--line-strong); }
+.tr-path span.done { background: var(--accent-fill); border-color: var(--accent-fill); }
+.tr-path span.current { border-color: var(--clay); box-shadow: 0 0 0 2px var(--clay-soft); }
+.tr-now { color: var(--muted); }
+.tr-now strong { color: var(--text); font-weight: 500; }
+.tr-act { justify-self: end; white-space: nowrap; }
+@media (max-width: 760px) {
+  .tr-row { grid-template-columns: 1fr auto; }
+  .tr-path { grid-column: 1 / -1; order: 3; }
+  .tr-now { grid-column: 1 / -1; order: 4; }
+}
+.dlg:has(.tp) { width: min(720px, 94vw); box-sizing: border-box; }
+.tp-head h2 { margin: 0 0 2px; }
+.tp-head p { margin: 2px 0; }
+.tp-steps { list-style: none; padding: 0; margin: 14px 0; display: grid; gap: 0; }
+.tp-step { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+.tp-step:first-child { border-top: 0; }
+.tp-step.done .cstep-num { background: var(--accent-fill); border-color: var(--accent-fill); color: #fff; }
+.tp-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.tp-act { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.tp-act .ico { width: 14px; height: 14px; vertical-align: -2px; }
+.tp-promote { margin: 4px 0 10px; }
+@media (max-width: 600px) { .tp-step { flex-wrap: wrap; } .tp-act { width: 100%; justify-content: flex-start; padding-left: 38px; } }
