@@ -18,20 +18,32 @@ export const trackLabel = (t) => TRACK_LABEL[t] ?? titleCase(t ?? '');
 
 export const roleLabel = (r) => (r === 'hr' || r === 'qcd' ? r.toUpperCase() : titleCase(r));
 
-// Therapists have two tiers. In the database a senior holds BOTH 'therapist'
-// and 'senior'; a junior holds 'therapist' only.
-//   Junior therapist: covers their own cases only.
-//   Senior therapist: can cover any case; new hires observe / do field overlap with them.
-// displayRoles() turns the raw roles into what people should read, as
-// [{ key, label }] where key picks the chip colour.
-const ROLE_ORDER = ['admin', 'hr', 'supervisor', 'qcd', 'senior', 'therapist', 'applicant'];
+// Clinical RANK: one per person, lowest to highest. Each rank includes what
+// the ranks below it can do (database rules list every rank that qualifies).
+//   applicant  new hire in training, or ABAT learner
+//   therapist  Junior therapist: covers their own cases
+//   senior     Senior therapist: covers any case; new hires overlap with them
+//   qcd        Quality Control Department: role-play training, overlap forms, evaluations
+//   supervisor supervises therapists
+// OFFICE roles sit outside the ladder and can be added to any rank: hr, admin.
+export const RANKS = ['applicant', 'therapist', 'senior', 'qcd', 'supervisor'];
+export const OFFICE_ROLES = ['hr', 'admin'];
+export const RANK_LABEL = {
+  applicant: 'Applicant',
+  therapist: 'Junior therapist',
+  senior: 'Senior therapist',
+  qcd: 'QCD',
+  supervisor: 'Supervisor',
+};
+// Highest rank someone holds (older records may hold several), or null.
+export const rankOf = (roles) => [...RANKS].reverse().find((r) => roles.includes(r)) ?? null;
+
+// What people should read: rank first, then office roles, as [{ key, label }]
+// where key picks the chip colour.
 export function displayRoles(roles) {
-  const out = [];
-  for (const r of ROLE_ORDER.filter((x) => roles.includes(x))) {
-    if (r === 'senior') out.push({ key: 'senior', label: 'Senior therapist' });
-    else if (r === 'therapist') { if (!roles.includes('senior')) out.push({ key: 'therapist', label: 'Junior therapist' }); }
-    else out.push({ key: r, label: roleLabel(r) });
-  }
+  const rank = rankOf(roles);
+  const out = rank ? [{ key: rank, label: RANK_LABEL[rank] }] : [];
+  for (const r of OFFICE_ROLES.filter((x) => roles.includes(x))) out.push({ key: r, label: roleLabel(r) });
   return out;
 }
 export const rolesText = (roles) => displayRoles(roles).map((r) => r.label).join(' · ');

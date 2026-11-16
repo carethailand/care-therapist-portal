@@ -3,7 +3,7 @@
 // this page only hides controls a person can't use.
 import { listStaff, addPerson, updatePerson, setRoles, staffLogin } from '../data.js';
 import { esc, titleCase, todayLocal } from '../ui.js';
-import { stageLabel, TRACK_LABEL, roleLabel, displayRoles } from '../labels.js';
+import { stageLabel, TRACK_LABEL, roleLabel, displayRoles, RANKS, OFFICE_ROLES, RANK_LABEL, rankOf } from '../labels.js';
 import { openRecord, exportEveryone } from './export.js';
 
 // Each track has its own steps. CARE new hires become Therapist at Probation
@@ -14,20 +14,19 @@ const TRACK_STAGES = {
 };
 const STAGES = [...new Set([...TRACK_STAGES.care_hire, ...TRACK_STAGES.abat])];
 const THERAPIST_STAGES = ['probation', 'active'];
-const HR_ROLES = ['applicant', 'therapist']; // roles HR may give; the rest are admin-only
+const HR_RANKS = ['applicant', 'therapist']; // ranks HR may give; higher ranks and office roles are admin-only
 const STATUSES = ['active', 'on_leave', 'exited'];
-const ROLES = ['applicant', 'therapist', 'senior', 'qcd', 'supervisor', 'hr', 'admin'];
-const ROLE_HELP = {
+const RANK_HELP = {
   applicant: 'New hire in training, or ABAT learner. Sees only their own journey and the course',
-  therapist: 'Junior therapist: covers their own cases',
-  senior: 'Senior therapist: can cover any case; new hires observe and do field overlap with them. Includes Therapist',
+  therapist: 'Covers their own cases',
+  senior: 'Can cover any case. New hires observe and do field overlap with them',
   qcd: 'Quality Control Department: role-play training, overlap forms, QCD evaluations',
   supervisor: 'Supervises therapists: sees everyone, adds timeline notes',
-  hr: 'Adds and edits staff records',
-  admin: 'Full control, including roles and tab switches',
 };
-
-const CHECK_LABEL = { therapist: 'Therapist (Junior)', senior: 'Senior' };
+const OFFICE_HELP = {
+  hr: 'Adds and edits staff records',
+  admin: 'Full control, including ranks and tab switches',
+};
 
 let ctx; // { me, roles }
 let people = [];
@@ -163,6 +162,9 @@ function openPerson(p) {
   const isNew = !p;
   const roles = isNew ? ['applicant'] : p.roles;
   const track = p?.track ?? 'care_hire';
+  const rank = rankOf(roles);
+  // HR can't move someone who is already above Junior (that's admin-only).
+  const rankLocked = !isAdmin() && rank !== null && !HR_RANKS.includes(rank);
   const v = (k) => esc(p?.[k] ?? '');
   const dlg = panelEl.querySelector('#person-dlg');
   dlg.innerHTML = `
@@ -199,13 +201,24 @@ function openPerson(p) {
       </div>
 
       <fieldset>
-        <legend>Roles</legend>
-        ${ROLES.map((r) => {
-          const locked = !isAdmin() && !HR_ROLES.includes(r);
+        <legend>Rank <span class="muted small">(each rank includes the ones above it in this list)</span></legend>
+        ${[...RANKS, ''].map((r) => {
+          const locked = rankLocked || (!isAdmin() && !HR_RANKS.includes(r));
+          return `<label class="check${locked ? ' locked' : ''}">
+            <input type="radio" name="rank" value="${r}"${rank === (r || null) ? ' checked' : ''}${locked ? ' disabled data-fixed' : ''}>
+            <span><strong>${esc(r ? RANK_LABEL[r] : 'None')}</strong> <span class="muted small">${esc(r ? RANK_HELP[r] : 'Office staff only, not a therapist')}${locked ? ' · admin only' : ''}</span></span>
+          </label>`;
+        }).join('')}
+      </fieldset>
+
+      <fieldset>
+        <legend>Office roles <span class="muted small">(optional, on top of the rank)</span></legend>
+        ${OFFICE_ROLES.map((r) => {
+          const locked = !isAdmin();
           const self = !isNew && p.id === ctx.me.id && r === 'admin';
           return `<label class="check${locked ? ' locked' : ''}">
-            <input type="checkbox" name="role" value="${r}"${roles.includes(r) ? ' checked' : ''}${locked || self ? ' disabled data-fixed' : ''}>
-            <span><strong>${esc(CHECK_LABEL[r] ?? roleLabel(r))}</strong> <span class="muted small">${esc(ROLE_HELP[r])}${locked ? ' · admin only' : ''}${self ? " · you can't remove your own admin" : ''}</span></span>
+            <input type="checkbox" name="office" value="${r}"${roles.includes(r) ? ' checked' : ''}${locked || self ? ' disabled data-fixed' : ''}>
+            <span><strong>${esc(roleLabel(r))}</strong> <span class="muted small">${esc(OFFICE_HELP[r])}${locked ? ' · admin only' : ''}${self ? " · you can't remove your own admin" : ''}</span></span>
           </label>`;
         }).join('')}
       </fieldset>
@@ -228,7 +241,7 @@ function openPerson(p) {
   const say = (text, kind = 'error') => { msg.textContent = text; msg.dataset.kind = kind; msg.hidden = !text; };
 
   const hint = form.querySelector('#stage-hint');
-  const roleBox = (r) => form.querySelector(`input[name="role"][value="${r}"]`);
+  const rankBox = (r) => form.querySelector(`input[name="rank"][value="${r}"]`);
   const showHint = (text) => { hint.textContent = text; hint.hidden = !text; };
 
   // Stage list follows the track. Keeps the person's current stage even if
@@ -240,10 +253,10 @@ function openPerson(p) {
     form.stage.value = keep && opts.includes(keep) ? keep : list[0];
   }
 
-  // ABAT learners are never CARE staff: only the Applicant role.
+  // ABAT learners are never CARE staff: rank Applicant, no office roles.
   function applyTrack() {
     const abat = form.track.value === 'abat';
-    for (const box of form.querySelectorAll('input[name="role"]')) {
+    for (const box of form.querySelectorAll('input[name="rank"], input[name="office"]')) {
       if (box.dataset.fixed !== undefined) continue;
       box.disabled = abat && box.value !== 'applicant';
       if (abat) box.checked = box.value === 'applicant';
@@ -253,10 +266,9 @@ function openPerson(p) {
   // Probation = passed field overlap session 8 and signed the contract.
   function onStage() {
     const careHire = form.track.value === 'care_hire';
-    if (careHire && THERAPIST_STAGES.includes(form.stage.value) && roleBox('applicant').checked) {
-      roleBox('applicant').checked = false;
-      roleBox('therapist').checked = true;
-      showHint('🎉 Passed field overlap session 8 and signed the contract: they become a Therapist when you save.');
+    if (careHire && THERAPIST_STAGES.includes(form.stage.value) && rankBox('applicant').checked) {
+      rankBox('therapist').checked = true;
+      showHint('🎉 Passed field overlap session 8 and signed the contract: they become a Junior therapist when you save.');
     } else if (careHire && form.stage.value === 'field_overlap') {
       showHint('Sessions 1–7 with a senior, session 8 is the supervisor evaluation. They stay an Applicant until Probation.');
     } else if (form.track.value === 'abat' && form.stage.value === 'online_course') {
@@ -265,14 +277,6 @@ function openPerson(p) {
       showHint('');
     }
   }
-
-  // Senior is a tier of Therapist: Senior always includes Therapist.
-  roleBox('senior').addEventListener('change', (e) => {
-    if (e.target.checked && !roleBox('therapist').disabled) roleBox('therapist').checked = true;
-  });
-  roleBox('therapist').addEventListener('change', (e) => {
-    if (!e.target.checked && !roleBox('senior').disabled) roleBox('senior').checked = false;
-  });
 
   fillStages(p?.stage ?? null);
   applyTrack();
@@ -316,11 +320,14 @@ function openPerson(p) {
       exited_on: f.get('exited_on') || null,
     };
     if (!p?.auth_user_id) fields.email = f.get('email').trim().toLowerCase();
-    // Read .checked directly so locked (disabled) roles are kept as they were.
-    const wanted = [...form.querySelectorAll('input[name="role"]')]
-      .filter((b) => b.checked).map((b) => b.value);
-    if (!wanted.length) { btn.disabled = false; return say('Please tick at least one role.'); }
-    if (wanted.includes('senior') && !wanted.includes('therapist')) wanted.push('therapist');
+    // Read .checked directly so locked (disabled) choices are kept as they were.
+    const pickedRank = form.querySelector('input[name="rank"]:checked')?.value || null;
+    const office = [...form.querySelectorAll('input[name="office"]')].filter((b) => b.checked).map((b) => b.value);
+    // One rank per person. If the rank is locked for this user, leave the
+    // rank roles exactly as they are (older records may hold several).
+    const rankRoles = rankLocked ? roles.filter((r) => RANKS.includes(r)) : pickedRank ? [pickedRank] : [];
+    const wanted = [...rankRoles, ...office];
+    if (!wanted.length) { btn.disabled = false; return say('Please choose a rank (or an office role for office staff).'); }
 
     let id = p?.id;
     try {

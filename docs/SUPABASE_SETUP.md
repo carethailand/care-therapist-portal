@@ -142,7 +142,8 @@ Repo → **Settings → Pages → Source: GitHub Actions.** The deploy workflow 
 **c. After the Portal is on GitHub Pages:** add its address (e.g. `https://<name>.github.io`) to `ALLOWED_ORIGINS` at the top of the function and deploy again.
 
 **Who can do what on the Staff page:**
-- **Admin:** everything, including roles, and logins for anyone.
+- **Ranks:** each person has one rank (Applicant → Junior → Senior → QCD → Supervisor) plus, optionally, the office roles HR and/or Admin.
+- **Admin:** everything, including ranks and office roles, and logins for anyone.
 - **HR:** add/edit people, give or remove the *applicant* and *therapist* roles, and create/reset logins for applicants and therapists only. HR can't do this for seniors, QCD, supervisors, HR or admins, so HR can never sign in as someone with more access.
 - Temporary passwords are shown once. The person must choose their own at first sign-in.
 
