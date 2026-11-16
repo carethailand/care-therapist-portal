@@ -5,6 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>CARE Therapist Portal</title>
   <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#FAF7F2" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1C1815" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="assets/care-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=DM+Sans:opsz,wght@9..40,400;9..40,500&family=Noto+Serif+Thai:wght@400;500&family=Noto+Sans+Thai:wght@400;500&display=swap">
   <link rel="stylesheet" href="css/app.css">
   <script type="module" src="js/app.js"></script>
 </head>
@@ -27,8 +33,10 @@
 
   <!-- Sign in -->
   <main id="view-login" data-view class="center" hidden>
-    <section class="card narrow">
-      <h1>CARE Therapist Portal</h1>
+    <section class="card narrow login-card">
+      <img src="assets/care-logo.png" alt="CARE" class="login-logo">
+      <h1>Welcome back</h1>
+      <p class="muted">Sign in to the CARE Therapist Portal.</p>
       <form id="login-form">
         <label>Email <input id="login-email" type="email" autocomplete="username" required></label>
         <label>Password <input id="login-password" type="password" autocomplete="current-password" required></label>
@@ -78,11 +86,11 @@
   <!-- The app -->
   <div id="view-app" data-view hidden>
     <header class="topbar">
-      <div class="brand">CARE <span>Therapist Portal</span></div>
+      <a class="brand" href="#/home"><img src="assets/care-logo.png" alt="CARE" class="logo-img"><span class="brand-name">Portal</span></a>
       <div class="me">
         <span id="who"></span>
         <small id="who-roles"></small>
-        <a href="#/admin/staff" id="admin-btn" class="admin-btn" hidden title="Admin: Staff">⚙️ Admin</a>
+        <a href="#/admin/staff" id="admin-btn" class="admin-btn" hidden title="Admin">Admin</a>
         <button type="button" id="change-pw-btn" class="link">Password</button>
         <button type="button" class="signout-btn link">Sign out</button>
       </div>

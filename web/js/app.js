@@ -5,13 +5,23 @@ import { supa, arrivedVia } from './supabase.js';
 import { signIn, signOut, sendPasswordReset, setPassword, currentUser } from './auth.js';
 import { loadMe, loadRoles, loadModules } from './data.js';
 import { $, esc, showView, setMessage } from './ui.js';
+import { icon } from './icons.js';
 
 // Built tabs. Anything not listed here renders the "coming soon" card.
 const TABS = {
+  home: () => import('./tabs/home.js'),
   journey: () => import('./tabs/journey.js'),
   training: () => import('./tabs/training.js'),
 };
 const comingSoon = () => import('./tabs/coming-soon.js');
+
+// Icon per tab (see js/icons.js).
+const TAB_ICON = {
+  home: 'home', journey: 'route', training: 'school', learning: 'book', resources: 'link',
+  journals: 'books', leave: 'beach', hours: 'clock', supervision: 'user-check', documents: 'file-text',
+};
+// Home is built in: everyone signed in has it, first in the list.
+const HOME = { key: 'home', label: 'Home', enabled: true };
 
 // Admin pages: reached from the ⚙️ button, not the tab bar.
 const ADMIN_PAGES = {
@@ -78,8 +88,8 @@ async function enterApp(user) {
 // Tabs
 // ---------------------------------------------------------------------------
 function renderNav() {
-  $('#tabs').innerHTML = state.visible
-    .map((m) => `<a href="#/${esc(m.key)}" data-key="${esc(m.key)}"${m.enabled ? '' : ' class="preview" title="Hidden from staff — admin preview"'}>${esc(m.label)}${m.enabled ? '' : ' <small>hidden</small>'}</a>`)
+  $('#tabs').innerHTML = [HOME, ...state.visible]
+    .map((m) => `<a href="#/${esc(m.key)}" data-key="${esc(m.key)}"${m.enabled ? '' : ' class="preview" title="Hidden from staff (admin preview)"'}>${icon(TAB_ICON[m.key] ?? 'sparkles')}<span>${esc(m.label)}</span>${m.enabled ? '' : ' <small>hidden</small>'}</a>`)
     .join('');
 }
 
@@ -105,17 +115,13 @@ async function route() {
   }
   $('#admin-btn').removeAttribute('aria-current');
 
-  const module = state.visible.find((m) => m.key === want) || state.visible[0];
-  if (!module) {
-    panel.innerHTML = '<section class="card"><p>No tabs are switched on for you yet.</p></section>';
-    return;
-  }
+  const module = want === 'home' || !want ? HOME : (state.visible.find((m) => m.key === want) || HOME);
   for (const a of document.querySelectorAll('#tabs a')) {
     a.toggleAttribute('aria-current', a.dataset.key === module.key);
   }
   panel.innerHTML = '<p class="muted">Loading…</p>';
   const mod = await (TABS[module.key] || comingSoon)();
-  await mod.render(panel, { me: state.me, roles: state.roles, module });
+  await mod.render(panel, { me: state.me, roles: state.roles, module, visible: state.visible, canAdmin: canAdmin() });
 }
 
 window.addEventListener('hashchange', route);
