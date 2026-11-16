@@ -640,3 +640,37 @@ fieldset { min-width: 0; }
 .od-stack { display: flex; flex-direction: column; }
 .od-stack > .card, .od-stack #od-teams > .card { width: 100%; margin-bottom: 16px; }
 .od-stack .od-form { max-width: 760px; }
+
+/* Kudos stickers (2026-11-16) */
+.sticker { display: block; border-radius: 50%; object-fit: contain; }
+.sticker.sm { width: 34px; height: 34px; margin-top: -4px; }
+.sticker.md { width: 72px; height: 72px; flex: none; }
+.sticker.lg { width: 120px; height: 120px; margin: 8px 0; }
+.kudos-q-body { display: flex; gap: 12px; align-items: flex-start; }
+.kudos-card.has-sticker { padding-right: 96px; min-height: 104px; }
+.kudos-card .kudos-stk { position: absolute; right: 12px; top: 12px; width: 76px; height: 76px; transform: rotate(6deg); filter: drop-shadow(0 2px 3px rgb(0 0 0 / .15)); }
+.kudos-list.compact .kudos-card.has-sticker { padding-right: 76px; min-height: 76px; }
+.kudos-list.compact .kudos-stk { width: 56px; height: 56px; }
+.sticker-pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 8px; }
+.sticker-pick legend { padding: 0 4px; }
+.sticker-pick .stk { position: relative; display: grid; place-items: center; aspect-ratio: 1; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: transform .12s ease; }
+.sticker-pick .stk input { position: absolute; opacity: 0; pointer-events: none; }
+.sticker-pick .stk img { width: 100%; height: 100%; border-radius: 50%; }
+.sticker-pick .stk:hover { transform: scale(1.06); }
+.sticker-pick .stk:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.sticker-pick .stk:has(input:focus-visible) { outline: 2px solid var(--accent-fill); outline-offset: 2px; }
+.sticker-pick .stk.none { border: 2px dashed var(--line-strong); font-size: .75rem; text-align: center; color: var(--muted); padding: 4px; line-height: 1.2; }
+.sticker-pick .stk.none:has(input:checked) { border-style: solid; border-color: var(--accent); color: var(--accent); }
+
+/* Milestone badges */
+.ms-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 14px; }
+.ms-badge { width: 56px; height: 56px; object-fit: contain; }
+.ms-next { flex-basis: 100%; }
+.ms-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+.ms-item { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 2px; padding: 12px 8px; border-radius: 16px; background: var(--surface-raised); border: 1px solid var(--line); }
+.ms-item img { width: 88px; height: 88px; object-fit: contain; margin-bottom: 4px; }
+.ms-item.locked img { filter: grayscale(1); opacity: .35; }
+.ms-item.locked .ms-name { color: var(--muted); }
+.ms-name { font-weight: 500; font-size: .9rem; }
+.ms-word { font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--clay); font-weight: 600; }
+@media (max-width: 600px) { .ms-list { grid-template-columns: repeat(2, 1fr); } }

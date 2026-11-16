@@ -9,6 +9,7 @@ import {
 import { esc, fmtDate, todayLocal } from '../ui.js';
 import { icon } from '../icons.js';
 import { rankOf } from '../labels.js';
+import { STICKERS, stickerImg, stickerSrc, ART_CREDIT } from '../stickers.js';
 
 const KIND = {
   idea: ['Idea', 'bulb'],
@@ -123,9 +124,13 @@ function drawWrite() {
       <label class="check kudos-box" data-kudos hidden><input type="checkbox" name="kudos">
         <span><strong>Ask Admin to post this on the Kudos board</strong><br>
         <span class="muted small">An admin reads it first and may tidy the wording. Everyone at CARE can then see it.</span></span></label>
+      <fieldset class="sticker-pick" data-stickers hidden><legend>Add a sticker <span class="muted small">(optional)</span></legend>
+        <label class="stk none"><input type="radio" name="sticker" value="" checked><span>No sticker</span></label>
+        ${STICKERS.map((st) => `<label class="stk" title="${esc(st.label)}"><input type="radio" name="sticker" value="${esc(st.key)}"><img src="${stickerSrc(st.key)}" alt="${esc(st.label)}" width="256" height="256" loading="lazy"></label>`).join('')}
+      </fieldset>
       <label class="check anon-box"><input type="checkbox" name="anon">
         <span><strong>Send without my name</strong><br>
-        <span class="muted small" data-anonhint>Some things, like a travel fee or your own schedule, need your name so we can help. For anything else you can stay anonymous: nobody in the Portal (team, supervisors or admins) can see who sent it, and you'll see it with our reply in My messages on any device.</span></span></label>
+        <span class="muted small" data-anonhint>Some things, like a travel fee or your own schedule, need your name so we can help. For anything else you can stay anonymous: nobody in the Portal (team, supervisors or admins) can see who sent it, and you'll see it with our reply in your Personal inbox on any device.</span></span></label>
       <p class="msg" role="status" hidden></p>
       <p><button type="submit" class="primary">Send</button></p>
     </form>`;
@@ -145,14 +150,18 @@ function drawWrite() {
       : to === 'person' ? 'Only this person will see it. If it\'s a concern about someone, please send it to the Admin team instead.'
         : to === 'senior' ? 'Goes to all senior therapists.' : '';
     form.querySelector('[data-kudos]').hidden = kind !== 'thanks';
-    if (kind !== 'thanks') form.kudos.checked = false;
+    form.querySelector('[data-stickers]').hidden = kind !== 'thanks';
+    if (kind !== 'thanks') {
+      form.kudos.checked = false;
+      form.querySelector('input[name="sticker"][value=""]').checked = true;
+    }
     // To one person, anonymous is only for thank-yous.
     const anonBlocked = to === 'person' && kind !== 'thanks';
     form.anon.disabled = anonBlocked;
     if (anonBlocked) form.anon.checked = false;
     form.querySelector('[data-anonhint]').textContent = anonBlocked
       ? 'Messages to one person carry your name (anonymous is only for thank-yous). To raise something anonymously, send it to a team.'
-      : 'Some things, like a travel fee or your own schedule, need your name so we can help. For anything else you can stay anonymous: nobody in the Portal (team, supervisors or admins) can see who sent it, and you\'ll see it with our reply in My messages on any device.';
+      : 'Some things, like a travel fee or your own schedule, need your name so we can help. For anything else you can stay anonymous: nobody in the Portal (team, supervisors or admins) can see who sent it, and you\'ll see it with our reply in your Personal inbox on any device.';
   };
   form.addEventListener('change', sync);
   sync();
@@ -169,11 +178,12 @@ function drawWrite() {
       const res = await sendMessage({
         kind: form.kind.value, topic: form.topic.value, sendTo: form.to.value, body,
         anonymous: form.anon.checked, recipient: form.recipient.value, kudos: form.kudos.checked,
+        sticker: form.kind.value === 'thanks' ? (form.sticker.value || null) : null,
       });
       form.reset();
       sync();
       say(res && wasAnon
-        ? 'Sent without your name. It\'s in My messages, where only you can see it\'s yours.'
+        ? 'Sent without your name. It\'s in your Personal inbox, where only you can see it\'s yours.'
         : 'Sent. Thank you for telling us.', 'ok');
       await refreshAll();
     } catch (e) {
@@ -199,7 +209,7 @@ function rowHtml(m, { mode = 'mine' } = {}) {
     mode === 'team' && m.assigned_to ? `${nameOf(m.assigned_to) || 'someone'} is on it` : '',
   ].filter(Boolean).join(' · ');
   return `<li class="od-row" data-open="${esc(m.id)}" data-viewer="${mode === 'mine' ? 'sender' : mode === 'to-me' ? 'recipient' : 'team'}" tabindex="0" role="button">
-    <span class="od-kind">${icon(ki)}</span>
+    <span class="od-kind">${m.sticker ? stickerImg(m.sticker, 'sticker sm') : icon(ki)}</span>
     <span class="od-main">
       <span class="od-title">${esc(kl)} · ${esc(TOPIC[m.topic])}${from}</span>
       <span class="od-snip muted small">${esc(m.body.slice(0, 120))}${m.body.length > 120 ? '…' : ''}</span>
@@ -271,6 +281,7 @@ function convoHtml(m, replies, viewer) {
     <article class="od-msg">
       <p class="muted small">${esc(kl)} · ${esc(TOPIC[m.topic])} · to ${esc(toLabel(m))} · ${esc(fmtDate(bkkDate(m.created_at)))}</p>
       <p class="od-from">${esc(from)}</p>
+      ${m.sticker ? stickerImg(m.sticker, 'sticker lg') : ''}
       <p class="od-body">${esc(m.body)}</p>
     </article>
     ${replies.map((r) => `
@@ -355,7 +366,7 @@ async function drawKudosQueue() {
     ${list.map((k) => `
       <div class="kudos-q" data-k="${esc(k.id)}">
         <p class="muted small">From ${esc(k.sender || 'a teammate (anonymous)')} · to ${esc(k.recipient || TO[k.send_to] || 'the team')} · ${esc(fmtDate(bkkDate(k.created_at)))}</p>
-        <textarea rows="3" maxlength="600">${esc(k.body)}</textarea>
+        <div class="kudos-q-body">${stickerImg(k.sticker, 'sticker md')}<textarea rows="3" maxlength="600">${esc(k.body)}</textarea></div>
         <p class="row-actions"><button type="button" class="small-btn" data-no>Not for the board</button>
           <button type="button" class="small-btn primary" data-post>Post on the board</button></p>
       </div>`).join('')}`;
@@ -369,7 +380,8 @@ async function drawKudosQueue() {
 }
 
 export function kudosCardHtml(k) {
-  return `<li class="kudos-card">
+  return `<li class="kudos-card${k.sticker ? ' has-sticker' : ''}">
+    ${stickerImg(k.sticker, 'sticker kudos-stk')}
     <p class="kudos-to">To ${esc(k.to_name || k.to_team || 'the team')}</p>
     <p class="kudos-text">“${esc(k.kudos)}”</p>
     <p class="muted small">From ${esc(k.from_name || 'a teammate')} · ${esc(fmtDate(bkkDate(k.posted_at)))}</p>
@@ -383,5 +395,6 @@ async function drawBoard() {
   try { list = await kudosBoard(60); } catch { list = []; }
   box.innerHTML = `<h2>${icon('heart-handshake')} Kudos board</h2>
     ${list.length ? `<ul class="kudos-list">${list.map(kudosCardHtml).join('')}</ul>`
-      : '<p class="muted">No kudos yet. Send a thank-you and tick "Ask Admin to post this on the Kudos board".</p>'}`;
+      : '<p class="muted">No kudos yet. Send a thank-you and tick "Ask Admin to post this on the Kudos board".</p>'}
+    <p class="credit">${ART_CREDIT}</p>`;
 }

@@ -8,11 +8,11 @@ const must = ({ data, error }) => {
   return data;
 };
 const COLS = 'id,kind,topic,send_to,recipient_id,body,anonymous,sender_id,status,assigned_to,first_reply_at,'
-  + 'last_activity_at,created_at,forwarded_at,kudos_request,kudos_status,kudos_text,kudos_posted_at';
+  + 'last_activity_at,created_at,forwarded_at,kudos_request,kudos_status,kudos_text,kudos_posted_at,sticker';
 
 export const sendMessage = (m) => supa.rpc('connect_send', {
   p_kind: m.kind, p_topic: m.topic, p_send_to: m.sendTo, p_body: m.body, p_anonymous: m.anonymous,
-  p_recipient: m.recipient || null, p_kudos: !!m.kudos,
+  p_recipient: m.recipient || null, p_kudos: !!m.kudos, p_sticker: m.sticker || null,
 }).then(must);
 
 export const people = () => supa.rpc('connect_people').then(must);

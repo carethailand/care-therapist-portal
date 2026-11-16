@@ -205,3 +205,16 @@ The login helper already allows HR to create logins for applicants (redeployed b
 **Anonymous:** the message has no sender, and nobody in the Portal (team, supervisors, admins) can see who sent it. The sender sees it, with replies, in *My messages* on any device: the link is kept in a locked private table the app can't read (SAFEGUARDS 12). Times are kept as the day only.
 
 > **Honest limit:** someone opening the database directly (the project owner) could see the private sender link, and Supabase's own request logs (about a day) record who made each request. CARE's rule (SAFEGUARDS 12) is that nobody ever looks.
+
+## Step 15 — Kudos stickers + milestone badges (added 2026-11-16)
+
+1. **Run** `supabase/migrations/20261116001600_stickers_milestones.sql`, then `supabase/checks/rls_check.sql` (no rows).
+2. **Publish** the app (run the SQL first: the new Portal sends a sticker with every message).
+
+**Stickers:** a thank-you can carry one sticker (15 to choose from, in `web/assets/stickers/`, list in `web/js/stickers.js`). It shows on the message, in the admin's kudos queue, on the Kudos board and on the Home kudos card.
+**Milestone badges** (`web/assets/milestones/`), unlocked by themselves for CARE staff (not applicants or ABAT learners):
+- *Passed probation*: when the person's stage is **Therapist** (active).
+- *1, 2, 3, 4, 5, 7, 10 years*: counted from the **Start date** on the People screen (stars = years; 3 = Hat trick, 5 = High five, 10 = Legend).
+- *Longest-serving therapist*: the current therapist (Junior, Senior, QCD or Supervisor) with the earliest Start date; ties share it, and it passes on when someone leaves (`milestone_longest()`).
+Home shows the latest year badge (it replaces the one before) plus Passed probation and Longest-serving; the Journey page shows the whole collection with unlock dates.
+**Credit:** sticker and milestone art is from Vecteezy.com (free licence, credit required). The Portal shows "Stickers and milestone badges: Vecteezy.com" wherever they appear.

@@ -4,6 +4,8 @@
 import { esc, fmtDate, todayLocal } from '../ui.js';
 import { rankOf, RANK_LABEL, OFFICE_ROLES, roleLabel } from '../labels.js';
 import { icon } from '../icons.js';
+import { milestones, showcase, isLongest, milestoneEligible } from '../milestones.js';
+import { ART_CREDIT } from '../stickers.js';
 
 const LEVELS = {
   care_hire: [
@@ -68,6 +70,7 @@ export async function render(panel, { me, roles, visible = [], canAdmin = false 
               ${levels.map(([k, label], i) => `<li class="${i < idx ? 'done' : i === idx ? 'current' : ''}" title="${esc(label)}"${i === idx ? ' aria-current="step"' : ''}><span class="sr-only">${esc(label)}</span></li>`).join('')}
             </ol>
             <p class="muted small">${idx < levels.length - 1 ? `Next: ${esc(levels[idx + 1][1])}` : 'You have reached the top of the journey 🌿'}</p>` : ''}
+          <div class="ms-row" id="home-ms" hidden></div>
           <a class="text-link" href="#/journey">See my journey ${icon('arrow-right')}</a>
         </article>
 
@@ -83,12 +86,26 @@ export async function render(panel, { me, roles, visible = [], canAdmin = false 
         </nav>` : ''}
 
       ${badgeRoles.length ? `<p class="credit">Badge art: Lorc, game-icons.net (CC BY 3.0)</p>` : ''}
+      <p class="credit" id="home-credit2" hidden>${ART_CREDIT}</p>
     </section>`;
 
   // Training progress (only when the Training tab is open for this person).
   if (visible.some((m) => m.key === 'training')) drawTraining(panel.querySelector('#home-training'), me);
   // Latest kudos (CARE staff, when CARE Connect is open).
   if (visible.some((m) => m.key === 'connect') && me.track !== 'abat' && rank !== 'applicant') drawKudos(panel.querySelector('#home-kudos'));
+  // Milestone badges (CARE staff).
+  if (milestoneEligible(me, roles) && me.stage !== 'exited') drawMilestones(panel, me, roles);
+}
+
+async function drawMilestones(panel, me, roles) {
+  const el = panel.querySelector('#home-ms');
+  const { shown, next } = showcase(milestones(me, roles, await isLongest(me)));
+  if (!shown.length && !next) return;
+  el.innerHTML = `
+    ${shown.map((m) => `<img class="ms-badge" src="${esc(m.img)}" alt="${esc(m.label)}" title="${esc(m.label)}${m.word ? ` · ${esc(m.word)}` : ''}" width="64" height="64">`).join('')}
+    <span class="ms-next muted small">${shown.length ? '' : 'Milestones: '}${next ? `Next: ${esc(next.label)} on ${esc(fmtDate(next.on))}` : 'All year badges collected 👑'}</span>`;
+  el.hidden = false;
+  if (shown.length) panel.querySelector('#home-credit2').hidden = false;
 }
 
 async function drawKudos(el) {
@@ -102,6 +119,8 @@ async function drawKudos(el) {
     return;
   }
   if (!list.length) return;
+  const credit = el.closest('.home')?.querySelector('#home-credit2');
+  if (credit && list.some((k) => k.sticker)) credit.hidden = false;
   el.innerHTML = `<p class="level-kicker">Kudos</p><h2>Thank-yous around CARE</h2>
     <ul class="kudos-list compact">${list.map(card).join('')}</ul>
     <a class="text-link" href="#/connect">See the Kudos board ${icon('arrow-right')}</a>`;
