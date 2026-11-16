@@ -9,15 +9,17 @@ const must = ({ data, error }) => {
 function friendly(error) {
   const msg = error?.message || String(error);
   if (/row-level security|permission denied/i.test(msg)) return new Error("You don't have permission for this.");
-  if (/case_code/i.test(msg)) return new Error('Use the 3-letter case code only (e.g. AVM), never a name.');
+  if (/case_code/i.test(msg)) return new Error('Use the 3-letter case code only (e.g. ABC), never a name.');
   if (/leave_requests_check|days/i.test(msg) && /check/i.test(msg)) return new Error('Please check the dates and the number of days.');
   return new Error(msg);
 }
 
 // ---------------------------------------------------------------------------
-// Days: Monday–Saturday count (Sundays skipped). Half day = 0.5.
+// Days: 6-day staff count Monday–Saturday; 5-day staff (senior, QCD,
+// supervisor) count Monday–Friday. Sundays never count. Half day = 0.5.
 // ---------------------------------------------------------------------------
-export function countDays(startIso, endIso, halfDay) {
+export const FIVE_DAY_RANKS = ['senior', 'qcd', 'supervisor'];
+export function countDays(startIso, endIso, halfDay, fiveDayWeek = false) {
   if (!startIso || !endIso || endIso < startIso) return 0;
   if (halfDay) return 0.5;
   const [y1, m1, d1] = startIso.split('-').map(Number);
@@ -25,7 +27,8 @@ export function countDays(startIso, endIso, halfDay) {
   const end = new Date(y2, m2 - 1, d2);
   let n = 0;
   for (let d = new Date(y1, m1 - 1, d1); d <= end; d.setDate(d.getDate() + 1)) {
-    if (d.getDay() !== 0) n += 1;
+    const wd = d.getDay();
+    if (wd !== 0 && !(fiveDayWeek && wd === 6)) n += 1;
   }
   return n;
 }

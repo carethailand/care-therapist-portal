@@ -10,7 +10,7 @@
 --     affects with a covering therapist or a make-up session.
 --   * HR approves or declines; an admin records "families notified".
 --
--- SAFETY: sessions are identified by the CASE CODE only (e.g. "AVM"), never a
+-- SAFETY: sessions are identified by the CASE CODE only (e.g. "ABC"), never a
 -- child's name. The database accepts exactly 3 capital letters, nothing else.
 
 begin;

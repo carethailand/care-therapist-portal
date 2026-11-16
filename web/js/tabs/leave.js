@@ -1,8 +1,8 @@
 // Leave & HR tab: my leave balance, request form, my requests; for HR/admin
 // the request inbox (approve / decline, families notified) and each person's
-// annual leave allowance. Children appear only as case codes (e.g. "AVM").
+// annual leave allowance. Children appear only as case codes (e.g. "ABC").
 import {
-  loadLeaveRef, loadMyLeave, submitLeave, cancelLeave, staffPicklist, countDays, daysUntil,
+  loadLeaveRef, loadMyLeave, submitLeave, cancelLeave, staffPicklist, countDays, daysUntil, FIVE_DAY_RANKS,
   loadTeamLeave, decideLeave, markNotified, saveEntitlement, arrangeSession,
 } from '../leave-data.js';
 import { listStaff } from '../data.js';
@@ -181,6 +181,8 @@ function requestRow(r, { mine = false, people = picklist, team = false } = {}) {
     </div>
     <div class="lv-side">
       <span class="chip ${cls}">${esc(label)}</span>
+      ${r.status === 'approved' && r.sessions?.length
+        ? (r.families_notified_on ? '<span class="chip ok">Families notified ✓</span>' : '<span class="chip warn">Families: to notify</span>') : ''}
       ${mine && r.status === 'pending' ? `<button type="button" class="small-btn" data-cancel="${esc(r.id)}">Cancel</button>` : ''}
       ${team ? teamActions(r) : ''}
     </div>
@@ -192,6 +194,7 @@ function requestRow(r, { mine = false, people = picklist, team = false } = {}) {
 // ---------------------------------------------------------------------------
 function requestDialog(bal) {
   const dlg = panelEl.querySelector('#lv-dlg');
+  const fiveDay = FIVE_DAY_RANKS.includes(rankOf(ctx.roles));
   const today = todayLocal();
   dlg.innerHTML = `
     <form method="dialog" class="person-form">
@@ -213,13 +216,15 @@ function requestDialog(bal) {
           <select name="half"><option value="">Full day</option><option value="am">Morning only</option><option value="pm">Afternoon only</option></select></label>
         <label>Number of leave days <input name="days" type="number" min="0.5" step="0.5" required></label>
       </div>
-      <p class="muted small">Counted Monday to Saturday (Sundays skipped). Change it if a public holiday falls inside.</p>
+      <p class="muted small">${fiveDay
+        ? 'Counted Monday to Friday (your 5-day week). If you were scheduled on a Saturday inside these dates, add it. Change the number for public holidays too.'
+        : 'Counted Monday to Saturday (Sundays skipped). Change it if a public holiday falls inside.'}</p>
       <p class="msg" data-warn hidden></p>
 
       <fieldset>
         <legend>Sessions you'll miss</legend>
         <p class="muted small">List each session you'll miss. An admin will decide what happens to it: <strong>cancelled</strong>, <strong>covered</strong> by a colleague, or a <strong>make-up</strong> session.
-          Use the <strong>3-letter case code only</strong> (e.g. AVM), never a child's name.</p>
+          Use the <strong>3-letter case code only</strong> (e.g. ABC), never a child's name.</p>
         <div data-sessions></div>
         <button type="button" class="small-btn" data-addsession>+ Add a session</button>
       </fieldset>
@@ -250,7 +255,7 @@ function requestDialog(bal) {
     const single = form.start.value === form.end.value;
     form.querySelector('[data-half]').hidden = !single;
     if (!single) form.half.value = '';
-    if (!daysTouched) form.days.value = countDays(form.start.value, form.end.value, form.half.value) || '';
+    if (!daysTouched) form.days.value = countDays(form.start.value, form.end.value, form.half.value, fiveDay) || '';
     const notes = [];
     const lead = daysUntil(form.start.value, todayLocal());
     if (t?.notice_days && lead < t.notice_days) notes.push(`⚠️ Leave should be requested at least ${t.notice_days} days before the first day (this is ${lead < 0 ? 'in the past' : `${lead} day${lead === 1 ? '' : 's'} away`}). You can still send it.`);
@@ -274,7 +279,7 @@ function requestDialog(bal) {
     const row = document.createElement('div');
     row.className = 'session-row';
     row.innerHTML = `
-      <input name="case" placeholder="AVM" maxlength="3" minlength="3" pattern="[A-Z]{3}" required aria-label="Case code (3 letters)" title="3-letter case code, e.g. AVM" class="case-input">
+      <input name="case" placeholder="ABC" maxlength="3" minlength="3" pattern="[A-Z]{3}" required aria-label="Case code (3 letters)" title="3-letter case code, e.g. ABC" class="case-input">
       <input name="sdate" type="date" required aria-label="Session date" value="${esc(form.start.value)}">
       <input name="stime" placeholder="10:15–12:15" maxlength="20" aria-label="Session time">
       <button type="button" class="small-btn" aria-label="Remove session">✕</button>`;
@@ -291,7 +296,7 @@ function requestDialog(bal) {
     const sessions = [];
     for (const row of box.querySelectorAll('.session-row')) {
       const g = (n) => row.querySelector(`[name="${n}"]`).value.trim();
-      if (!/^[A-Z]{3}$/.test(g('case'))) { msg.hidden = false; msg.dataset.kind = 'error'; msg.textContent = 'Each session needs a 3-letter case code (e.g. AVM).'; return; }
+      if (!/^[A-Z]{3}$/.test(g('case'))) { msg.hidden = false; msg.dataset.kind = 'error'; msg.textContent = 'Each session needs a 3-letter case code (e.g. ABC).'; return; }
       sessions.push({ case_code: g('case'), session_date: g('sdate'), session_time: g('stime') || null });
     }
     const btn = form.querySelector('[type="submit"]');
@@ -326,7 +331,7 @@ function teamActions(r) {
   }
   if (isAdmin() && ['pending', 'approved'].includes(r.status) && r.sessions?.length) {
     const n = unarranged(r);
-    out.push(`<button type="button" class="small-btn${n ? ' primary' : ''}" data-arrange="${esc(r.id)}">${n ? `Arrange sessions (${n})` : 'Change sessions'}</button>`);
+    out.push(`<button type="button" class="small-btn" data-arrange="${esc(r.id)}">${n ? `Arrange sessions (${n})` : 'Change sessions'}</button>`);
   }
   if (r.status === 'approved' && isAdmin() && !r.families_notified_on && r.sessions?.length) {
     out.push(`<button type="button" class="small-btn" data-notified="${esc(r.id)}">Families notified</button>`);
