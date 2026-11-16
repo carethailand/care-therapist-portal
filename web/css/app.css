@@ -628,3 +628,6 @@ fieldset { min-width: 0; }
 .badge, .badge.rim-applicant, .badge.rim-therapist, .badge.rim-senior, .badge.rim-qcd,
 .badge.rim-supervisor, .badge.rim-admin, .badge.rim-hr { padding: 3px; background: var(--bg); border: 1px solid var(--line-strong); }
 .badge-stack .badge + .badge { padding: 2px; }
+.od-codebox summary { cursor: pointer; font-weight: 500; }
+.od-codebox[open] summary { margin-bottom: 8px; }
+#od-code { padding-top: 16px; padding-bottom: 16px; }

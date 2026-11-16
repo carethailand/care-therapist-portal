@@ -16,13 +16,13 @@ export const sendMessage = (m) => supa.rpc('connect_send', {
 }).then(must);
 
 export const people = () => supa.rpc('connect_people').then(must);
-export const myMessages = (meId) => supa.from('connect_messages').select(COLS)
-  .eq('sender_id', meId).order('created_at', { ascending: false }).then(must);
+// Everything I sent, named and anonymous (anonymous ones come from a locked
+// private link, so they follow my account to any device).
+export const myMessages = () => supa.rpc('connect_my_messages').then(must);
 export const visibleMessages = () => supa.from('connect_messages').select(COLS)
   .order('created_at', { ascending: false }).then(must);
 
 export const thread = (id) => supa.rpc('connect_thread', { p_message: id }).then(must);
-export const checkCode = (code) => supa.rpc('connect_check', { p_code: code }).then(must);
 export const reply = (id, body, internal = false, code = null) =>
   supa.rpc('connect_reply', { p_message: id, p_body: body, p_internal: internal, p_code: code }).then(must);
 export const update = (id, { status = null, assigned = null, unassign = false }) =>
@@ -32,20 +32,3 @@ export const forward = (id) => supa.rpc('connect_forward', { p_message: id }).th
 export const kudosRequests = () => supa.rpc('connect_kudos_requests').then(must);
 export const kudosDecide = (id, post, text) => supa.rpc('connect_kudos_decide', { p_message: id, p_post: post, p_text: text }).then(must);
 export const kudosBoard = (limit = 50) => supa.rpc('connect_kudos_board', { p_limit: limit }).then(must);
-
-// Anonymous codes are remembered on THIS device only, so the database never
-// links an anonymous message to a person.
-const KEY = 'care_connect_codes';
-export function savedCodes() {
-  try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch { return []; }
-}
-export function rememberCode(code) {
-  try {
-    const list = savedCodes().filter((c) => c.code !== code);
-    list.unshift({ code, at: new Date().toISOString() });
-    localStorage.setItem(KEY, JSON.stringify(list.slice(0, 50)));
-  } catch { /* storage blocked: the code is still shown to copy */ }
-}
-export function forgetCode(code) {
-  try { localStorage.setItem(KEY, JSON.stringify(savedCodes().filter((c) => c.code !== code))); } catch { /* ignore */ }
-}

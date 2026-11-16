@@ -3,8 +3,8 @@
 // anonymously. Teams reply here within 5 working days. Thank-yous can go on
 // the Kudos board once an admin approves them.
 import {
-  sendMessage, people as loadPeople, myMessages, visibleMessages, thread, checkCode, reply, update, forward,
-  kudosRequests, kudosDecide, kudosBoard, savedCodes, rememberCode, forgetCode,
+  sendMessage, people as loadPeople, myMessages, visibleMessages, thread, reply, update, forward,
+  kudosRequests, kudosDecide, kudosBoard,
 } from '../connect-data.js';
 import { esc, fmtDate, todayLocal } from '../ui.js';
 import { icon } from '../icons.js';
@@ -66,10 +66,7 @@ export async function render(panel, context) {
       We read every message and reply within ${REPLY_DAYS} working days.</p>
     <div class="od-grid">
       <section class="card" id="od-write"><p class="muted">Loading…</p></section>
-      <div>
-        <section class="card" id="od-mine"><p class="muted">Loading…</p></section>
-        <section class="card" id="od-code"></section>
-      </div>
+      <section class="card" id="od-mine"><p class="muted">Loading…</p></section>
     </div>
     <section class="card" id="od-tome" hidden></section>
     ${has('admin') ? '<section class="card" id="od-kudosq" hidden></section>' : ''}
@@ -78,7 +75,6 @@ export async function render(panel, context) {
     <dialog id="od-dlg" class="dlg od-dlg"></dialog>`;
   try { staff = await loadPeople(); } catch { staff = []; }
   drawWrite();
-  drawCode();
   await refreshAll();
 }
 
@@ -116,7 +112,7 @@ function drawWrite() {
         <span class="muted small">An admin reads it first and may tidy the wording. Everyone at CARE can then see it.</span></span></label>
       <label class="check anon-box"><input type="checkbox" name="anon">
         <span><strong>Send without my name</strong><br>
-        <span class="muted small" data-anonhint>Some things, like a travel fee or your own schedule, need your name so we can help. For anything else you can stay anonymous: your name isn't stored at all, and you'll get a private code to read our reply.</span></span></label>
+        <span class="muted small" data-anonhint>Some things, like a travel fee or your own schedule, need your name so we can help. For anything else you can stay anonymous: nobody in the Portal (team, supervisors or admins) can see who sent it, and you'll see it with our reply in My messages on any device.</span></span></label>
       <p class="msg" role="status" hidden></p>
       <p><button type="submit" class="primary">Send</button></p>
     </form>`;
@@ -143,7 +139,7 @@ function drawWrite() {
     if (anonBlocked) form.anon.checked = false;
     form.querySelector('[data-anonhint]').textContent = anonBlocked
       ? 'Messages to one person carry your name (anonymous is only for thank-yous). To raise something anonymously, send it to a team.'
-      : 'Some things, like a travel fee or your own schedule, need your name so we can help. For anything else you can stay anonymous: your name isn\'t stored at all, and you\'ll get a private code to read our reply.';
+      : 'Some things, like a travel fee or your own schedule, need your name so we can help. For anything else you can stay anonymous: nobody in the Portal (team, supervisors or admins) can see who sent it, and you\'ll see it with our reply in My messages on any device.';
   };
   form.addEventListener('change', sync);
   sync();
@@ -154,6 +150,7 @@ function drawWrite() {
     if (!body) return say('Please write your message.');
     if (form.to.value === 'person' && !form.recipient.value) return say('Choose who the message is for.');
     const btn = form.querySelector('[type="submit"]');
+    const wasAnon = form.anon.checked;
     btn.disabled = true;
     try {
       const res = await sendMessage({
@@ -162,8 +159,9 @@ function drawWrite() {
       });
       form.reset();
       sync();
-      say('Sent. Thank you for telling us.', 'ok');
-      if (res.ref_code) { rememberCode(res.ref_code); showCode(res.ref_code); }
+      say(res && wasAnon
+        ? 'Sent without your name. It\'s in My messages, where only you can see it\'s yours.'
+        : 'Sent. Thank you for telling us.', 'ok');
       await refreshAll();
     } catch (e) {
       say(e.message);
@@ -173,41 +171,20 @@ function drawWrite() {
   });
 }
 
-function showCode(code) {
-  const dlg = panelEl.querySelector('#od-dlg');
-  dlg.innerHTML = `
-    <div class="pw-box">
-      <h2>Your private code</h2>
-      <p>Sent without your name. This device remembers the message for you under <strong>My messages</strong>. On another phone or computer, use this code:</p>
-      <p class="od-code">${esc(code)}</p>
-      <p class="muted small">We can't look it up for you, because we don't know who sent it. Save it in your notes or take a screenshot.</p>
-      <div class="dlg-actions">
-        <button type="button" data-act="copy">${icon('copy')} Copy</button>
-        <span class="spacer"></span>
-        <button type="button" class="primary" data-act="done">Done</button>
-      </div>
-    </div>`;
-  dlg.querySelector('[data-act="copy"]').addEventListener('click', async (ev) => {
-    try { await navigator.clipboard.writeText(code); ev.currentTarget.textContent = 'Copied ✓'; } catch { ev.currentTarget.textContent = 'Copy failed. Write it down.'; }
-  });
-  dlg.querySelector('[data-act="done"]').addEventListener('click', () => dlg.close());
-  dlg.showModal();
-}
-
 // ---------------------------------------------------------------------------
 // Lists
 // ---------------------------------------------------------------------------
-function rowHtml(m, { mode = 'mine', code = '' } = {}) {
+function rowHtml(m, { mode = 'mine' } = {}) {
   const [kl, ki] = KIND[m.kind];
   const [sl, sc] = STATUS[m.status];
   const from = mode === 'mine' ? '' : ` · <span class="muted">${m.anonymous ? 'Anonymous' : esc(nameOf(m.sender_id) || 'Staff')}</span>`;
   const extra = [
-    m.anonymous && mode === 'mine' ? 'anonymous · saved on this device' : '',
+    m.anonymous && mode === 'mine' ? 'sent anonymously (only you can see it\'s yours)' : '',
     m.kudos_status === 'requested' ? 'kudos board: waiting for Admin' : m.kudos_status === 'posted' ? 'on the Kudos board 🎉' : '',
     mode === 'team' && m.forwarded_at ? 'passed on by the recipient' : '',
     mode === 'team' && m.assigned_to ? `${nameOf(m.assigned_to) || 'someone'} is on it` : '',
   ].filter(Boolean).join(' · ');
-  return `<li class="od-row" data-open="${esc(m.id)}"${code ? ` data-code="${esc(code)}"` : ''} tabindex="0" role="button">
+  return `<li class="od-row" data-open="${esc(m.id)}" tabindex="0" role="button">
     <span class="od-kind">${icon(ki)}</span>
     <span class="od-main">
       <span class="od-title">${esc(kl)} · ${esc(TOPIC[m.topic])}${from}</span>
@@ -223,48 +200,12 @@ function rowHtml(m, { mode = 'mine', code = '' } = {}) {
 
 async function drawMine() {
   const box = panelEl.querySelector('#od-mine');
-  let named = [];
-  try { named = await myMessages(ctx.me.id); } catch (e) { box.innerHTML = `<p class="error">${esc(e.message)}</p>`; return; }
-  const codes = savedCodes();
-  const anon = (await Promise.all(codes.map((c) => checkCode(c.code).then((m) => ({ ...m, anonymous: true, _code: c.code })).catch(() => null))))
-    .filter(Boolean);
-  const all = [...named, ...anon].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+  let all = [];
+  try { all = await myMessages(); } catch (e) { box.innerHTML = `<p class="error">${esc(e.message)}</p>`; return; }
   box.innerHTML = `<h2>My messages</h2>
-    ${all.length ? `<ul class="od-list">${all.map((m) => rowHtml(m, { mode: 'mine', code: m._code || '' })).join('')}</ul>`
+    ${all.length ? `<ul class="od-list">${all.map((m) => rowHtml(m, { mode: 'mine' })).join('')}</ul>`
       : '<p class="muted">Messages you send appear here, with their progress and our replies.</p>'}`;
-  for (const li of box.querySelectorAll('[data-open]')) {
-    const go = () => {
-      const m = all.find((x) => x.id === li.dataset.open);
-      if (li.dataset.code) openAnonymous(m, li.dataset.code); else openThread(m, 'sender');
-    };
-    li.addEventListener('click', go);
-    li.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
-  }
-}
-
-function drawCode() {
-  const box = panelEl.querySelector('#od-code');
-  box.innerHTML = `
-    <h2>Have a private code?</h2>
-    <p class="muted small">For an anonymous message sent from another device.</p>
-    <form class="od-codeform">
-      <label>Your code <input name="code" placeholder="CC-XXXXX-XXXXX" autocomplete="off" autocapitalize="characters" required></label>
-      <label class="check"><input type="checkbox" name="keep" checked> <span>Remember it on this device</span></label>
-      <p class="msg" role="status" hidden></p>
-      <p><button type="submit">Read replies</button></p>
-    </form>`;
-  const form = box.querySelector('form');
-  form.addEventListener('submit', async (ev) => {
-    ev.preventDefault();
-    const msg = form.querySelector('.msg');
-    try {
-      const code = form.code.value.trim().toUpperCase();
-      const m = await checkCode(code);
-      msg.hidden = true;
-      if (form.keep.checked) { rememberCode(code); drawMine(); }
-      openAnonymous(m, code);
-    } catch (e) { msg.hidden = false; msg.dataset.kind = 'error'; msg.textContent = e.message; }
-  });
+  wireOpen(box, all, 'sender');
 }
 
 async function drawInboxes() {
@@ -323,7 +264,8 @@ function wireOpen(box, list, viewer) {
 // ---------------------------------------------------------------------------
 function convoHtml(m, replies, viewer) {
   const [kl] = KIND[m.kind];
-  const from = m.anonymous ? 'Anonymous' : viewer === 'sender' ? 'You' : (nameOf(m.sender_id) || 'Staff');
+  const from = viewer === 'sender' ? (m.anonymous ? 'You (sent anonymously)' : 'You')
+    : m.anonymous ? 'Anonymous' : (nameOf(m.sender_id) || 'Staff');
   return `
     <article class="od-msg">
       <p class="muted small">${esc(kl)} · ${esc(TOPIC[m.topic])} · to ${esc(toLabel(m))} · ${esc(fmtDate(bkkDate(m.created_at)))}</p>
@@ -332,7 +274,7 @@ function convoHtml(m, replies, viewer) {
     </article>
     ${replies.map((r) => `
       <article class="od-reply ${r.author_kind === 'team' ? 'from-team' : 'from-sender'}${r.internal ? ' internal' : ''}">
-        <p class="muted small">${r.internal ? '🔒 Internal note · ' : ''}${esc(r.author_kind === 'team' ? (r.author || 'CARE team') : (viewer === 'sender' ? 'You' : (r.author || 'Sender')))} · ${esc(when(r.created_at))}</p>
+        <p class="muted small">${r.internal ? '🔒 Internal note · ' : ''}${esc(r.author_kind === 'team' ? (r.author || 'CARE team') : (viewer === 'sender' ? 'You' : (r.author || 'Sender')))} · ${esc(r.author_kind === 'sender' && m.anonymous ? fmtDate(bkkDate(r.created_at)) : when(r.created_at))}</p>
         <p class="od-body">${esc(r.body)}</p>
       </article>`).join('') || '<p class="muted small">No replies yet.</p>'}`;
 }
@@ -395,41 +337,6 @@ async function openThread(m, viewer) {
       await refreshAll();
     } catch (e) { msg.hidden = false; msg.dataset.kind = 'error'; msg.textContent = e.message; }
   });
-}
-
-function openAnonymous(m, code) {
-  const dlg = panelEl.querySelector('#od-dlg');
-  dlg.innerHTML = `
-    <div class="od-thread">${convoHtml(m, m.replies || [], 'sender')}</div>
-    <p><span class="chip ${STATUS[m.status][1]}">${esc(STATUS[m.status][0])}</span></p>
-    <form class="od-replyform">
-      <label>Add to the conversation (still anonymous)
-        <textarea name="body" rows="3" maxlength="4000"></textarea></label>
-      <p class="msg" role="status" hidden></p>
-      <div class="dlg-actions">
-        <button type="button" class="link" data-act="forget">Forget on this device</button>
-        <span class="spacer"></span>
-        <button type="button" data-act="close">Close</button>
-        <button type="submit" class="primary">Send</button></div>
-    </form>`;
-  const form = dlg.querySelector('form');
-  form.querySelector('[data-act="close"]').addEventListener('click', () => dlg.close());
-  form.querySelector('[data-act="forget"]').addEventListener('click', async () => {
-    if (!confirm(`Remove this message from this device? You can still open it later with the code ${code}.`)) return;
-    forgetCode(code); dlg.close(); await drawMine();
-  });
-  form.addEventListener('submit', async (ev) => {
-    ev.preventDefault();
-    const msg = form.querySelector('.msg');
-    const body = form.body.value.trim();
-    if (!body) { msg.hidden = false; msg.dataset.kind = 'error'; msg.textContent = 'Please write something first.'; return; }
-    try {
-      await reply(null, body, false, code);
-      openAnonymous(await checkCode(code), code);
-      drawMine();
-    } catch (e) { msg.hidden = false; msg.dataset.kind = 'error'; msg.textContent = e.message; }
-  });
-  if (!dlg.open) dlg.showModal();
 }
 
 // ---------------------------------------------------------------------------
