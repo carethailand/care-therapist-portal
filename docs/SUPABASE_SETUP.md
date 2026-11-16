@@ -260,3 +260,12 @@ In **Training → Trainees**, programmes with in-person training (Senior) get a 
 - **Admins** create a group (name + people with an active place; one group per person), then **+ Plan session**: a training session (date, start time, hours, chapters, place, supervisor), an exam date (written / oral), or other. Sessions can be edited, cancelled or deleted.
 - **Supervisors / QCD / admins** tap **Attendance** after a training session (everyone ticked by default); hours and chapters are logged for everyone who came. Saving again replaces that session's attendance.
 - **Trainees** see *Next: date, time* in the course header, their group's schedule (upcoming + past, with *Attended*) in the in-person step, and planned exam dates on the exam steps.
+
+## Step 22 — Chapter assignments (added 2026-11-16)
+
+1. **Run** `supabase/migrations/20261116002300_training_assignments.sql`, then `supabase/checks/rls_check.sql` (no rows). It also creates the private file store `training-work` (10 MB per file; PDF, Word, JPG/PNG/WebP).
+2. **Publish** the app.
+
+- **Trainees:** the in-person training step lists the 14 chapter assignments, each *due 7 days after the session that covers it*. **Upload** (photos are shrunk first), **Open**, **Replace** until reviewed; they see *Submitted*, *Reviewed* or *Please redo* with the comment.
+- **Supervisors / QCD / admins:** **To review (N)** in Trainees → People lists everything waiting; each trainee's **Open** panel has **Assignments** (all 14 chapters). Open the file, add a comment, mark **Reviewed** or **Please redo**.
+- Files are private (only the trainee and the training team can open them, via links that last 10 minutes). "Close group" (next) exports and clears them.

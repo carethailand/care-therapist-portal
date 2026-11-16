@@ -31,6 +31,7 @@ export async function loadContent() {
 // The signed-in trainee
 // ---------------------------------------------------------------------------
 const HOURS_COLS = 'id,enrollment_id,step_id,held_on,hours,topic,chapters,session_id';
+const SUB_COLS = 'id,enrollment_id,step_id,chapter,file_path,file_name,file_type,file_size,submitted_at,status,feedback,reviewed_by,reviewed_at,cleared_at';
 const SESSION_COLS = 'id,group_id,step_id,kind,title,held_on,start_time,hours,chapters,place,trainer_id,status,attended_at';
 const EVAL_COLS = 'id,enrollment_id,step_id,section,seq,case_code,held_on,marks,comment,assessor_id,updated_at';
 
@@ -42,8 +43,8 @@ export async function loadMyTraining(meId) {
     .order('created_at', { ascending: false })
     .then(must);
   const ids = enrollments.map((e) => e.id);
-  if (!ids.length) return { enrollments, done: [], stepsDone: [], attempts: [], certificates: [], results: [], hours: [], evals: [], sessions: [] };
-  const [done, stepsDone, attempts, certificates, results, hours, evals, sessions] = await Promise.all([
+  if (!ids.length) return { enrollments, done: [], stepsDone: [], attempts: [], certificates: [], results: [], hours: [], evals: [], sessions: [], subs: [] };
+  const [done, stepsDone, attempts, certificates, results, hours, evals, sessions, subs] = await Promise.all([
     supa.from('training_item_done').select('enrollment_id,item_id').in('enrollment_id', ids).then(must),
     supa.from('training_step_done').select('enrollment_id,step_id,done_at').in('enrollment_id', ids).then(must),
     supa.from('exam_attempts').select('id,enrollment_id,step_id,started_at,deadline,submitted_at,status,passed').in('enrollment_id', ids).then(must),
@@ -54,8 +55,9 @@ export async function loadMyTraining(meId) {
     supa.from('training_hours').select(HOURS_COLS).in('enrollment_id', ids).order('held_on').then(must).catch(() => []),
     supa.from('training_practicum_evals').select(EVAL_COLS).in('enrollment_id', ids).then(must).catch(() => []),
     supa.rpc('training_my_sessions').then(must).catch(() => []),
+    supa.from('training_submissions').select(SUB_COLS).in('enrollment_id', ids).then(must).catch(() => []),
   ]);
-  return { enrollments, done, stepsDone, attempts, certificates, results, hours, evals, sessions };
+  return { enrollments, done, stepsDone, attempts, certificates, results, hours, evals, sessions, subs };
 }
 
 // "I have read and agree" (can't be undone by the trainee).
@@ -89,7 +91,7 @@ export async function loadTeamProgram(programKey) {
     .order('created_at', { ascending: false })
     .then(must);
   const ids = enrollments.map((e) => e.id);
-  const [done, stepsDone, results, certificates, stepResults, hours, evals] = await Promise.all([
+  const [done, stepsDone, results, certificates, stepResults, hours, evals, subs] = await Promise.all([
     ids.length ? supa.from('training_item_done').select('enrollment_id,item_id').in('enrollment_id', ids).then(must) : [],
     ids.length ? supa.from('training_step_done').select('enrollment_id,step_id,done_at').in('enrollment_id', ids).then(must) : [],
     supa.rpc('exam_results', { p_program: programKey }).then(must),
@@ -97,8 +99,9 @@ export async function loadTeamProgram(programKey) {
     ids.length ? supa.from('training_step_results').select('enrollment_id,step_id,held_on,score,full_score,passed,note,recorded_by,recorded_at').in('enrollment_id', ids).then(must).catch(() => []) : [],
     ids.length ? supa.from('training_hours').select(HOURS_COLS).in('enrollment_id', ids).order('held_on').then(must).catch(() => []) : [],
     ids.length ? supa.from('training_practicum_evals').select(EVAL_COLS).in('enrollment_id', ids).then(must).catch(() => []) : [],
+    ids.length ? supa.from('training_submissions').select(SUB_COLS).in('enrollment_id', ids).then(must).catch(() => []) : [],
   ]);
-  return { enrollments, done, stepsDone, results, certificates, stepResults, hours, evals };
+  return { enrollments, done, stepsDone, results, certificates, stepResults, hours, evals, subs };
 }
 
 export const setDueDate = (enrollmentId, dueOn) =>
@@ -182,6 +185,47 @@ export async function saveSession(row) {
 export const deleteSession = (id) => supa.from('training_sessions').delete().eq('id', id).then(must);
 export const takeAttendance = (sessionId, enrollmentIds) =>
   supa.rpc('training_session_attend', { p_session: sessionId, p_enrollments: enrollmentIds }).then(must);
+
+// Chapter assignments: private "training-work" store, folder = enrolment id.
+const WORK = 'training-work';
+const WORK_TYPES = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'image/jpeg', 'image/png', 'image/webp'];
+export const WORK_ACCEPT = '.pdf,.doc,.docx,.jpg,.jpeg,.png,.webp,image/*';
+
+// Photos are shrunk (longest side 2000 px, JPEG) so they stay small.
+async function shrinkPhoto(file) {
+  if (!/^image\/(jpeg|png|webp|heic|heif)$/.test(file.type) || file.size < 1500000) return file;
+  try {
+    const bmp = await createImageBitmap(file);
+    const k = Math.min(1, 2000 / Math.max(bmp.width, bmp.height));
+    const c = document.createElement('canvas');
+    c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+    const blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.85));
+    return blob ? new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' }) : file;
+  } catch { return file; }
+}
+
+export async function uploadAssignment(enrollmentId, stepId, chapter, picked) {
+  const file = await shrinkPhoto(picked);
+  if (!WORK_TYPES.includes(file.type)) throw new Error('Please upload a PDF, a Word file or a photo.');
+  if (file.size > 10 * 1024 * 1024) throw new Error('That file is over 10 MB. Please make it smaller (e.g. save as PDF).');
+  const ext = ({ 'application/pdf': 'pdf', 'application/msword': 'doc', 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' })[file.type] || 'docx';
+  const path = `${enrollmentId}/ch${chapter}-${Date.now()}.${ext}`;
+  must(await supa.storage.from(WORK).upload(path, file, { contentType: file.type, upsert: false }));
+  const res = await supa.rpc('training_submit', {
+    p_enrollment: enrollmentId, p_step: stepId, p_chapter: chapter, p_path: path,
+    p_name: (picked.name || `chapter-${chapter}.${ext}`).slice(0, 200), p_type: file.type, p_size: file.size,
+  });
+  if (res.error) { await supa.storage.from(WORK).remove([path]); throw friendly(res.error); }
+  if (res.data?.replaced) await supa.storage.from(WORK).remove([res.data.replaced]);
+}
+export async function workUrl(path) {
+  const { data, error } = await supa.storage.from(WORK).createSignedUrl(path, 600);
+  if (error) throw friendly(error);
+  return data.signedUrl;
+}
+export const reviewSubmission = (id, status, feedback) =>
+  supa.rpc('training_review', { p_submission: id, p_status: status, p_feedback: feedback || null }).then(must);
 
 export const promote = (enrollmentId) => supa.rpc('training_promote', { p_enrollment: enrollmentId }).then(must);
 
