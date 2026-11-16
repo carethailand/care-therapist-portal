@@ -9,6 +9,8 @@ import {
 import { esc } from '../ui.js';
 
 const KINDS = { canva: '🎨 Canva', document: '📄 Document (read in the Portal)', pdf: '📄 PDF link', video: '▶️ Video', link: '🔗 Link', other: '📎 Other' };
+// Canva links the Portal can show inside itself (see tabs/training.js).
+const EMBEDDABLE = /^https:\/\/(?:www\.)?canva\.com\/design\/[A-Za-z0-9_-]+/;
 const STEP_ICON = { agree: '🤝', learn: '📖', exam: '📝', session: '👥', gap: '⏸', result: '📄', practicum: '✅', certificate: '🎓' };
 
 let host;
@@ -132,7 +134,8 @@ function drawLearn(step, el) {
       <li>
         <div class="grow"><strong>${esc(it.title)}</strong> <span class="muted small">${esc(KINDS[it.kind] ?? it.kind)}</span>
           ${it.kind === 'document' ? `<div class="muted small">${it.body ? `${it.body.length.toLocaleString()} characters of text` : '<span class="error">No text yet</span>'}</div>`
-            : it.url ? `<div class="muted small ellipsis">${esc(it.url)}</div>` : '<div class="error small">No link yet (trainees see "Link coming soon")</div>'}
+            : it.url ? `<div class="muted small ellipsis">${esc(it.url)}</div>${it.kind === 'canva' && !EMBEDDABLE.test(it.url) ? '<div class="error small">⚠️ This Canva link opens in a new tab, where it can be copied. Use the full link that starts with https://www.canva.com/design/ (Share → Copy link, with "Anyone with the link" set to Can view).</div>' : ''}`
+            : '<div class="error small">No link yet (trainees see "Link coming soon")</div>'}
           ${it.note ? `<div class="small">${esc(it.note)}</div>` : ''}</div>
         <span class="row-actions">
           <button type="button" class="small-btn" data-up="${esc(it.id)}"${n === 0 ? ' disabled' : ''} aria-label="Move up">↑</button>
@@ -203,6 +206,8 @@ function itemDialog(step, it, items) {
     const url = isDoc ? '' : form.url.value.trim();
     const msg = form.querySelector('.msg');
     if (url && !/^https?:\/\//i.test(url)) { msg.hidden = false; msg.textContent = 'The link must start with https://'; return; }
+    if (url && form.kind.value === 'canva' && !EMBEDDABLE.test(url)
+        && !confirm('This Canva link can\'t be shown inside the Portal, so trainees would open it in a new tab (where it can be copied).\n\nBest: use the full link starting with https://www.canva.com/design/\n\nSave this link anyway?')) return;
     try {
       await saveItem({
         id: it?.id,

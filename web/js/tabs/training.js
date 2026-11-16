@@ -659,7 +659,8 @@ function showCanva(it) {
     <div class="viewer-head"><strong>${esc(it.title)}</strong><span class="spacer"></span>
       <button type="button" class="primary" data-act="close">Close</button></div>
     <div class="canva-frame">
-      <iframe src="${esc(src)}" title="${esc(it.title)}" loading="lazy" allow="fullscreen" allowfullscreen
+      <iframe src="${esc(src)}" title="${esc(it.title)}" loading="lazy" allow="fullscreen; autoplay" allowfullscreen
+        sandbox="allow-scripts allow-same-origin allow-presentation"
         referrerpolicy="strict-origin-when-cross-origin"></iframe>
     </div>
     <p class="muted small">Course materials are for your own study only. Please don't share them.</p>`;
