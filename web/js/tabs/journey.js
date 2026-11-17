@@ -4,6 +4,7 @@ import { loadJourney } from '../data.js';
 import { esc, fmtDate, titleCase, todayLocal } from '../ui.js';
 import { milestones, isLongest, milestoneEligible, cardBadges, SHOW_MAX } from '../milestones.js';
 import { ART_CREDIT } from '../stickers.js';
+import { icon } from '../icons.js';
 import { directory, setProfile, photoUrls, squarePhoto, uploadPhoto, removePhoto, badges as loadBadges, setShowcase } from '../team-data.js';
 import { trees as loadTrees } from '../learning-data.js';
 import { cardHtml, wireAbout } from '../team-card.js';
@@ -42,10 +43,8 @@ export async function render(panel, { me, roles = [] }) {
     </section>
     ${milestoneEligible(me, roles) ? `<section class="card" id="mc-card" hidden>
       <div class="mc-head"><h2>My team card</h2><span class="muted small">This is how everyone sees you on Our Team.</span></div>
-      <div class="mc-grid">
-        <ul class="tm-grid mc-preview" aria-live="polite"></ul>
-        <div class="mc-form"></div>
-      </div>
+      <ul class="tm-grid mc-preview" aria-live="polite"></ul>
+      <p class="muted small mc-note">${icon('camera')} Tap your photo to change it: a clear photo of <strong>you only</strong> (no children, families or client places). Only CARE staff can see it.</p>
     </section>
     <section class="card" id="ms-card">
       <div class="mc-head"><h2>My badges</h2><span class="muted small" id="ms-pickinfo"></span></div>
@@ -115,90 +114,88 @@ async function loadMyCard(panel, me, roles) {
   if (mc) {
     panel.querySelector('#mc-card').hidden = false;
     drawPreview(panel);
-    drawEditForm(panel);
   }
   drawMilestones(panel, me, roles, longest);
 }
 
+// Your card, editable in place: tap the photo to change it, type "about me"
+// on the card. Save appears once something changes. Badges are picked below.
 function drawPreview(panel) {
   const box = panel.querySelector('#mc-card .mc-preview');
-  box.innerHTML = cardHtml(mc.row, { url: mc.url, badge: { ...mc.badge, showcase: mc.picked }, tree: mc.tree, isMe: true });
-  wireAbout(box);
-}
-
-// Photo + "about me", beside the card on wide screens (under it on phones).
-// Choosing a photo shows it on the card straight away; Save keeps it.
-function drawEditForm(panel) {
   const p = mc.row;
-  const box = panel.querySelector('#mc-card .mc-form');
-  const savedUrl = mc.url;
-  let newBlob = null;     // a picture chosen here
-  let dropPhoto = false;  // "Remove photo" pressed
-  box.innerHTML = `
-    <form class="mc-side">
-      <div class="mc-photo-row">
-        <label class="btn-file small-btn">${p.photo_path ? 'Change photo' : 'Choose a photo'}<input type="file" name="photo" accept="image/*"></label>
-        <button type="button" class="link small" data-act="nophoto"${p.photo_path ? '' : ' hidden'}>Remove photo</button>
+  const pend = mc.pending || (mc.pending = { blob: null, drop: false, url: null });
+  const url = pend.drop ? null : (pend.url || mc.url);
+  const editor = `
+    <div class="mc-about-wrap">
+      <textarea class="mc-about" rows="2" maxlength="${ABOUT_MAX}" aria-label="About me"
+        placeholder="Add a line about you, e.g. Speaks Thai and English. Loves sensory play.">${esc(pend.about ?? p.about ?? '')}</textarea>
+      <div class="mc-actions">
+        <span class="muted small" data-count></span>
+        ${(p.photo_path || pend.url) && !pend.drop ? '<button type="button" class="link small" data-nophoto>Remove photo</button>' : ''}
+        <span class="spacer"></span>
+        <span class="msg small" role="status" hidden></span>
+        <button type="button" class="primary small-btn" data-save hidden>Save</button>
       </div>
-      <p class="muted small">A clear photo of <strong>you only</strong>: no children, families or client places. Only CARE staff can see it.</p>
-      <label>About me <span class="muted small" data-count></span>
-        <textarea name="about" rows="3" maxlength="${ABOUT_MAX}" placeholder="e.g. Speaks Thai and English. Loves sensory play and Sunday markets.">${esc(p.about || '')}</textarea></label>
-      <div class="mc-save"><button type="submit" class="primary">Save</button><span class="msg small" role="status" hidden></span></div>
-    </form>`;
-  const form = box.querySelector('form');
-  const msg = form.querySelector('.msg');
-  const say = (t, k = 'error') => { msg.hidden = false; msg.dataset.kind = k; msg.textContent = t; };
-  const count = () => { form.querySelector('[data-count]').textContent = `${form.about.value.length}/${ABOUT_MAX}`; };
-  const preview = (url, about = form.about.value.trim()) => {
-    const keep = mc.url; const keepRow = mc.row;
-    mc.url = url; mc.row = { ...p, about: about || null };
-    drawPreview(panel);
-    mc.url = keep; mc.row = keepRow;
-  };
-  form.about.addEventListener('input', () => { count(); msg.hidden = true; });
-  count();
-  form.photo.addEventListener('change', async () => {
-    const f = form.photo.files[0];
+    </div>`;
+  box.innerHTML = cardHtml({ ...p, about: null }, { url, badge: { ...mc.badge, showcase: mc.picked }, tree: mc.tree, isMe: true, edit: editor });
+  // Photo: the round picture becomes a button.
+  const av = box.querySelector('.tm-avatar');
+  const cam = document.createElement('label');
+  cam.className = 'mc-cam';
+  cam.title = 'Change photo';
+  cam.innerHTML = `${icon('camera')}<span class="sr-only">Change photo</span><input type="file" accept="image/*" hidden>`;
+  av.append(cam);
+
+  const ta = box.querySelector('.mc-about');
+  const save = box.querySelector('[data-save]');
+  const msg = box.querySelector('.msg');
+  const say = (t, k = 'error') => { msg.hidden = !t; msg.dataset.kind = k; msg.textContent = t || ''; };
+  const dirty = () => !!pend.blob || pend.drop || (ta.value.trim() !== (p.about || ''));
+  const sync = () => { box.querySelector('[data-count]').textContent = `${ta.value.length}/${ABOUT_MAX}`; save.hidden = !dirty(); };
+  const grow = () => { ta.style.height = 'auto'; ta.style.height = `${Math.min(ta.scrollHeight, 160)}px`; };
+  ta.addEventListener('input', () => { pend.about = ta.value; sync(); grow(); say(''); });
+  sync(); grow();
+
+  cam.querySelector('input').addEventListener('change', async (ev) => {
+    const f = ev.target.files[0];
     if (!f) return;
     if (!f.type.startsWith('image/')) return say('Please choose a picture.');
     try {
-      newBlob = await squarePhoto(f);
-      dropPhoto = false;
-      preview(URL.createObjectURL(newBlob));
-      form.querySelector('[data-act="nophoto"]').hidden = false;
-      say('Not saved yet: tap Save to keep this photo.', 'info');
+      pend.blob = await squarePhoto(f);
+      pend.url = URL.createObjectURL(pend.blob);
+      pend.drop = false;
+      pend.about = ta.value;
+      drawPreview(panel);
+      panel.querySelector('#mc-card .msg').hidden = false;
+      panel.querySelector('#mc-card .msg').dataset.kind = 'info';
+      panel.querySelector('#mc-card .msg').textContent = 'New photo: tap Save to keep it.';
     } catch { say('Could not read that picture. Try a JPG or PNG.'); }
   });
-  form.querySelector('[data-act="nophoto"]').addEventListener('click', () => {
-    newBlob = null;
-    dropPhoto = true;
-    form.photo.value = '';
-    preview(null);
-    form.querySelector('[data-act="nophoto"]').hidden = true;
-    say('Not saved yet: tap Save to remove your photo.', 'info');
+  box.querySelector('[data-nophoto]')?.addEventListener('click', () => {
+    pend.blob = null; pend.url = null; pend.drop = true; pend.about = ta.value;
+    drawPreview(panel);
   });
-  form.addEventListener('submit', async (ev) => {
-    ev.preventDefault();
-    const btn = form.querySelector('[type="submit"]');
-    btn.disabled = true;
+  save.addEventListener('click', async () => {
+    save.disabled = true;
     try {
       let path = p.photo_path || null;
-      if (newBlob) path = await uploadPhoto(p.id, newBlob);
-      else if (dropPhoto) path = null;
-      const about = form.about.value.trim();
+      if (pend.blob) path = await uploadPhoto(p.id, pend.blob);
+      else if (pend.drop) path = null;
+      const about = ta.value.trim();
       await setProfile(about, path);
       if (path !== p.photo_path) await removePhoto(p.photo_path);
       mc.row = { ...p, about: about || null, photo_path: path };
-      mc.url = path ? (newBlob ? URL.createObjectURL(newBlob) : savedUrl) : null;
+      mc.url = path ? (pend.url || mc.url) : null;
+      mc.pending = null;
       drawPreview(panel);
-      drawEditForm(panel);
-      const m = panel.querySelector('#mc-card .mc-form .msg');
+      const m = panel.querySelector('#mc-card .msg');
       m.hidden = false; m.dataset.kind = 'ok'; m.textContent = 'Saved ✓';
     } catch (e) {
       say(e.message);
-      btn.disabled = false;
+      save.disabled = false;
     }
   });
+  wireAbout(box);
 }
 
 // The collection. Earned badges can be tapped to show them on your team card

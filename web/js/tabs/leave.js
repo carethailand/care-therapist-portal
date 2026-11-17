@@ -106,7 +106,7 @@ function balanceHtml(bal, ent, perPersonMissingText) {
         <p class="bal-code">${esc(b.code)}</p>
         ${b.per_person && b.allowance == null ? ''
           : b.allowance != null
-            ? `<p class="bal-num" aria-label="${left} of ${b.allowance} days left"><strong>${left}</strong><span>/${b.allowance}</span></p>`
+            ? `<p class="bal-num" aria-label="${left} of ${b.allowance} days left"><strong>${left}</strong><span> / ${b.allowance}<span class="bal-left"> left</span></span></p>`
             : `<p class="bal-num" aria-label="${b.used} days used"><strong>${b.used}</strong><span> used</span></p>`}
       </div>
       <p class="bal-label">${esc(b.label)}</p>
