@@ -3,7 +3,7 @@
 // page never sees the answers.
 import {
   loadContent, loadMyTraining, setItemDone, agreeStep, examStart, examSave, examSubmit, examMySummary, examReview,
-  loadTeamProgram, allowRetake, setDueDate, assignPeople,
+  loadTeamProgram, allowRetake, setDueDate, assignPeople, withdraw,
   recommend, approveRecommendation, declineRecommendation, recordResult, logHours, removeHours, saveEval, promote,
   loadGroups, saveGroup, deleteGroup, setGroupMembers, saveSession, deleteSession, takeAttendance,
   uploadAssignment, workUrl, reviewSubmission, WORK_ACCEPT, removeWorkFiles, closeGroup,
@@ -1396,9 +1396,15 @@ function traineePanel(programKey, e, people, data) {
         ? `<p class="tp-promote"><button type="button" class="primary" data-promote>Promote to ${esc(RANK_NAME[prog.promotes_to] ?? prog.promotes_to)}</button></p>` : ''}
       ${e.promoted_on ? `<p class="ok-text small">Promoted on ${esc(fmtDate(e.promoted_on))}.</p>` : ''}
       <p class="muted small">${steps.some((s) => s.kind === 'exam') ? 'Trainees see their own score and a summary by domain, never which questions they got wrong. ' : ''}${steps.some((s) => s.kind === 'result') ? 'For recorded exams, trainees see pass / not pass and the date only. Practicum marks and comments are shared with them.' : ''}</p>
-      <div class="dlg-actions"><span class="spacer"></span><button type="button" data-act="close">Close</button></div>
+      <div class="dlg-actions">
+        ${isAdmin() && active ? '<button type="button" class="small-btn tp-remove" data-withdraw>Remove from this course</button>' : ''}
+        <span class="spacer"></span><button type="button" data-act="close">Close</button></div>
     </div>`;
   const redraw = () => drawTeam(programKey);
+  dlg.querySelector('[data-withdraw]')?.addEventListener('click', async () => {
+    if (!confirm(`Remove ${name} from ${prog.title}? Their place is closed and they leave the trainee list. What they've done so far is kept, and you can assign them again later.`)) return;
+    try { await withdraw(e.id, todayLocal()); teamOpen = null; dlg.close(); await redraw(); } catch (err) { alert(err.message); }
+  });
   const q = (sel) => dlg.querySelectorAll(sel);
   dlg.querySelector('[data-act="close"]').addEventListener('click', () => { teamOpen = null; dlg.close(); });
   dlg.addEventListener('cancel', () => { teamOpen = null; }, { once: true });

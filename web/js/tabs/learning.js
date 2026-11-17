@@ -9,6 +9,7 @@ import {
   stageOf, progress, sceneSvg, wheelSvg, artImg,
 } from '../tree.js';
 import { esc, fmtDate, todayLocal } from '../ui.js';
+import { loadSafmeds, myTimings, setProgress, practice, saveSet, hideSet } from '../safmeds.js';
 import { icon } from '../icons.js';
 
 const KINDS = [
@@ -40,6 +41,8 @@ let done = [];
 let leaves = [];
 let teamList = [];
 let tools = [];                // CARE tools (quick links)
+let sfSets = [];               // SAFMEDS sets (with cards)
+let sfTimings = [];            // my SAFMEDS timings
 const TOOL_ICONS = ['link', 'clock', 'books', 'book', 'file-text', 'school', 'sparkles', 'calendar', 'users', 'heart-handshake', 'bulb', 'tool'];
 let openTopic = null;          // code of the topic page being shown
 const openFolds = new Set();   // Study log / Topics / Recent leaves left open
@@ -73,7 +76,7 @@ export async function render(panel, context) {
     </section>`;
   for (const b of panel.querySelectorAll('[data-view]')) b.addEventListener('click', () => { view = b.dataset.view; openTopic = null; draw(); });
   try {
-    [topics, resources, tools] = await Promise.all([L.loadTopics(), L.loadResources(), L.loadTools()]);
+    [topics, resources, tools, sfSets] = await Promise.all([L.loadTopics(), L.loadResources(), L.loadTools(), loadSafmeds()]);
   } catch (e) {
     panel.querySelector('#lh-body').innerHTML = `<p class="error">Could not load the Learning Hub: ${esc(e.message)}</p>`;
     return;
@@ -97,7 +100,7 @@ async function draw() {
 // My learning
 // ---------------------------------------------------------------------------
 async function drawMe(body) {
-  [me, refl, done, leaves] = await Promise.all([L.summary(), L.myReflections(ctx.me.id), L.myDone(ctx.me.id), L.myLeaves(ctx.me.id)]);
+  [me, refl, done, leaves, sfTimings] = await Promise.all([L.summary(), L.myReflections(ctx.me.id), L.myDone(ctx.me.id), L.myLeaves(ctx.me.id), myTimings(ctx.me.id)]);
   if (openTopic && topicOf(openTopic)) return drawTopicPage(body);
   if (!me.started) return drawStart(body);
   const pr = progress(me.points);
@@ -136,6 +139,10 @@ async function drawMe(body) {
       </section>
     </div>
 
+    ${sfSets.length ? fold('safmeds', 'SAFMEDS', `<span class="chip">${sfSets.length}</span><span class="muted small lh-fold-note">${sfSets.filter((s) => setProgress(s, sfTimings, todayLocal()).mastered).length} mastered · 1-minute timings</span>`, `
+      <p class="muted small">Say All Fast, a Minute Every Day, Shuffled. Your first timing each day earns a leaf; meet a set’s aim on 3 different days to master it (+5 leaves).</p>
+      ${safmedsHtml()}`) : ''}
+
     ${fold('log', 'Study log', `<span class="chip">${refl.length}</span><span class="muted small lh-fold-note">${me.logs_today} of 2 leaf logs used today</span>`, `
       <p class="muted small">Each reflection box you write properly earns a leaf (up to 5). A supervisor’s review adds 5 more.
         Leaves count for your first 2 logs each day.</p>
@@ -154,6 +161,7 @@ async function drawMe(body) {
       setTimeout(() => (d.open ? openFolds.add(d.dataset.fold) : openFolds.delete(d.dataset.fold)));
     });
   }
+  for (const b of body.querySelectorAll('[data-sf]')) b.addEventListener('click', () => openSafmeds(b.dataset.sf));
   body.querySelector('[data-act="look"]').addEventListener('click', lookDialog);
   body.querySelector('[data-act="invest"]').addEventListener('click', () => (canInvest ? investDialog() : null));
   body.querySelector('[data-act="log"]').addEventListener('click', () => logDialog());
@@ -229,6 +237,31 @@ function reflList(list, { team = false } = {}) {
   }).join('')}</ul>`;
 }
 function wireRefl() { /* details/summary needs no wiring */ }
+
+// SAFMEDS set tiles: best score, aim days (dots), mastered, done today.
+function safmedsHtml() {
+  const today = todayLocal();
+  return `<div class="sf-sets">${sfSets.map((s) => {
+    const p = setProgress(s, sfTimings, today);
+    const [num, ...rest] = s.title.split('·');
+    const name = rest.join('·').trim();
+    return `<button type="button" class="sf-set${p.mastered ? ' mastered' : ''}" data-sf="${s.id}">
+      <span class="sf-set-top"><b>${esc(name ? num.trim() : s.title)}</b>${p.mastered ? '<span class="chip ok">Mastered</span>' : p.todayDone ? '<span class="chip">Done today</span>' : ''}</span>
+      ${name ? `<span class="sf-set-name">${esc(name)}</span>` : ''}
+      <span class="sf-set-meta"><span>${p.count ? `Best ${p.best}/min` : `${s.cards.length} cards`}</span>
+        <span class="sf-dots" title="Aim met on ${p.aimDays} of 3 days">${[0, 1, 2].map((k) => `<i class="${k < p.aimDays ? 'on' : ''}"></i>`).join('')}</span></span>
+    </button>`;
+  }).join('')}</div>`;
+}
+
+function openSafmeds(id) {
+  const set = sfSets.find((s) => s.id === id);
+  if (!set || !set.cards.length) return toast('This set has no cards yet.');
+  const d = dlg();
+  let saved = false;
+  practice(d, set, { timings: sfTimings, toast, onSaved: () => { saved = true; } });
+  d.addEventListener('close', () => { if (saved) draw(); }, { once: true });
+}
 
 // CARE tools: a row of everyday links (timesheet, ABA Binder…), each with an optional note.
 function toolsHtml() {
@@ -555,6 +588,15 @@ function drawLinks(body) {
         <button type="button" class="small-btn" data-deltool="${t.id}">Remove</button></span></li>`).join('')}</ul>` : '<p class="muted small">No tools yet.</p>'}
     </section>
     <section class="card">
+      <div class="page-head"><h2>SAFMEDS sets</h2><button type="button" class="small-btn" data-addset>${icon('plus')} Add a set</button></div>
+      <p class="muted small">Flash-card sets for 1-minute timings. Tap a set to edit its cards or its aim.</p>
+      ${sfSets.length ? `<ul class="lh-res lh-res-edit">${sfSets.map((s) => `<li>
+        <span class="lh-kind">${icon('bulb')}</span>
+        <span class="lh-grow"><strong>${esc(s.title)}</strong> <span class="muted small">· ${s.cards.length} cards · aim ${s.aim_correct}+ / ${s.aim_missed} missed</span></span>
+        <span class="row-actions"><button type="button" class="small-btn" data-editset="${s.id}">Edit</button>
+        <button type="button" class="small-btn" data-hideset="${s.id}">Remove</button></span></li>`).join('')}</ul>` : '<p class="muted small">No sets yet.</p>'}
+    </section>
+    <section class="card">
       <h2>Manage topics</h2>
       <p class="muted small">Tap a topic to rename it, move it to another area, add a short description, change its order or edit its links.
         Everyone at CARE sees these on their Learning Hub. Use links that open without a special login where you can.</p>
@@ -564,6 +606,13 @@ function drawLinks(body) {
       <p class="muted small">Hidden because someone has already logged study on them. Show one again if you need it.</p>
       <ul class="lh-res">${hidden.map((t) => `<li><span class="lh-dot" style="--area:${areaColor(t.skill)}"></span><span class="lh-grow">${esc(t.title)}</span>
         <button type="button" class="small-btn" data-unhide="${esc(t.code)}">Show again</button></li>`).join('')}</ul></section>` : ''}`;
+  body.querySelector('[data-addset]').addEventListener('click', () => setDialog(null));
+  for (const b of body.querySelectorAll('[data-editset]')) b.addEventListener('click', () => setDialog(sfSets.find((s) => s.id === b.dataset.editset)));
+  for (const b of body.querySelectorAll('[data-hideset]')) b.addEventListener('click', async () => {
+    const s = sfSets.find((x) => x.id === b.dataset.hideset);
+    if (!confirm(`Remove “${s.title}”? People's past timings are kept.`)) return;
+    try { await hideSet(s.id); sfSets = await loadSafmeds(); draw(); toast('Set removed'); } catch (e) { alert(e.message); }
+  });
   body.querySelector('[data-addtool]').addEventListener('click', () => toolDialog(null));
   for (const b of body.querySelectorAll('[data-edittool]')) b.addEventListener('click', () => toolDialog(tools.find((t) => t.id === b.dataset.edittool)));
   for (const b of body.querySelectorAll('[data-deltool]')) b.addEventListener('click', async () => {
@@ -575,6 +624,56 @@ function drawLinks(body) {
   for (const b of body.querySelectorAll('[data-addtopic]')) b.addEventListener('click', () => topicDialog(null, b.dataset.addtopic));
   for (const b of body.querySelectorAll('[data-unhide]')) b.addEventListener('click', async () => {
     try { await L.setTopicActive(b.dataset.unhide, true); await reloadContent(); draw(); toast('Topic shown again'); } catch (e) { alert(e.message); }
+  });
+}
+
+// Edit a SAFMEDS set: title, aim, and its cards (front / back).
+function setDialog(s) {
+  let cards = (s?.cards || []).map((c) => ({ ...c }));
+  const removed = [];
+  const d = openDlg(`<form class="lh-form sf-edit" method="dialog">
+    <h2>${s ? 'Edit set' : 'Add a set'}</h2>
+    <label>Set name<input name="title" maxlength="80" required value="${esc(s?.title || '')}" placeholder="Set 9 · Reinforcement schedules"></label>
+    <div class="lh-2col">
+      <label>Aim: correct per minute<input name="aim_correct" type="number" min="1" max="120" value="${s?.aim_correct ?? 30}"></label>
+      <label>Aim: missed at most<input name="aim_missed" type="number" min="0" max="30" value="${s?.aim_missed ?? 2}"></label>
+    </div>
+    <h3 class="lh-h3">Cards <span class="muted small" data-n></span></h3>
+    <ol class="sf-cards" data-cards></ol>
+    <button type="button" class="small-btn" data-addcard>${icon('plus')} Add a card</button>
+    <p class="error" data-msg hidden></p>
+    <div class="dlg-actions"><button type="submit" class="primary">${icon('check')} Save</button><button type="button" data-cancel>Cancel</button></div>
+  </form>`);
+  const f = d.querySelector('form');
+  const box = d.querySelector('[data-cards]');
+  const sync = () => box.querySelectorAll('li').forEach((li, i) => {
+    cards[i].front = li.querySelector('[data-f]').value; cards[i].back = li.querySelector('[data-b]').value;
+  });
+  const paint = () => {
+    box.innerHTML = cards.map((c, i) => `<li>
+      <input data-f maxlength="200" placeholder="Front: term" value="${esc(c.front || '')}" aria-label="Card ${i + 1} front">
+      <textarea data-b rows="2" maxlength="1000" placeholder="Back: definition" aria-label="Card ${i + 1} back">${esc(c.back || '')}</textarea>
+      <button type="button" class="small-btn" data-rm="${i}" aria-label="Remove card ${i + 1}">✕</button></li>`).join('');
+    d.querySelector('[data-n]').textContent = `(${cards.length})`;
+    box.querySelectorAll('[data-rm]').forEach((b) => b.addEventListener('click', () => {
+      sync(); const [c] = cards.splice(Number(b.dataset.rm), 1); if (c.id) removed.push(c.id); paint();
+    }));
+  };
+  paint();
+  d.querySelector('[data-addcard]').addEventListener('click', () => { sync(); cards.push({ front: '', back: '' }); paint(); box.lastElementChild?.querySelector('[data-f]').focus(); });
+  d.querySelector('[data-cancel]').addEventListener('click', closeDlg);
+  f.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    sync();
+    const keep = cards.filter((c) => c.front.trim() && c.back.trim()).map((c) => ({ ...c, front: c.front.trim(), back: c.back.trim() }));
+    const msg = d.querySelector('[data-msg]');
+    if (!keep.length) { msg.textContent = 'Add at least one card with a front and a back.'; msg.hidden = false; return; }
+    try {
+      await saveSet({ id: s?.id, title: f.title.value.trim(), aim_correct: Number(f.aim_correct.value), aim_missed: Number(f.aim_missed.value),
+        sort_order: Math.max(0, ...sfSets.map((x) => x.sort_order || 0)) + 10 }, keep,
+      [...removed, ...cards.filter((c) => c.id && !keep.some((k) => k.id === c.id)).map((c) => c.id)]);
+      sfSets = await loadSafmeds(); closeDlg(); draw(); toast('Set saved');
+    } catch (err) { msg.textContent = err.message; msg.hidden = false; }
   });
 }
 

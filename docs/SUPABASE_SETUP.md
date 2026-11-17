@@ -341,3 +341,13 @@ How to use: ⚙️ Admin → People → **🔗 Sign-in links** → tick people (
 3. **Publish** the app.
 
 CARE tools show as a row at the top of the Learning Hub (a swipeable strip on phones). Supervisors / QCD / admin edit them under **Manage topics → CARE tools** (name, optional link, optional note, icon). Handouts has no link yet: add it there when ready.
+
+## Step 31 — SAFMEDS practice (added 2026-11-17)
+
+1. **Run** `supabase/migrations/20261117003100_safmeds.sql` (after 030).
+2. **Run** the private file `Portal training content/Learning Hub/SAFMEDS sets (setup).sql` (CARE's 8 sets, 78 cards).
+3. **Publish** the app.
+
+Learning Hub → **SAFMEDS**: tap a set → **Learn** (flip through, no timer) or **1-minute timing** (shuffled; say the answer, tap the card, mark Got it / Missed; Space / → / ← on a keyboard). The database saves the counts and decides leaves: 1 leaf for the first timing of the day; a set is **mastered** when its aim (default 30+ correct, 2 or fewer missed) is met on 3 different days, +5 leaves once per set. Each set shows the best score, aim dots (x of 3) and a chart of past timings. Supervisors / QCD / admin edit sets under **Manage topics → SAFMEDS sets** (name, aim, cards; Remove hides a set and keeps past timings).
+
+**Also (P8n, no SQL):** Training → Trainees → Open a person → **Remove from this course** (admin, active places). The place is marked Withdrawn (kept for the record, hidden from the list); they can be assigned again later.

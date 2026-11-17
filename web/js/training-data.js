@@ -118,6 +118,12 @@ export async function assignPeople(programKey, therapistIds, dueOn, approvedBy, 
     throw friendly(error);
   }
 }
+// Admin: take someone off a course. Their place is marked "Withdrawn" (kept for
+// the record, hidden from the list); they can be assigned again later.
+export async function withdraw(enrollmentId, today) {
+  const { error } = await supa.from('training_enrollments').update({ status: 'withdrawn', finished_on: today }).eq('id', enrollmentId);
+  if (error) throw friendly(error);
+}
 // Supervisors recommend someone; an admin approves (place becomes active) or declines.
 export async function recommend(programKey, therapistId, reason, meId) {
   const { error } = await supa.from('training_enrollments').insert({

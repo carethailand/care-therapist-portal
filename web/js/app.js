@@ -45,7 +45,7 @@ const state = { me: null, roles: [], modules: [], visible: [] };
 // page still fails to load we refresh them again and reload once.
 const SHARED = ['auth', 'config', 'connect-data', 'data', 'doc-text', 'icons', 'labels', 'learning-data', 'leave-data',
   'milestones', 'stickers', 'supabase', 'team-card', 'team-data', 'theme', 'training-data', 'training-export',
-  'tree-art', 'tree', 'ui'].map((n) => `js/${n}.js`);
+  'tree-art', 'tree', 'ui', 'safmeds'].map((n) => `js/${n}.js`);
 async function freshenCode(force = false) {
   let seen = null;
   try { seen = localStorage.getItem('care_portal_code'); } catch { /* storage blocked */ }
