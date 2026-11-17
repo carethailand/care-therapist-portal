@@ -1,7 +1,8 @@
 // CARE Therapist Portal — staff-admin Edge Function
 //
-// Creates a login for a staff record, or gives someone a new temporary
-// password. It runs on Supabase's servers because it needs the SECRET key,
+// Creates a login for a staff record, gives someone a new temporary
+// password, or makes a one-time "set your password" sign-in link (to send on
+// Slack). It runs on Supabase's servers because it needs the SECRET key,
 // which must never be in the web page.
 //
 // Who may call it:
@@ -55,6 +56,17 @@ function tempPassword(): string {
 }
 
 const SIMPLE_ROLES = new Set(['applicant', 'therapist']);
+const PORTAL_URL = 'https://carethailand.github.io/care-therapist-portal/';
+
+// Where a sign-in link sends people back to: the page that asked (if it is one
+// of ours), otherwise the live Portal.
+function redirectFor(req: Request, asked?: string): string {
+  try {
+    const u = new URL(asked ?? '');
+    if (ALLOWED_ORIGINS.includes(u.origin)) return `${u.origin}${u.pathname}`;
+  } catch { /* fall through */ }
+  return PORTAL_URL;
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors(req) });
@@ -82,10 +94,10 @@ Deno.serve(async (req) => {
   }
 
   // 2. What do they want? ----------------------------------------------------
-  let body: { action?: string; therapist_id?: string };
+  let body: { action?: string; therapist_id?: string; redirect_to?: string };
   try { body = await req.json(); } catch { return reply(req, 400, { error: 'Bad request.' }); }
   const { action, therapist_id } = body;
-  if (!therapist_id || !['create_login', 'reset_password'].includes(action ?? '')) {
+  if (!therapist_id || !['create_login', 'reset_password', 'signin_link'].includes(action ?? '')) {
     return reply(req, 400, { error: 'Bad request.' });
   }
 
@@ -100,6 +112,25 @@ Deno.serve(async (req) => {
   const targetRoles: string[] = (target.staff_roles ?? []).map((r: { role: string }) => r.role);
   if (!isAdmin && targetRoles.some((r) => !SIMPLE_ROLES.has(r))) {
     return reply(req, 403, { error: 'Only an admin can manage logins for seniors, QCD, supervisors, HR or admins.' });
+  }
+
+  // 3. One-time sign-in link (no password is ever shown) ---------------------
+  // New person → "invite" link (creates the login; they choose a password).
+  // Has a login → "recovery" link (they choose a new password).
+  // The link works once and expires after the Email OTP time set in Supabase.
+  if (action === 'signin_link') {
+    const redirectTo = redirectFor(req, body.redirect_to);
+    let kind: 'invite' | 'recovery' = target.auth_user_id ? 'recovery' : 'invite';
+    let res = await admin.auth.admin.generateLink({
+      type: kind, email: target.email,
+      options: { redirectTo, ...(kind === 'invite' ? { data: { full_name: target.full_name } } : {}) },
+    });
+    if (res.error && kind === 'invite' && /already.*registered|exists/i.test(res.error.message)) {
+      kind = 'recovery';   // a login already exists for this email but isn't linked yet: it links on sign-in
+      res = await admin.auth.admin.generateLink({ type: 'recovery', email: target.email, options: { redirectTo } });
+    }
+    if (res.error || !res.data?.properties?.action_link) return reply(req, 400, { error: res.error?.message ?? 'Could not make a link.' });
+    return reply(req, 200, { ok: true, email: target.email, kind, link: res.data.properties.action_link });
   }
 
   const password = tempPassword();

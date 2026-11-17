@@ -74,10 +74,10 @@ export async function setRoles(therapistId, current, wanted, grantedBy) {
   }
 }
 
-// Calls the staff-admin Edge Function: action = 'create_login' | 'reset_password'.
+// Calls the staff-admin Edge Function: action = 'create_login' | 'reset_password' | 'signin_link'.
 export async function staffLogin(action, therapistId) {
   const { data, error } = await supa.functions.invoke('staff-admin', {
-    body: { action, therapist_id: therapistId },
+    body: { action, therapist_id: therapistId, redirect_to: window.location.origin + window.location.pathname },
   });
   if (error) {
     let msg = error.message;

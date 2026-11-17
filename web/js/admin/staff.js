@@ -41,6 +41,7 @@ export async function render(panel, context) {
         <h2>People</h2>
         <span class="spacer"></span>
         ${ctx.roles.includes('admin') ? '<button type="button" id="staff-export" title="Download everyone and every timeline as one Excel file (backup)">⬇︎ Export everyone</button>' : ''}
+        <button type="button" id="staff-links" title="Make one-time 'set your password' links to send on Slack">🔗 Sign-in links</button>
         <button type="button" class="primary" id="staff-add">+ Add person</button>
       </div>
       <div class="filters">
@@ -67,6 +68,7 @@ export async function render(panel, context) {
     <dialog id="pw-dlg" class="dlg"></dialog>`;
 
   panel.querySelector('#staff-add').addEventListener('click', () => openPerson(null));
+  panel.querySelector('#staff-links').addEventListener('click', openLinks);
   panel.querySelector('#staff-export')?.addEventListener('click', async (ev) => {
     const btn = ev.currentTarget;
     btn.disabled = true;
@@ -421,5 +423,74 @@ function showPassword(p, res, action) {
     } catch { ev.currentTarget.textContent = 'Copy failed. Select it by hand.'; }
   });
   dlg.querySelector('[data-act="done"]').addEventListener('click', () => { dlg.close(); dlg.innerHTML = ''; });
+  dlg.showModal();
+}
+
+// ---------------------------------------------------------------------------
+// Sign-in links: one-time "set your password" links to send on Slack.
+// No password is ever shown. Each link works once and expires (Supabase →
+// Authentication → Email → "Email OTP Expiration", up to 24 hours).
+// ---------------------------------------------------------------------------
+function openLinks() {
+  const dlg = panelEl.querySelector('#pw-dlg');
+  const list = people
+    .filter((p) => p.status !== 'exited')
+    .sort((a, b) => Number(!!a.auth_user_id) - Number(!!b.auth_user_id) || (a.nickname || a.full_name).localeCompare(b.nickname || b.full_name));
+  const portal = window.location.origin + window.location.pathname;
+  dlg.innerHTML = `
+    <div class="sl-box">
+      <h2>Sign-in links</h2>
+      <p class="muted small">Tick who needs one, then <strong>Make links</strong>. Send each link to that person only, in a
+        <strong>direct message</strong> on Slack, never in a channel. A link works <strong>once</strong>: they tap it, choose a password, and they're in.
+        People who already have a login get a "choose a new password" link (handy if they forgot it).</p>
+      <p class="small"><label class="check"><input type="checkbox" id="sl-all"> Tick everyone without a login</label></p>
+      <ul class="sl-list">${list.map((p) => `<li data-id="${p.id}">
+        <label class="check"><input type="checkbox" value="${p.id}" ${p.auth_user_id ? '' : 'checked'}>
+          <span><strong>${esc(p.nickname || p.full_name)}</strong> <span class="muted small">${esc(p.email)}</span></span></label>
+        <span class="sl-state">${p.auth_user_id ? '<span class="chip ok">Has a login</span>' : '<span class="chip">No login yet</span>'}</span>
+      </li>`).join('')}</ul>
+      <div class="dlg-actions">
+        <button type="button" class="primary" data-act="make">🔗 Make links</button>
+        <span class="muted small" data-count></span>
+        <span class="spacer"></span>
+        <button type="button" data-act="close">Close</button>
+      </div>
+    </div>`;
+  const boxes = () => [...dlg.querySelectorAll('.sl-list input[type="checkbox"]')];
+  const count = () => { dlg.querySelector('[data-count]').textContent = `${boxes().filter((b) => b.checked).length} ticked`; };
+  dlg.querySelector('#sl-all').checked = true;
+  dlg.querySelector('#sl-all').addEventListener('change', (e) => {
+    for (const b of boxes()) if (!people.find((p) => p.id === b.value).auth_user_id) b.checked = e.target.checked;
+    count();
+  });
+  dlg.querySelector('.sl-list').addEventListener('change', count);
+  count();
+  dlg.querySelector('[data-act="close"]').addEventListener('click', () => { dlg.close(); dlg.innerHTML = ''; reload(); });
+  dlg.querySelector('[data-act="make"]').addEventListener('click', async (ev) => {
+    const btn = ev.currentTarget;
+    const ids = boxes().filter((b) => b.checked).map((b) => b.value);
+    if (!ids.length) return;
+    btn.disabled = true;
+    for (const id of ids) {
+      const p = people.find((x) => x.id === id);
+      const li = dlg.querySelector(`li[data-id="${id}"]`);
+      const st = li.querySelector('.sl-state');
+      st.innerHTML = '<span class="muted small">Making…</span>';
+      try {
+        const res = await staffLogin('signin_link', id);
+        const msg = `Hi ${p.nickname || p.full_name.split(' ')[0]} 👋 Your CARE Portal login is ready!\n`
+          + `Tap this link to choose your password (it works once, so please use it today):\n${res.link}\n\n`
+          + `After that, sign in any time at ${portal} with ${res.email}`;
+        st.innerHTML = `<button type="button" class="small-btn" data-copy>Copy Slack message</button>`;
+        st.querySelector('[data-copy]').addEventListener('click', async (e) => {
+          try { await navigator.clipboard.writeText(msg); e.currentTarget.textContent = 'Copied ✓'; li.classList.add('sl-done'); }
+          catch { e.currentTarget.textContent = 'Copy failed'; }
+        });
+      } catch (e) {
+        st.innerHTML = `<span class="error small">${esc(e.message)}</span>`;
+      }
+    }
+    btn.textContent = 'Done: copy each message and send it';
+  });
   dlg.showModal();
 }

@@ -315,3 +315,12 @@ How it works:
 
 Topics now show as **cards** in the 7 areas (each area has its own colour); tapping a card opens the topic's page (description, links, Done, "Log a study session on this topic"). Codes like A-01 are no longer shown.
 Supervisors / QCD / admin: **Manage topics** (was "Links") → **+ Add topic** in any area, or tap a topic to rename it, move it to another area, add a short description, change its order, and add / edit / reorder / remove its links. **Remove topic** deletes an empty topic, or hides one that already has study logs (shown under "Hidden topics", where it can be shown again).
+
+## Step 28 — Sign-in links to send on Slack (added 2026-11-17)
+
+1. **Deploy** the updated `staff-admin` Edge Function (Verify JWT stays **OFF**). It adds a third action, `signin_link`.
+2. In Supabase → **Authentication → Sign In / Providers → Email**, set **Email OTP Expiration** to `86400` (24 hours, the most allowed). Sign-in links last this long.
+3. Check **Authentication → URL Configuration → Redirect URLs** includes `https://carethailand.github.io/care-therapist-portal/` (it should already).
+4. **Publish** the app.
+
+How to use: ⚙️ Admin → People → **🔗 Sign-in links** → tick people (everyone without a login is ticked) → **Make links** → **Copy Slack message** for each and paste it into that person's **direct message**. The link works once: they tap it, choose a password and are signed in. Someone who already has a login gets a "choose a new password" link (for forgotten passwords). HR can make links for applicants and junior therapists only; admins for everyone. No password is ever shown or sent.
