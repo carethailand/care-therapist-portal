@@ -100,15 +100,21 @@ function balances(ent, requests) {
 function balanceHtml(bal, ent, perPersonMissingText) {
   return `<div class="balances">${bal.map((b) => {
     const left = b.allowance != null ? b.allowance - b.used : null;
-    return `<div class="bal">
-      <p class="bal-code">${esc(b.code)}</p>
+    // Compact summary tile: big code + days left on top, the full name small underneath.
+    return `<div class="bal" title="${esc(b.label)}">
+      <div class="bal-top">
+        <p class="bal-code">${esc(b.code)}</p>
+        ${b.per_person && b.allowance == null ? ''
+          : b.allowance != null
+            ? `<p class="bal-num" aria-label="${left} of ${b.allowance} days left"><strong>${left}</strong><span>/${b.allowance}</span></p>`
+            : `<p class="bal-num" aria-label="${b.used} days used"><strong>${b.used}</strong><span> used</span></p>`}
+      </div>
       <p class="bal-label">${esc(b.label)}</p>
       ${b.per_person && b.allowance == null
         ? `<p class="muted small">${esc(perPersonMissingText)}</p>`
         : b.allowance != null
-          ? `<p class="bal-num"><strong>${left}</strong> <span class="muted">of ${b.allowance} left</span></p>
-             <div class="progress"><span style="width:${b.allowance ? Math.min(100, Math.round((b.used / b.allowance) * 100)) : 0}%"></span></div>`
-          : `<p class="bal-num"><strong>${b.used}</strong> <span class="muted">days used</span></p>`}
+          ? `<div class="progress"><span style="width:${b.allowance ? Math.min(100, Math.round((b.used / b.allowance) * 100)) : 0}%"></span></div>`
+          : ''}
       ${b.waiting ? `<p class="small warn-text">${b.waiting} waiting for HR</p>` : ''}
       ${b.carry ? `<p class="muted small">Includes ${b.carry} carried over${ent?.carry_over_until ? `, use by ${esc(fmtDate(ent.carry_over_until))}` : ''}</p>` : ''}
       ${b.kinds.map((k) => `<p class="muted small">${esc(k.label)}: ${k.used} of ${k.max_days}</p>`).join('')}

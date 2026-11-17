@@ -6,7 +6,7 @@ import { milestones, isLongest, milestoneEligible, cardBadges, SHOW_MAX } from '
 import { ART_CREDIT } from '../stickers.js';
 import { directory, setProfile, photoUrls, squarePhoto, uploadPhoto, removePhoto, badges as loadBadges, setShowcase } from '../team-data.js';
 import { trees as loadTrees } from '../learning-data.js';
-import { cardHtml, avatarHtml, initials, wireAbout } from '../team-card.js';
+import { cardHtml, wireAbout } from '../team-card.js';
 
 const ABOUT_MAX = 280;
 // My card's data while on this page: { row, url, badge, tree, picked, chosen }
@@ -42,8 +42,10 @@ export async function render(panel, { me, roles = [] }) {
     </section>
     ${milestoneEligible(me, roles) ? `<section class="card" id="mc-card" hidden>
       <div class="mc-head"><h2>My team card</h2><span class="muted small">This is how everyone sees you on Our Team.</span></div>
-      <ul class="tm-grid mc-preview" aria-live="polite"></ul>
-      <details class="mc-edit"><summary>Edit photo and “about me”</summary><div class="mc-form"></div></details>
+      <div class="mc-grid">
+        <ul class="tm-grid mc-preview" aria-live="polite"></ul>
+        <div class="mc-form"></div>
+      </div>
     </section>
     <section class="card" id="ms-card">
       <div class="mc-head"><h2>My badges</h2><span class="muted small" id="ms-pickinfo"></span></div>
@@ -124,31 +126,36 @@ function drawPreview(panel) {
   wireAbout(box);
 }
 
+// Photo + "about me", beside the card on wide screens (under it on phones).
+// Choosing a photo shows it on the card straight away; Save keeps it.
 function drawEditForm(panel) {
   const p = mc.row;
   const box = panel.querySelector('#mc-card .mc-form');
+  const savedUrl = mc.url;
   let newBlob = null;     // a picture chosen here
   let dropPhoto = false;  // "Remove photo" pressed
   box.innerHTML = `
-    <form class="tm-edit">
-      <div class="tm-edit-photo">
-        <span class="tm-preview">${avatarHtml(p, mc.url, 'tm-photo lg')}</span>
-        <div>
-          <label class="btn-file">Choose a photo<input type="file" name="photo" accept="image/*"></label>
-          <button type="button" class="link" data-act="nophoto"${p.photo_path ? '' : ' hidden'}>Remove photo</button>
-          <p class="muted small">A clear photo of <strong>you only</strong>: please no children, families or client places. It's cropped to a square and only CARE staff can see it.</p>
-        </div>
+    <form class="mc-side">
+      <div class="mc-photo-row">
+        <label class="btn-file small-btn">${p.photo_path ? 'Change photo' : 'Choose a photo'}<input type="file" name="photo" accept="image/*"></label>
+        <button type="button" class="link small" data-act="nophoto"${p.photo_path ? '' : ' hidden'}>Remove photo</button>
       </div>
+      <p class="muted small">A clear photo of <strong>you only</strong>: no children, families or client places. Only CARE staff can see it.</p>
       <label>About me <span class="muted small" data-count></span>
-        <textarea name="about" rows="3" maxlength="${ABOUT_MAX}" placeholder="e.g. Speaks Thai, English and a little Japanese. Loves sensory play and Sunday markets.">${esc(p.about || '')}</textarea></label>
-      <p class="msg" role="status" hidden></p>
-      <div class="dlg-actions"><button type="submit" class="primary">Save</button></div>
+        <textarea name="about" rows="3" maxlength="${ABOUT_MAX}" placeholder="e.g. Speaks Thai and English. Loves sensory play and Sunday markets.">${esc(p.about || '')}</textarea></label>
+      <div class="mc-save"><button type="submit" class="primary">Save</button><span class="msg small" role="status" hidden></span></div>
     </form>`;
   const form = box.querySelector('form');
   const msg = form.querySelector('.msg');
   const say = (t, k = 'error') => { msg.hidden = false; msg.dataset.kind = k; msg.textContent = t; };
   const count = () => { form.querySelector('[data-count]').textContent = `${form.about.value.length}/${ABOUT_MAX}`; };
-  form.about.addEventListener('input', count);
+  const preview = (url, about = form.about.value.trim()) => {
+    const keep = mc.url; const keepRow = mc.row;
+    mc.url = url; mc.row = { ...p, about: about || null };
+    drawPreview(panel);
+    mc.url = keep; mc.row = keepRow;
+  };
+  form.about.addEventListener('input', () => { count(); msg.hidden = true; });
   count();
   form.photo.addEventListener('change', async () => {
     const f = form.photo.files[0];
@@ -157,17 +164,18 @@ function drawEditForm(panel) {
     try {
       newBlob = await squarePhoto(f);
       dropPhoto = false;
-      form.querySelector('.tm-preview').innerHTML = `<img class="tm-photo lg" src="${URL.createObjectURL(newBlob)}" alt="New photo preview">`;
+      preview(URL.createObjectURL(newBlob));
       form.querySelector('[data-act="nophoto"]').hidden = false;
-      msg.hidden = true;
+      say('Not saved yet: tap Save to keep this photo.', 'info');
     } catch { say('Could not read that picture. Try a JPG or PNG.'); }
   });
   form.querySelector('[data-act="nophoto"]').addEventListener('click', () => {
     newBlob = null;
     dropPhoto = true;
     form.photo.value = '';
-    form.querySelector('.tm-preview').innerHTML = `<span class="tm-photo lg tm-initials" aria-hidden="true">${esc(initials(p))}</span>`;
+    preview(null);
     form.querySelector('[data-act="nophoto"]').hidden = true;
+    say('Not saved yet: tap Save to remove your photo.', 'info');
   });
   form.addEventListener('submit', async (ev) => {
     ev.preventDefault();
@@ -181,11 +189,10 @@ function drawEditForm(panel) {
       await setProfile(about, path);
       if (path !== p.photo_path) await removePhoto(p.photo_path);
       mc.row = { ...p, about: about || null, photo_path: path };
-      mc.url = path ? (newBlob ? URL.createObjectURL(newBlob) : mc.url) : null;
+      mc.url = path ? (newBlob ? URL.createObjectURL(newBlob) : savedUrl) : null;
       drawPreview(panel);
       drawEditForm(panel);
-      panel.querySelector('#mc-card .mc-edit').open = true;
-      const m = panel.querySelector('#mc-card .msg');
+      const m = panel.querySelector('#mc-card .mc-form .msg');
       m.hidden = false; m.dataset.kind = 'ok'; m.textContent = 'Saved ✓';
     } catch (e) {
       say(e.message);
@@ -207,8 +214,8 @@ function drawMilestones(panel, me, roles, longest) {
     const when = m.earned
       ? (m.lockText ? 'Earned' : m.key === 'longest' ? 'Held now' : m.on && m.on <= today ? `Earned ${fmtDate(m.on)}` : 'Earned')
       : m.lockText ? m.lockText
-      : m.key === 'longest' ? 'For the therapist who has been at CARE the longest'
-        : m.on ? `Unlocks ${fmtDate(m.on)}` : m.key === 'probation' ? 'Unlocks when you pass probation' : 'Unlocks once your start date is set';
+      : m.key === 'longest' ? 'Longest at CARE'
+        : m.on ? `Unlocks ${fmtDate(m.on)}` : m.key === 'probation' ? 'Unlocks after probation' : 'Needs a start date';
     const n = mc ? mc.picked.indexOf(m.key) : -1;
     const inner = `
       <img src="${esc(m.img)}" alt="" width="96" height="96" loading="lazy">

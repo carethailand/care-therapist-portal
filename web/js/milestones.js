@@ -52,9 +52,9 @@ export function milestones(me, roles, longest = false) {
     const atLeast = (k) => THERAPIST_RANKS.indexOf(r) >= THERAPIST_RANKS.indexOf(k);
     // QCD training: automatic for QCD; supervisors only if an admin verified it.
     const qcdDone = r === 'qcd' || (me.legacy_training || []).includes('qcd');
-    list.push({ key: 'senior-training', label: 'Senior Therapist Training', img: file('senior-training'), earned: atLeast('senior'), on: null, lockText: 'Unlocks when you complete Senior Therapist Training' });
-    if (atLeast('senior')) list.push({ key: 'qcd-training', label: 'QCD Training', img: file('qcd-training'), earned: qcdDone, on: null, lockText: 'Unlocks when you complete QCD Training' });
-    if (atLeast('qcd')) list.push({ key: 'supervisor', label: 'Supervisor Training', img: file('supervisor'), earned: atLeast('supervisor'), on: null, lockText: 'Unlocks when you complete Supervisor training' });
+    list.push({ key: 'senior-training', label: 'Senior Therapist Training', img: file('senior-training'), earned: atLeast('senior'), on: null, lockText: 'Unlocks with Senior Training' });
+    if (atLeast('senior')) list.push({ key: 'qcd-training', label: 'QCD Training', img: file('qcd-training'), earned: qcdDone, on: null, lockText: 'Unlocks with QCD Training' });
+    if (atLeast('qcd')) list.push({ key: 'supervisor', label: 'Supervisor Training', img: file('supervisor'), earned: atLeast('supervisor'), on: null, lockText: 'Unlocks with Supervisor Training' });
   }
   return list;
 }
