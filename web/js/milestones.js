@@ -92,3 +92,49 @@ export async function isLongest(me) {
     return false;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Our Team badges (P8j). Everything a person has earned, worked out from
+// team_directory() ({ years, probation_passed, longest, roles }) plus
+// team_badges() ({ legacy_training, showcase }). Each person may choose up to
+// 5 to show; badges not earned are never shown, even if chosen.
+// ---------------------------------------------------------------------------
+export const SHOW_MAX = 5;
+const TRAINING = [
+  { key: 'supervisor', label: 'Supervisor Training' },
+  { key: 'qcd-training', label: 'QCD Training' },
+  { key: 'senior-training', label: 'Senior Therapist Training' },
+];
+
+// All earned badges, best first: training, longest, years (newest first), probation.
+export function earnedBadges(p, extra = {}) {
+  const out = [];
+  const r = rankOf(p.roles || []);
+  if (THERAPIST_RANKS.includes(r)) {
+    const atLeast = (k) => THERAPIST_RANKS.indexOf(r) >= THERAPIST_RANKS.indexOf(k);
+    const qcdDone = r === 'qcd' || (extra.legacy_training || []).includes('qcd');
+    const has = { supervisor: atLeast('supervisor'), 'qcd-training': atLeast('senior') && qcdDone, 'senior-training': atLeast('senior') };
+    for (const t of TRAINING) if (has[t.key]) out.push({ key: t.key, img: file(t.key), label: t.label });
+    if (p.longest) out.push({ key: 'longest', img: file('longest'), label: 'Longest-serving therapist' });
+  }
+  for (const n of [...YEARS].reverse()) {
+    if (p.years != null && p.years >= n) out.push({ key: `year-${n}`, years: n, img: file(`year-${n}`), label: `${n} year${n > 1 ? 's' : ''} at CARE`, word: WORD[n] || '' });
+  }
+  if (p.probation_passed) out.push({ key: 'probation', img: file('probation'), label: 'Passed probation' });
+  return out;
+}
+
+// What a card shows: the person's choice (in their order), or, if they
+// haven't chosen, the latest year + probation + longest + training (max 5).
+// { shown, more } where more = how many earned badges aren't shown.
+export function cardBadges(p, extra = {}) {
+  const all = earnedBadges(p, extra);
+  const pick = (extra.showcase || []).map((k) => all.find((b) => b.key === k)).filter(Boolean);
+  let shown = pick;
+  if (!pick.length) {
+    const latestYear = all.find((b) => b.years);
+    shown = [latestYear, ...all.filter((b) => b.key === 'probation' || b.key === 'longest'),
+      ...all.filter((b) => TRAINING.some((t) => t.key === b.key))].filter(Boolean).slice(0, SHOW_MAX);
+  }
+  return { shown, more: all.length - shown.length, all };
+}

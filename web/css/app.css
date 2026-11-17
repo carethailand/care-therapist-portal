@@ -1154,3 +1154,17 @@ button.lh-ready { border-color: var(--accent); color: var(--accent); background:
 .sl-list .check { flex: 1; min-width: 0; }
 .sl-list .check span { overflow-wrap: anywhere; }
 .sl-state { flex: none; }
+
+/* Our Team: chosen badges (P8j) */
+.tm-more { display: inline-grid; place-items: center; min-width: 34px; height: 34px; padding: 0 6px; border-radius: 999px;
+  font-size: .8rem; font-weight: 600; color: var(--muted); background: var(--surface-raised); border: 1px solid var(--line); }
+.tm-pick { display: grid; gap: 8px; }
+.tm-pick p { margin: 0; }
+.tm-pick-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.tm-pick-b { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 6px; border-radius: 12px;
+  font-size: .72rem; line-height: 1.2; text-align: center; background: var(--surface-raised); }
+.tm-pick-b img { width: 48px; height: 48px; object-fit: contain; filter: grayscale(.6); opacity: .7; }
+.tm-pick-b[aria-pressed="true"] { border: 2px solid var(--accent); background: var(--accent-soft); padding: 7px 5px; }
+.tm-pick-b[aria-pressed="true"] img { filter: none; opacity: 1; }
+.tm-pick-n { position: absolute; top: 4px; right: 6px; font-size: .75rem; color: var(--accent); }
+.dlg:has(.tm-pick) { width: min(600px, 94vw); box-sizing: border-box; }

@@ -324,3 +324,10 @@ Supervisors / QCD / admin: **Manage topics** (was "Links") → **+ Add topic** i
 4. **Publish** the app.
 
 How to use: ⚙️ Admin → People → **🔗 Sign-in links** → tick people (everyone without a login is ticked) → **Make links** → **Copy Slack message** for each and paste it into that person's **direct message**. The link works once: they tap it, choose a password and are signed in. Someone who already has a login gets a "choose a new password" link (for forgotten passwords). HR can make links for applicants and junior therapists only; admins for everyone. No password is ever shown or sent.
+
+## Step 29 — Choose badges for my team card (added 2026-11-17)
+
+1. **Run** `supabase/migrations/20261117002900_team_badge_showcase.sql` (after 028).
+2. **Publish** the app (it works before the SQL too: cards then show the usual badges).
+
+Our Team → **Edit my card** → **Badges on my card**: tap up to 5 earned badges, in the order you want. Others see only those, plus "+N" for the rest. Badges not earned are never shown. If someone hasn't chosen, the card shows their latest year, probation, longest-serving and training badges (up to 5). Training badges (Senior / QCD / Supervisor) now show on team cards too.

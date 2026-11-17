@@ -11,6 +11,10 @@ const must = ({ data, error }) => {
 
 export const directory = () => supa.rpc('team_directory').then(must);
 
+// Chosen badges + "completed before the Portal" ticks, for everyone's card.
+export const badges = () => supa.rpc('team_badges').then(must);
+export const setShowcase = (keys) => supa.rpc('team_set_showcase', { p_keys: keys }).then(must);
+
 export const setProfile = (about, photoPath) =>
   supa.rpc('team_set_profile', { p_about: about, p_photo_path: photoPath }).then(must);
 
