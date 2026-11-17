@@ -9,16 +9,18 @@ import { icon } from './icons.js';
 import * as theme from './theme.js';
 
 // Built tabs. Anything not listed here renders the "coming soon" card.
+// ?v=<version> makes the browser fetch a page's new code after each update
+// (otherwise it can keep an old saved copy even after a hard refresh).
 const TABS = {
-  home: () => import('./tabs/home.js'),
-  journey: () => import('./tabs/journey.js'),
-  training: () => import('./tabs/training.js'),
-  leave: () => import('./tabs/leave.js'),
-  connect: () => import('./tabs/connect.js'),
-  team: () => import('./tabs/team.js'),
-  learning: () => import('./tabs/learning.js'),
+  home: () => import(`./tabs/home.js?v=${APP_VERSION}`),
+  journey: () => import(`./tabs/journey.js?v=${APP_VERSION}`),
+  training: () => import(`./tabs/training.js?v=${APP_VERSION}`),
+  leave: () => import(`./tabs/leave.js?v=${APP_VERSION}`),
+  connect: () => import(`./tabs/connect.js?v=${APP_VERSION}`),
+  team: () => import(`./tabs/team.js?v=${APP_VERSION}`),
+  learning: () => import(`./tabs/learning.js?v=${APP_VERSION}`),
 };
-const comingSoon = () => import('./tabs/coming-soon.js');
+const comingSoon = () => import(`./tabs/coming-soon.js?v=${APP_VERSION}`);
 
 // Icon per tab (see js/icons.js).
 const TAB_ICON = {
@@ -30,8 +32,8 @@ const HOME = { key: 'home', label: 'Home', enabled: true };
 
 // Admin pages: reached from the ⚙️ button, not the tab bar.
 const ADMIN_PAGES = {
-  staff: { label: 'People', load: () => import('./admin/staff.js'), roles: ['admin', 'hr'] },
-  training: { label: 'Training content', load: () => import('./admin/training.js'), roles: ['admin'] },
+  staff: { label: 'People', load: () => import(`./admin/staff.js?v=${APP_VERSION}`), roles: ['admin', 'hr'] },
+  training: { label: 'Training content', load: () => import(`./admin/training.js?v=${APP_VERSION}`), roles: ['admin'] },
 };
 const canAdmin = () => state.roles.some((r) => r === 'admin' || r === 'hr');
 
