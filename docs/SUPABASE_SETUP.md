@@ -290,3 +290,16 @@ Badges for completing training are now certificate-and-rosette badges: **silver*
 - Senior Therapist Training counts automatically for Senior therapists and above.
 - QCD Training counts automatically for QCD staff. For **Supervisors**, an admin ticks **Completed before the Portal → QCD Training** on the People screen (only those who did it).
 - Supervisor Training counts for Supervisors.
+
+## Step 25 — Learning Hub: study log, leaves and your tree (added 2026-11-17)
+
+1. **Run** `supabase/migrations/20261117002600_learning_hub.sql`. It adds the 26 topics and switches the **Learning Hub** tab on for CARE staff.
+2. **Run** the private file `Portal training content/Learning Hub/Learning Hub links (setup).sql` (kept off GitHub: some links are Google Drive files). It adds the links from the old hub.
+3. **Publish** the app.
+
+How it works:
+- Each person first **plants their seed**: 10 skill points placed across the 7 skills (a self-check, up to 4 in one skill).
+- **Leaves** (worked out in the database, never by the page): 1 per reflection box written properly (15+ characters; up to 5 per log; only the first 2 logs a day), 1 per resource marked done with a one-line note (up to 3 a day), +5 when a supervisor / QCD / admin reviews a reflection. Supervisors / QCD / admin can also **Give** leaves (role-play, training…).
+- **10 leaves = 1 skill point**, which the person puts into a skill. The tree grows with total skill points: Seedling 10 · Sprout 20 · Sapling 30 · Tree 40 · Grove 60 · Forest Guardian 100 (an animal can join).
+- The **skill wheel** is private (the person + supervisors / QCD / admin). The **tree** shows on Our Team for everyone.
+- Supervisors / QCD / admin: **Team** view (to review, give leaves, see wheels) and **Links** view (add / edit links).

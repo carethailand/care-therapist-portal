@@ -1,6 +1,8 @@
 // A few Tabler outline icons (https://tabler.io/icons, MIT licence), inlined
 // so the Portal doesn't download a 1 MB icon font. icon('home') → <svg>.
 const PATHS = {
+ "leaf": "<path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\"/> <path d=\"M5 21c.5 -4.5 2.5 -8 7 -10\" /> <path d=\"M9 18c6.218 0 10.5 -3.288 11 -12v-2h-4.014c-9 0 -11.986 4 -12 9c0 1 0 3 2 5h3z\" />",
+ "external-link": "<path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\"/> <path d=\"M12 6h-6a2 2 0 0 0 -2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-6\" /> <path d=\"M11 13l9 -9\" /> <path d=\"M15 4h5v5\" />",
  "check": "<path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\"/> <path d=\"M5 12l5 5l10 -10\" />",
  "player-play": "<path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\"/> <path d=\"M7 4v16l13 -8z\" />",
  "chevron-down": "<path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\"/> <path d=\"M6 9l6 6l6 -6\" />",

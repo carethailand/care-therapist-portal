@@ -27,3 +27,13 @@ From **Vecteezy.com** (free licence: credit "Vecteezy.com" with a link where pos
 | `../milestones/*.svg` (years, probation, longest) | "A set of blason icons" (Vecteezy 122800) | Shapes taken from the vector file, recoloured for CARE; stars (= years), numbers, ribbon words, crowns and the check mark added |
 | `../stickers/*.png` | "Kids motivational school reward stickers and encouragement" (Vecteezy 48915603) and "Set of motivational reward stickers with cartoon characters" (Vecteezy 79455394) | Each sticker cut out as a round transparent image |
 | `../milestones/senior-training.svg`, `qcd-training.svg`, `supervisor.svg` | "Award certificate vector icon" (Vecteezy 2413310) | Redrawn in CARE's thin-line style from the vector file: silver (Senior), gold (QCD) and prism (Supervisor); background and thick outlines removed |
+
+## Learning Hub tree art (added 2026-11-17)
+
+From **Vecteezy.com** (free licence). The Learning Hub page shows "Tree, plant and animal art: Vecteezy.com".
+
+| Files | Source | Changes |
+|---|---|---|
+| `../tree/look-*.svg` | "Collection of plant icons and symbol" (Vecteezy 59362849) and "A collection of tree illustrations" (Vecteezy 66328205) | Single plants and trees cut out of the vector files, colours converted from CMYK |
+| `../tree/bg-*.svg` | "Set of illustrations green trees forest landscape banner" (Vecteezy 57988369) | Four scenes; the middle cleared so the person's tree stands alone; one scene's own large tree removed |
+| `../tree/animal-*.svg` | "Wildlife collection colorful forest animal symbols" (Vecteezy 81684276) | Nine animals cut out |

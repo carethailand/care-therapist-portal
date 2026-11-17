@@ -16,6 +16,7 @@ const TABS = {
   leave: () => import('./tabs/leave.js'),
   connect: () => import('./tabs/connect.js'),
   team: () => import('./tabs/team.js'),
+  learning: () => import('./tabs/learning.js'),
 };
 const comingSoon = () => import('./tabs/coming-soon.js');
 

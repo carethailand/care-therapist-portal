@@ -7,6 +7,8 @@ import { icon } from '../icons.js';
 import { rankOf, RANK_LABEL, OFFICE_ROLES, roleLabel, BADGE_FILE } from '../labels.js';
 import { summaryBadges } from '../milestones.js';
 import { ART_CREDIT } from '../stickers.js';
+import { trees as loadTrees } from '../learning-data.js';
+import { sceneSvg, STAGES, stageOf } from '../tree.js';
 
 // Groups, in page order. Office staff without a clinical rank go under Admin & HR.
 const GROUPS = [
@@ -22,6 +24,7 @@ let ctx;
 let panelEl;
 let people = [];
 let urls = {};
+let treeOf = {};   // therapist id → Learning Hub tree
 
 export async function render(panel, context) {
   ctx = context;
@@ -47,6 +50,8 @@ async function load() {
   try {
     people = await directory();
     urls = await photoUrls(people.map((p) => p.photo_path));
+    // Trees from the Learning Hub (empty if it isn't set up yet).
+    treeOf = Object.fromEntries((await loadTrees().catch(() => [])).map((t) => [t.id, t]));
   } catch (e) {
     box.innerHTML = `<p class="error">Could not load the team: ${esc(e.message)}</p>`;
     return;
@@ -87,17 +92,22 @@ function cardHtml(p) {
   const ms = summaryBadges(p);
   const me = p.id === ctx.me.id;
   const roleText = [rank ? RANK_LABEL[rank] : '', ...office.map(roleLabel)].filter(Boolean).join(' · ');
+  // Position badges (rank, admin/HR) sit on the photo; achievements get their own row.
+  const posName = (r) => (r === 'admin' || r === 'hr' ? roleLabel(r) : RANK_LABEL[r]);
   return `<li class="tm-card${me ? ' is-me' : ''}">
-    ${avatarHtml(p)}
+    <div class="tm-avatar">
+      ${avatarHtml(p)}
+      ${rankBadges.map((r, i) => `<img class="tm-rank ${i ? 'tm-rank-2' : 'tm-rank-1'}" src="assets/badges/${BADGE_FILE[r]}" alt="${esc(posName(r))} badge" title="${esc(posName(r))}" width="40" height="40">`).join('')}
+    </div>
     <div class="tm-body">
       <p class="tm-name">${esc(p.nickname || p.full_name)}${me ? ' <span class="chip stage">You</span>' : ''}</p>
       ${p.nickname ? `<p class="muted small tm-full">${esc(p.full_name)}</p>` : ''}
       <p class="small tm-role">${esc(roleText)}</p>
-      <div class="tm-badges">
-        ${rankBadges.map((r) => `<img class="tm-rank" src="assets/badges/${BADGE_FILE[r]}" alt="${esc(r === 'admin' || r === 'hr' ? roleLabel(r) : RANK_LABEL[r])} badge" title="${esc(r === 'admin' || r === 'hr' ? roleLabel(r) : RANK_LABEL[r])}" width="40" height="40">`).join('')}
+      ${ms.length ? `<div class="tm-badges" aria-label="Achievements">
         ${ms.map((m) => `<img class="tm-ms" src="${esc(m.img)}" alt="${esc(m.label)}" title="${esc(m.label)}${m.word ? ` · ${esc(m.word)}` : ''}" width="44" height="44">`).join('')}
-      </div>
+      </div>` : ''}
       ${p.about ? `<p class="tm-about" tabindex="0" title="Tap to read all">${esc(p.about)}</p>` : ''}
+      ${treeOf[p.id] ? `<div class="tm-tree" title="${esc(STAGES[stageOf(treeOf[p.id].points)].name)}">${sceneSvg(treeOf[p.id], { label: `${p.nickname || p.full_name}’s tree: ${STAGES[stageOf(treeOf[p.id].points)].name}` })}</div>` : ''}
       <p class="muted small tm-years">${p.years == null ? '' : p.years < 1 ? 'New to CARE 🌱' : `${p.years} year${p.years > 1 ? 's' : ''} at CARE`}</p>
       ${me ? '<p><button type="button" class="link" data-act="edit">Edit my card</button></p>' : ''}
     </div>
