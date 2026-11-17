@@ -1007,8 +1007,8 @@ span.pill.next .ico { color: var(--clay); }
 .wheel-ring { fill: none; stroke: var(--line-strong); stroke-width: 1; }
 .wheel-spoke { stroke: var(--line); stroke-width: 1; }
 .wheel-area { fill: #97C459; fill-opacity: .45; stroke: #3B6D11; stroke-width: 2; }
-.wheel-label { font-size: 12px; fill: var(--muted); }
-.wheel-num { font-size: 12px; font-weight: 600; fill: var(--text); }
+.wheel-label { font-size: 13px; fill: var(--muted); }
+.wheel-num { font-size: 13px; font-weight: 600; fill: var(--text); }
 .lh-plus { display: inline-flex; align-items: center; gap: 2px; color: var(--ok); font-weight: 600; font-size: .85rem; white-space: nowrap; }
 .lh-plus .ico { width: 15px; height: 15px; }
 .lh-refl, .lh-ledger, .lh-res { list-style: none; margin: 0; padding: 0; }
@@ -1093,7 +1093,7 @@ span.pill.next .ico { color: var(--clay); }
 .lh-wheel-about .ico { width: 14px; height: 14px; vertical-align: -2px; }
 .lh-side { gap: 12px; }
 .lh-side-btns { display: grid; gap: 8px; }
-.lh-side .wheel { max-width: 290px; }
+.lh-side .wheel { max-width: 340px; }
 .lh-side .lh-h3 { margin: 6px 0 0; }
 button.lh-ready { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); font-weight: 500; }
 .lh-fold { padding: 0; }
@@ -1140,3 +1140,5 @@ button.lh-ready { border-color: var(--accent); color: var(--accent); background:
 .lh-res-edit li:first-child { border-top: 0; }
 .lh-row-btns { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .lh-refl-main { display: inline-flex; align-items: center; flex-wrap: wrap; }
+/* P8g: stack the Learning Hub top cards on phones / narrow screens (the P8e rule above overrode this) */
+@media (max-width: 860px) { .lh-hero { grid-template-columns: 1fr; } }

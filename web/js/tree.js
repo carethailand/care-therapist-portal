@@ -83,15 +83,25 @@ export const artImg = (file, alt = '') => `<img src="${ART}${esc(file)}" alt="${
 export function wheelSvg(skills) {
   const vals = SKILLS.map((s) => Number(skills?.[s.key] || 0));
   const max = Math.max(5, ...vals);
-  const cx = 160, cy = 150, R = 105;
+  const cx = 200, cy = 165, R = 100;
   const pt = (i, r) => { const a = -Math.PI / 2 + (i * 2 * Math.PI) / 7; return [cx + r * Math.cos(a), cy + r * Math.sin(a)]; };
-  let g = `<svg class="wheel" viewBox="0 0 320 300" role="img" aria-label="Self-reflection skill wheel: ${esc(SKILLS.map((s, i) => `${s.label} ${vals[i]}`).join(', '))}">`;
+  // Full skill names, wrapped onto short lines ("Safe Behavior / Management").
+  const lines = (label) => label.split(' ').reduce((acc, w) => {
+    const last = acc[acc.length - 1];
+    if (last && (`${last} ${w}`).length <= 10) acc[acc.length - 1] = `${last} ${w}`; else acc.push(w);
+    return acc;
+  }, []);
+  let g = `<svg class="wheel" viewBox="0 0 400 340" role="img" aria-label="Self-reflection skill wheel: ${esc(SKILLS.map((s, i) => `${s.label} ${vals[i]}`).join(', '))}">`;
   for (const f of [1 / 3, 2 / 3, 1]) g += `<polygon points="${SKILLS.map((_, i) => pt(i, R * f).join(',')).join(' ')}" class="wheel-ring"/>`;
   SKILLS.forEach((s, i) => {
     const [x, y] = pt(i, R);
     g += `<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" class="wheel-spoke"/>`;
-    const [lx, ly] = pt(i, R + 26);
-    g += `<text x="${lx}" y="${ly - 6}" text-anchor="middle" class="wheel-label">${esc(s.short)}</text><text x="${lx}" y="${ly + 9}" text-anchor="middle" class="wheel-num">${vals[i]}</text>`;
+    const [lx, ly] = pt(i, R + 16);
+    const anchor = lx > cx + 15 ? 'start' : lx < cx - 15 ? 'end' : 'middle';
+    const ls = lines(s.label);
+    const h = (ls.length + 1) * 14;
+    const top = i === 0 ? ly - h + 4 : ly > cy + 20 ? ly + 8 : ly - h / 2 + 10;   // above the top point, below the bottom ones
+    g += `<text x="${lx}" y="${top}" text-anchor="${anchor}" class="wheel-label">${ls.map((t, k) => `<tspan x="${lx}" dy="${k ? 14 : 0}">${esc(t)}</tspan>`).join('')}<tspan x="${lx}" dy="15" class="wheel-num">${vals[i]}</tspan></text>`;
   });
   g += `<polygon points="${vals.map((v, i) => pt(i, (R * Math.max(v, 0.2)) / max).join(',')).join(' ')}" class="wheel-area"/>`;
   return `${g}</svg>`;
