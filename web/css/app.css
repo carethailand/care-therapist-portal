@@ -1105,3 +1105,38 @@ button.lh-ready { border-color: var(--accent); color: var(--accent); background:
 .lh-fold[open] .lh-fold-ico { transform: rotate(180deg); }
 .lh-fold > :not(summary) { margin-left: 20px; margin-right: 20px; }
 .lh-fold > :last-child { margin-bottom: 18px; }
+
+/* Learning Hub topics as cards (P8f). Area colour comes from --area (Portal palette). */
+.ico.flip { transform: rotate(180deg); }
+.ico.up { transform: rotate(-90deg); }
+.ico.down { transform: rotate(90deg); }
+.lh-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--area, var(--accent-fill)); margin-right: 8px; flex: none; vertical-align: 0; }
+.lh-area { margin: 14px 0 6px; }
+.lh-area-h { display: flex; align-items: center; gap: 4px; font-family: var(--font-serif); font-weight: 500; font-size: 1.05rem; margin: 0 0 8px; }
+.lh-area-h .muted { font-family: inherit; font-size: .8rem; margin-left: 4px; }
+.lh-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 128px), 1fr)); gap: 8px; }
+@media (min-width: 700px) { .lh-cards { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); } }
+.lh-card { display: flex; flex-direction: column; gap: 8px; text-align: left; padding: 12px 14px; border-radius: 14px;
+  background: var(--surface-raised); border: 1px solid var(--line); border-left: 4px solid var(--area); color: var(--text); font: inherit; cursor: pointer; min-height: 96px; }
+.lh-card:hover { border-color: var(--line-strong); border-left-color: var(--area); background: var(--bg); }
+.lh-card-t { font-weight: 500; line-height: 1.3; flex: 1; }
+.lh-card-meta { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: .78rem; }
+.lh-card-kinds { display: inline-flex; gap: 3px; color: var(--area); }
+.lh-card-kinds .ico { width: 16px; height: 16px; }
+.lh-card-bar { display: block; height: 4px; border-radius: 4px; background: var(--line); overflow: hidden; }
+.lh-card-bar > span { display: block; height: 100%; background: var(--area); }
+.lh-card-add { border: 1px dashed var(--line-strong); border-left: 1px dashed var(--line-strong); align-items: center; justify-content: center; color: var(--muted); flex-direction: row; }
+.lh-card-add .ico { width: 18px; height: 18px; }
+.lh-back { display: inline-flex; align-items: center; gap: 4px; margin-bottom: 10px; padding: 0; }
+.lh-back .ico { width: 18px; height: 18px; }
+.lh-topic-page { border-top: 4px solid var(--area); }
+.lh-topic-page h2 { margin: 2px 0 6px; }
+.lh-topic-page .lh-area-h { font-family: inherit; font-size: .85rem; color: var(--muted); margin: 0; }
+.lh-topic-page .lh-res { margin: 12px 0; }
+.lh-topic-page .lh-res li { border-top: 1px solid var(--line); padding: 10px 0 10px 4px; }
+.lh-topic-page .lh-res li:first-child { border-top: 0; }
+.lh-grow { flex: 1; min-width: 0; }
+.lh-res-edit li { border-top: 1px solid var(--line); }
+.lh-res-edit li:first-child { border-top: 0; }
+.lh-row-btns { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.lh-refl-main { display: inline-flex; align-items: center; flex-wrap: wrap; }

@@ -58,7 +58,30 @@ export const giveLeaves = (who, amount, reason) =>
 // Links (admin / supervisor / QCD)
 export const saveResource = (r) => (r.id
   ? supa.from('learning_resources').update({ topic_code: r.topic_code, kind: r.kind, title: r.title, url: r.url }).eq('id', r.id)
-  : supa.from('learning_resources').insert({ topic_code: r.topic_code, kind: r.kind, title: r.title, url: r.url, created_by: r.created_by })
+  : supa.from('learning_resources').insert({ topic_code: r.topic_code, kind: r.kind, title: r.title, url: r.url, created_by: r.created_by, sort_order: r.sort_order ?? 0 })
 ).then(must);
 
 export const deleteResource = (id) => supa.from('learning_resources').delete().eq('id', id).then(must);
+
+// Topics (supervisor / QCD / admin). Codes are hidden on screen; a new topic
+// gets the next free code for its area (e.g. D-09).
+const PREFIX = { measurement: 'A', skill_acq: 'D', behavior_red: 'E', ethics: 'G', modern_aba: 'M', school_shadow: 'SS', safe_behavior: 'SB' };
+export function newCode(skill, existing) {
+  const pre = PREFIX[skill] || 'T';
+  const nums = existing.filter((c) => c.startsWith(`${pre}-`)).map((c) => Number(c.split('-')[1]) || 0);
+  const n = Math.max(0, ...nums) + 1;
+  return `${pre}-${String(n).padStart(2, '0')}`;
+}
+export const saveTopic = (t) => (t.isNew
+  ? supa.from('learning_topics').insert({ code: t.code, title: t.title, skill: t.skill, description: t.description || null, sort_order: t.sort_order, active: true })
+  : supa.from('learning_topics').update({ title: t.title, skill: t.skill, description: t.description || null }).eq('code', t.code)
+).then(must);
+export const setTopicActive = (code, active) => supa.from('learning_topics').update({ active }).eq('code', code).then(must);
+export const deleteTopic = (code) => supa.from('learning_topics').delete().eq('code', code).then(must);
+// Has anyone logged a study session on this topic? (then we hide instead of delete)
+export const topicUsed = (code) =>
+  supa.from('learning_reflections').select('id').eq('topic_code', code).limit(1).then(must).then((r) => r.length > 0);
+// Save a new order: keys in the order wanted → sort_order 10, 20, 30…
+export async function reorder(table, keyCol, keys) {
+  for (let i = 0; i < keys.length; i++) must(await supa.from(table).update({ sort_order: (i + 1) * 10 }).eq(keyCol, keys[i]));
+}

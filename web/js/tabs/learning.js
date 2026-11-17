@@ -1,7 +1,7 @@
 // Learning Hub: study topics and links, the study log (reflections), and
 // "grow your tree" — leaves from studying become skill points, the tree grows.
 // Supervisors / QCD / admin also get a Team view (review reflections, give
-// leaves, see skill wheels) and a Links view (edit resource links).
+// leaves, see skill wheels) and Manage topics (add / edit / hide topics and links).
 // Leaves and points are worked out by the database; the page only shows them.
 import * as L from '../learning-data.js';
 import {
@@ -39,8 +39,10 @@ let refl = [];
 let done = [];
 let leaves = [];
 let teamList = [];
+let openTopic = null;          // code of the topic page being shown
 const openFolds = new Set();   // Study log / Topics / Recent leaves left open
 
+const areaColor = (k) => SKILLS.find((s) => s.key === k)?.color || '#6F8A69';
 const isTeam = () => ctx.roles.some((r) => ['admin', 'supervisor', 'qcd'].includes(r));
 const safeUrl = (u) => (/^https:\/\//i.test(u ?? '') ? u : null);
 const topicOf = (code) => topics.find((t) => t.code === code);
@@ -60,14 +62,14 @@ export async function render(panel, context) {
         ${isTeam() ? `<div class="seg" role="tablist" aria-label="Learning Hub views">
           <button type="button" role="tab" data-view="me">My learning</button>
           <button type="button" role="tab" data-view="team">Team</button>
-          <button type="button" role="tab" data-view="links">Links</button>
+          <button type="button" role="tab" data-view="links">Manage topics</button>
         </div>` : ''}
       </div>
       <div id="lh-body" aria-live="polite"><p class="muted">Loading…</p></div>
       <p class="credit">Tree, plant and animal art: Vecteezy.com</p>
       <dialog id="lh-dlg" class="dlg"></dialog>
     </section>`;
-  for (const b of panel.querySelectorAll('[data-view]')) b.addEventListener('click', () => { view = b.dataset.view; draw(); });
+  for (const b of panel.querySelectorAll('[data-view]')) b.addEventListener('click', () => { view = b.dataset.view; openTopic = null; draw(); });
   try {
     [topics, resources] = await Promise.all([L.loadTopics(), L.loadResources()]);
   } catch (e) {
@@ -94,6 +96,7 @@ async function draw() {
 // ---------------------------------------------------------------------------
 async function drawMe(body) {
   [me, refl, done, leaves] = await Promise.all([L.summary(), L.myReflections(ctx.me.id), L.myDone(ctx.me.id), L.myLeaves(ctx.me.id)]);
+  if (openTopic && topicOf(openTopic)) return drawTopicPage(body);
   if (!me.started) return drawStart(body);
   const pr = progress(me.points);
   const st = STAGES[pr.stage];
@@ -136,7 +139,7 @@ async function drawMe(body) {
       ${reflList(refl)}`)}
 
     ${fold('topics', 'Topics', `<span class="chip">${topics.filter((t) => t.active).length}</span><span class="muted small lh-fold-note">${nDone} resource${nDone === 1 ? '' : 's'} done</span>`, `
-      <p class="muted small">Open a resource, then tap <strong>Done</strong> and write one line about it to earn a leaf (up to 3 a day).</p>
+      <p class="muted small">Tap a topic to open it. Open a resource, then tap <strong>Done</strong> and write one line about it to earn a leaf (up to 3 a day).</p>
       ${topicsHtml()}`)}
 
     ${leaves.length ? fold('leaves', 'Recent leaves', '', `<ul class="lh-ledger">${leaves.slice(0, 10).map((x) => `
@@ -150,7 +153,7 @@ async function drawMe(body) {
   }
   body.querySelector('[data-act="look"]').addEventListener('click', lookDialog);
   body.querySelector('[data-act="invest"]').addEventListener('click', () => (canInvest ? investDialog() : null));
-  body.querySelector('[data-act="log"]').addEventListener('click', logDialog);
+  body.querySelector('[data-act="log"]').addEventListener('click', () => logDialog());
   wireTopics(body);
   wireRefl(body);
 }
@@ -206,7 +209,7 @@ function reflList(list, { team = false } = {}) {
     return `<li>
       <details>
         <summary>
-          <span class="lh-refl-main">${team ? `<strong>${esc(nameOf(r.therapist_id))}</strong> · ` : ''}${t ? `<span class="chip">${esc(t.code)}</span> ${esc(t.title)}` : 'General study'}</span>
+          <span class="lh-refl-main">${team ? `<strong>${esc(nameOf(r.therapist_id))}</strong> · ` : ''}${t ? `<span class="lh-dot" style="--area:${areaColor(t.skill)}"></span>${esc(t.title)}` : 'General study'}</span>
           <span class="muted small">${fmtDate(r.studied_on)} · ${r.minutes} min</span>
           ${r.leaves ? `<span class="lh-plus">+${r.leaves} ${icon('leaf')}</span>` : ''}
           <span class="chip ${r.status === 'reviewed' ? 'ok' : ''}">${r.status === 'reviewed' ? 'Reviewed' : 'Waiting for review'}</span>
@@ -223,33 +226,67 @@ function reflList(list, { team = false } = {}) {
 }
 function wireRefl() { /* details/summary needs no wiring */ }
 
-function topicsHtml() {
+// Topic cards, grouped by the 7 areas. manage = edit mode for the team.
+function topicsHtml(manage = false) {
   return SKILLS.map((s) => {
     const list = topics.filter((t) => t.skill === s.key && t.active);
-    if (!list.length) return '';
-    return `<div class="lh-skill"><h3 class="lh-h3">${esc(s.label)}</h3>${list.map((t) => {
-      const rs = resources.filter((r) => r.topic_code === t.code);
-      const n = rs.filter((r) => done.some((d) => d.resource_id === r.id)).length;
-      return `<details class="lh-topic">
-        <summary><span class="chip">${esc(t.code)}</span> ${esc(t.title)}
-          <span class="muted small">${rs.length ? `${n}/${rs.length} done` : 'No links yet'}</span></summary>
-        ${rs.length ? `<ul class="lh-res">${rs.map((r) => {
-          const d = done.find((x) => x.resource_id === r.id);
-          const url = safeUrl(r.url);
-          return `<li>
-            <span class="lh-kind" title="${esc(kindOf(r.kind).label)}">${icon(kindOf(r.kind).icon)}</span>
-            ${url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(r.title)} ${icon('external-link')}</a>` : esc(r.title)}
-            ${d ? `<span class="chip ok" title="${esc(d.note || '')}">${icon('check')} Done</span>`
-              : `<button type="button" class="small-btn" data-done="${r.id}">Done</button>`}
-          </li>`;
-        }).join('')}</ul>` : '<p class="muted small">Your supervisors will add links here.</p>'}
-      </details>`;
-    }).join('')}</div>`;
+    if (!list.length && !manage) return '';
+    return `<div class="lh-area" style="--area:${s.color}">
+      <h3 class="lh-area-h"><span class="lh-dot"></span>${esc(s.label)} <span class="muted small">· ${list.length} topic${list.length === 1 ? '' : 's'}</span></h3>
+      <div class="lh-cards">${list.map((t) => topicCard(t, manage)).join('')}
+        ${manage ? `<button type="button" class="lh-card lh-card-add" data-addtopic="${s.key}">${icon('plus') || '+'} Add topic</button>` : ''}
+      </div></div>`;
   }).join('');
 }
 
+function topicCard(t, manage) {
+  const rs = resources.filter((r) => r.topic_code === t.code);
+  const n = rs.filter((r) => done.some((d) => d.resource_id === r.id)).length;
+  const kinds = [...new Set(rs.map((r) => r.kind))];
+  return `<button type="button" class="lh-card" ${manage ? 'data-mtopic' : 'data-topic'}="${esc(t.code)}">
+    <span class="lh-card-t">${esc(t.title)}</span>
+    <span class="lh-card-meta"><span class="lh-card-kinds">${kinds.map((k) => icon(kindOf(k).icon)).join('') || '<span class="muted">No links yet</span>'}</span>
+      ${manage ? `<span class="muted">${rs.length} link${rs.length === 1 ? '' : 's'}</span>` : rs.length ? `<span class="muted">${n}/${rs.length} done</span>` : ''}</span>
+    ${!manage && rs.length ? `<span class="lh-card-bar"><span style="width:${Math.round((n / rs.length) * 100)}%"></span></span>` : ''}
+  </button>`;
+}
+
 function wireTopics(body) {
+  for (const b of body.querySelectorAll('[data-topic]')) b.addEventListener('click', () => { openTopic = b.dataset.topic; draw(); window.scrollTo(0, 0); });
   for (const b of body.querySelectorAll('[data-done]')) b.addEventListener('click', () => doneDialog(b.dataset.done));
+}
+
+// One topic's own page: description, resources (Done), log on this topic.
+function drawTopicPage(body) {
+  const t = topicOf(openTopic);
+  const area = SKILLS.find((s) => s.key === t.skill);
+  const rs = resources.filter((r) => r.topic_code === t.code);
+  body.innerHTML = `
+    <button type="button" class="link lh-back" data-back>${icon('arrow-right', 'flip')} All topics</button>
+    <section class="card lh-topic-page" style="--area:${area.color}">
+      <p class="lh-area-h small"><span class="lh-dot"></span>${esc(area.label)}</p>
+      <h2>${esc(t.title)}</h2>
+      ${t.description ? `<p class="muted">${esc(t.description)}</p>` : ''}
+      ${rs.length ? `<ul class="lh-res">${rs.map((r) => {
+        const d = done.find((x) => x.resource_id === r.id);
+        const url = safeUrl(r.url);
+        return `<li>
+          <span class="lh-kind" title="${esc(kindOf(r.kind).label)}">${icon(kindOf(r.kind).icon)}</span>
+          ${url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(r.title)} ${icon('external-link')}</a>` : esc(r.title)}
+          ${d ? `<span class="chip ok" title="${esc(d.note || '')}">${icon('check')} Done</span>`
+            : `<button type="button" class="small-btn" data-done="${r.id}">Done</button>`}
+        </li>`;
+      }).join('')}</ul>` : '<p class="muted">No links yet. Your supervisors will add some.</p>'}
+      <p class="muted small">Tap <strong>Done</strong> and write one line about what you learned to earn a leaf (up to 3 a day).</p>
+      <div class="dlg-actions">
+        <button type="button" class="primary" data-logtopic>${icon('book')} Log a study session on this topic</button>
+        ${isTeam() ? `<button type="button" data-edittopic>${icon('settings')} Edit topic</button>` : ''}
+      </div>
+    </section>`;
+  body.querySelector('[data-back]').addEventListener('click', () => { openTopic = null; openFolds.add('topics'); draw(); });
+  body.querySelector('[data-logtopic]').addEventListener('click', () => logDialog(t.code));
+  body.querySelector('[data-edittopic]')?.addEventListener('click', () => topicDialog(t));
+  wireTopics(body);
 }
 
 function doneDialog(resId) {
@@ -277,9 +314,9 @@ function doneDialog(resId) {
   });
 }
 
-function logDialog() {
+function logDialog(preset = null) {
   const opts = SKILLS.map((s) => `<optgroup label="${esc(s.label)}">${topics.filter((t) => t.skill === s.key && t.active)
-    .map((t) => `<option value="${esc(t.code)}">${esc(t.code)} · ${esc(t.title)}</option>`).join('')}</optgroup>`).join('');
+    .map((t) => `<option value="${esc(t.code)}" ${t.code === preset ? 'selected' : ''}>${esc(t.title)}</option>`).join('')}</optgroup>`).join('');
   const d = openDlg(`<form class="lh-form" method="dialog">
     <h2>Log a study session</h2>
     <div class="lh-2col">
@@ -486,55 +523,135 @@ async function wheelDialog(who) {
 }
 
 // ---------------------------------------------------------------------------
-// Links (supervisor / QCD / admin)
+// Manage topics (supervisor / QCD / admin): add, edit, order, hide topics; links
 // ---------------------------------------------------------------------------
 function drawLinks(body) {
+  const hidden = topics.filter((t) => !t.active);
   body.innerHTML = `
     <section class="card">
-      <div class="page-head"><h2>Resource links</h2>
-        <button type="button" class="primary" data-add>${icon('link')} Add a link</button></div>
-      <p class="muted small">Everyone at CARE sees these under Topics. Use links that open without a special login where you can.</p>
-      ${SKILLS.map((s) => {
-        const list = topics.filter((t) => t.skill === s.key);
-        return `<div class="lh-skill"><h3 class="lh-h3">${esc(s.label)}</h3>${list.map((t) => {
-          const rs = resources.filter((r) => r.topic_code === t.code);
-          return `<div class="lh-linktopic"><p><span class="chip">${esc(t.code)}</span> ${esc(t.title)}</p>
-            ${rs.length ? `<ul class="lh-res">${rs.map((r) => `<li>
-              <span class="lh-kind">${icon(kindOf(r.kind).icon)}</span>
-              <a href="${esc(safeUrl(r.url) || '#')}" target="_blank" rel="noopener noreferrer">${esc(r.title)}</a>
-              <span class="row-actions"><button type="button" class="small-btn" data-edit="${r.id}">Edit</button>
-              <button type="button" class="small-btn" data-del="${r.id}">Remove</button></span></li>`).join('')}</ul>` : '<p class="muted small">No links yet.</p>'}
-          </div>`;
-        }).join('')}</div>`;
-      }).join('')}
-    </section>`;
-  body.querySelector('[data-add]').addEventListener('click', () => linkDialog(null));
-  for (const b of body.querySelectorAll('[data-edit]')) b.addEventListener('click', () => linkDialog(resources.find((r) => r.id === b.dataset.edit)));
-  for (const b of body.querySelectorAll('[data-del]')) b.addEventListener('click', async () => {
-    const r = resources.find((x) => x.id === b.dataset.del);
-    if (!confirm(`Remove “${r.title}”?`)) return;
-    try { await L.deleteResource(r.id); resources = await L.loadResources(); draw(); } catch (e) { alert(e.message); }
+      <h2>Manage topics</h2>
+      <p class="muted small">Tap a topic to rename it, move it to another area, add a short description, change its order or edit its links.
+        Everyone at CARE sees these on their Learning Hub. Use links that open without a special login where you can.</p>
+      ${topicsHtml(true)}
+    </section>
+    ${hidden.length ? `<section class="card"><h2>Hidden topics</h2>
+      <p class="muted small">Hidden because someone has already logged study on them. Show one again if you need it.</p>
+      <ul class="lh-res">${hidden.map((t) => `<li><span class="lh-dot" style="--area:${areaColor(t.skill)}"></span><span class="lh-grow">${esc(t.title)}</span>
+        <button type="button" class="small-btn" data-unhide="${esc(t.code)}">Show again</button></li>`).join('')}</ul></section>` : ''}`;
+  for (const b of body.querySelectorAll('[data-mtopic]')) b.addEventListener('click', () => topicDialog(topicOf(b.dataset.mtopic)));
+  for (const b of body.querySelectorAll('[data-addtopic]')) b.addEventListener('click', () => topicDialog(null, b.dataset.addtopic));
+  for (const b of body.querySelectorAll('[data-unhide]')) b.addEventListener('click', async () => {
+    try { await L.setTopicActive(b.dataset.unhide, true); await reloadContent(); draw(); toast('Topic shown again'); } catch (e) { alert(e.message); }
   });
 }
 
-function linkDialog(r) {
+async function reloadContent() {
+  [topics, resources] = await Promise.all([L.loadTopics(), L.loadResources()]);
+}
+
+// Edit (or add) a topic, its order and its links.
+function topicDialog(t, newSkill = null) {
+  const isNew = !t;
+  const skill = t?.skill || newSkill;
+  const rs = isNew ? [] : resources.filter((r) => r.topic_code === t.code);
   const d = openDlg(`<form class="lh-form" method="dialog">
-    <h2>${r ? 'Edit link' : 'Add a link'}</h2>
-    <label>Topic<select name="topic_code" required>${topics.map((t) => `<option value="${esc(t.code)}" ${r?.topic_code === t.code ? 'selected' : ''}>${esc(t.code)} · ${esc(t.title)}</option>`).join('')}</select></label>
+    <h2>${isNew ? 'Add a topic' : 'Edit topic'}</h2>
+    <label>Topic name<input name="title" maxlength="120" required value="${esc(t?.title || '')}" placeholder="Prompting & prompt fading"></label>
+    <label>Area<select name="skill">${SKILLS.map((s) => `<option value="${s.key}" ${s.key === skill ? 'selected' : ''}>${esc(s.label)}</option>`).join('')}</select></label>
+    <label>Short description <span class="muted small">(optional)</span><textarea name="description" rows="2" maxlength="300" placeholder="What this topic covers, in one or two lines">${esc(t?.description || '')}</textarea></label>
+    ${isNew ? '' : `
+      <div class="lh-row-btns"><span class="muted small">Order in its area</span>
+        <button type="button" class="small-btn" data-tmove="-1">${icon('arrow-right', 'up')} Earlier</button>
+        <button type="button" class="small-btn" data-tmove="1">${icon('arrow-right', 'down')} Later</button></div>
+      <h3 class="lh-h3">Links</h3>
+      ${rs.length ? `<ul class="lh-res lh-res-edit">${rs.map((r, i) => `<li>
+        <span class="lh-kind">${icon(kindOf(r.kind).icon)}</span><span class="lh-grow">${esc(r.title)}</span>
+        <span class="row-actions">
+          <button type="button" class="small-btn" data-rmove="${i}" data-dir="-1" aria-label="Move up" ${i === 0 ? 'disabled' : ''}>↑</button>
+          <button type="button" class="small-btn" data-rmove="${i}" data-dir="1" aria-label="Move down" ${i === rs.length - 1 ? 'disabled' : ''}>↓</button>
+          <button type="button" class="small-btn" data-redit="${r.id}">Edit</button>
+          <button type="button" class="small-btn" data-rdel="${r.id}">Remove</button></span></li>`).join('')}</ul>` : '<p class="muted small">No links yet.</p>'}
+      <button type="button" class="small-btn" data-radd>${icon('link')} Add a link</button>`}
+    <p class="error" data-msg hidden></p>
+    <div class="dlg-actions">
+      <button type="submit" class="primary">${icon('check')} ${isNew ? 'Add topic' : 'Save'}</button>
+      <button type="button" data-cancel>${isNew ? 'Cancel' : 'Close'}</button>
+      ${isNew ? '' : `<span class="spacer"></span><button type="button" class="small-btn" data-tremove>Remove topic</button>`}
+    </div>
+  </form>`);
+  const f = d.querySelector('form');
+  const msg = (text) => { const m = d.querySelector('[data-msg]'); m.textContent = text; m.hidden = false; };
+  const after = async (text) => { await reloadContent(); const fresh = isNew ? null : topicOf(t.code); draw(); if (fresh) topicDialog(fresh); else closeDlg(); if (text) toast(text); };
+  d.querySelector('[data-cancel]').addEventListener('click', closeDlg);
+  f.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const title = f.title.value.trim();
+    if (!title) return msg('Give the topic a name.');
+    try {
+      const same = topics.filter((x) => x.skill === f.skill.value && x.active);
+      await L.saveTopic({
+        isNew, code: isNew ? L.newCode(f.skill.value, topics.map((x) => x.code)) : t.code,
+        title, skill: f.skill.value, description: f.description.value.trim(),
+        sort_order: Math.max(0, ...same.map((x) => x.sort_order || 0)) + 10,
+      });
+      await reloadContent(); closeDlg(); draw(); toast(isNew ? 'Topic added' : 'Topic saved');
+    } catch (err) { msg(err.message); }
+  });
+  if (isNew) return;
+  d.querySelectorAll('[data-tmove]').forEach((b) => b.addEventListener('click', async () => {
+    const list = topics.filter((x) => x.skill === t.skill && x.active);
+    const i = list.findIndex((x) => x.code === t.code), j = i + Number(b.dataset.tmove);
+    if (j < 0 || j >= list.length) return;
+    [list[i], list[j]] = [list[j], list[i]];
+    try { await L.reorder('learning_topics', 'code', list.map((x) => x.code)); await after('Order saved'); } catch (err) { msg(err.message); }
+  }));
+  d.querySelectorAll('[data-rmove]').forEach((b) => b.addEventListener('click', async () => {
+    const list = [...rs];
+    const i = Number(b.dataset.rmove), j = i + Number(b.dataset.dir);
+    [list[i], list[j]] = [list[j], list[i]];
+    try { await L.reorder('learning_resources', 'id', list.map((x) => x.id)); await after(); } catch (err) { msg(err.message); }
+  }));
+  d.querySelectorAll('[data-redit]').forEach((b) => b.addEventListener('click', () => linkDialog(resources.find((r) => r.id === b.dataset.redit), t)));
+  d.querySelector('[data-radd]').addEventListener('click', () => linkDialog(null, t));
+  d.querySelectorAll('[data-rdel]').forEach((b) => b.addEventListener('click', async () => {
+    const r = resources.find((x) => x.id === b.dataset.rdel);
+    if (!confirm(`Remove the link “${r.title}”?`)) return;
+    try { await L.deleteResource(r.id); await after('Link removed'); } catch (err) { msg(err.message); }
+  }));
+  d.querySelector('[data-tremove]').addEventListener('click', async () => {
+    try {
+      if (await L.topicUsed(t.code)) {
+        if (!confirm(`Hide “${t.title}”? Someone has logged study on it, so it will be hidden (not deleted) to keep their history. You can show it again later.`)) return;
+        await L.setTopicActive(t.code, false);
+      } else {
+        if (!confirm(`Delete “${t.title}”${rs.length ? ` and its ${rs.length} link${rs.length === 1 ? '' : 's'}` : ''}? This can’t be undone.`)) return;
+        await L.deleteTopic(t.code);
+      }
+      if (openTopic === t.code) openTopic = null;
+      await reloadContent(); closeDlg(); draw(); toast('Topic removed');
+    } catch (err) { msg(err.message); }
+  });
+}
+
+// Add or edit one link of a topic, then go back to that topic.
+function linkDialog(r, t) {
+  const d = openDlg(`<form class="lh-form" method="dialog">
+    <h2>${r ? 'Edit link' : 'Add a link'} · ${esc(t.title)}</h2>
     <label>Type<select name="kind">${KINDS.map((k) => `<option value="${k.key}" ${r?.kind === k.key ? 'selected' : ''}>${esc(k.label)}</option>`).join('')}</select></label>
     <label>Title<input name="title" maxlength="160" required value="${esc(r?.title || '')}"></label>
     <label>Link (https://…)<input name="url" type="url" pattern="https://.*" maxlength="500" required value="${esc(r?.url || '')}"></label>
     <p class="error" data-msg hidden></p>
-    <div class="dlg-actions"><button type="submit" class="primary">${icon('check')} Save</button><button type="button" data-cancel>Cancel</button></div>
+    <div class="dlg-actions"><button type="submit" class="primary">${icon('check')} Save</button><button type="button" data-cancel>Back</button></div>
   </form>`);
   const f = d.querySelector('form');
-  d.querySelector('[data-cancel]').addEventListener('click', closeDlg);
+  d.querySelector('[data-cancel]').addEventListener('click', () => topicDialog(t));
   f.addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
-      await L.saveResource({ id: r?.id, topic_code: f.topic_code.value, kind: f.kind.value, title: f.title.value.trim(), url: f.url.value.trim(), created_by: ctx.me.id });
-      resources = await L.loadResources();
-      closeDlg(); draw();
+      const same = resources.filter((x) => x.topic_code === t.code);
+      await L.saveResource({ id: r?.id, topic_code: t.code, kind: f.kind.value, title: f.title.value.trim(), url: f.url.value.trim(),
+        created_by: ctx.me.id, sort_order: Math.max(0, ...same.map((x) => x.sort_order || 0)) + 10 });
+      await reloadContent(); draw(); topicDialog(topicOf(t.code)); toast('Link saved');
     } catch (err) { const m = d.querySelector('[data-msg]'); m.textContent = err.message; m.hidden = false; }
   });
 }

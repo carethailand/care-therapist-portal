@@ -307,3 +307,11 @@ How it works:
 ## Step 26 — Learning Hub: one measurement topic (added 2026-11-17)
 
 **Run** `supabase/migrations/20261117002700_learning_measurement_methods.sql`. A-01 and A-02 become one topic, "Measurement methods: continuous & discontinuous" (A-02's links and logs move to A-01; A-02 is hidden). The page works before or after you run it.
+
+## Step 27 — Learning Hub: manage topics (added 2026-11-17)
+
+1. **Run** `supabase/migrations/20261117002800_learning_topic_manage.sql` (after 027).
+2. **Publish** the app. Run the SQL first: editing a topic saves its new description field.
+
+Topics now show as **cards** in the 7 areas (each area has its own colour); tapping a card opens the topic's page (description, links, Done, "Log a study session on this topic"). Codes like A-01 are no longer shown.
+Supervisors / QCD / admin: **Manage topics** (was "Links") → **+ Add topic** in any area, or tap a topic to rename it, move it to another area, add a short description, change its order, and add / edit / reorder / remove its links. **Remove topic** deletes an empty topic, or hides one that already has study logs (shown under "Hidden topics", where it can be shown again).

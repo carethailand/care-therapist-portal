@@ -7,14 +7,15 @@ import { esc } from './ui.js';
 
 export { BGS, LOOKS, ANIMALS };
 
+// Areas, with colours from the Portal's own palette (badge colours + sage / clay).
 export const SKILLS = [
-  { key: 'measurement', label: 'Measurement', short: 'Measure' },
-  { key: 'skill_acq', label: 'Skill Acquisition', short: 'Skills' },
-  { key: 'behavior_red', label: 'Behavior Reduction', short: 'Behavior' },
-  { key: 'ethics', label: 'Ethics', short: 'Ethics' },
-  { key: 'modern_aba', label: 'Modern ABA', short: 'Modern' },
-  { key: 'school_shadow', label: 'School Shadow', short: 'School' },
-  { key: 'safe_behavior', label: 'Safe Behavior Management', short: 'Safety' },
+  { key: 'measurement', label: 'Measurement', short: 'Measure', color: '#3B8FC4' },
+  { key: 'skill_acq', label: 'Skill Acquisition', short: 'Skills', color: '#6F8A69' },
+  { key: 'behavior_red', label: 'Behavior Reduction', short: 'Behavior', color: '#B95E44' },
+  { key: 'ethics', label: 'Ethics', short: 'Ethics', color: '#80614C' },
+  { key: 'modern_aba', label: 'Modern ABA', short: 'Modern', color: '#C8901A' },
+  { key: 'school_shadow', label: 'School Shadow', short: 'School', color: '#CF4F84' },
+  { key: 'safe_behavior', label: 'Safe Behavior Management', short: 'Safety', color: '#4F8C86' },
 ];
 export const skillLabel = (k) => SKILLS.find((s) => s.key === k)?.label || k;
 
