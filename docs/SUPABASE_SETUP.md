@@ -303,3 +303,7 @@ How it works:
 - **10 leaves = 1 skill point**, which the person puts into a skill. The tree grows with total skill points: Seedling 10 · Sprout 20 · Sapling 30 · Tree 40 · Grove 60 · Forest Guardian 100 (an animal can join).
 - The **self-reflection skill wheel** (a self-check, used by supervisors to plan support and training) is private (the person + supervisors / QCD / admin). The **tree** shows on Our Team for everyone.
 - Supervisors / QCD / admin: **Team** view (to review, give leaves, see wheels) and **Links** view (add / edit links).
+
+## Step 26 — Learning Hub: one measurement topic (added 2026-11-17)
+
+**Run** `supabase/migrations/20261117002700_learning_measurement_methods.sql`. A-01 and A-02 become one topic, "Measurement methods: continuous & discontinuous" (A-02's links and logs move to A-01; A-02 is hidden). The page works before or after you run it.

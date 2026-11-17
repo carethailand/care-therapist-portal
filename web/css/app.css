@@ -1086,3 +1086,22 @@ span.pill.next .ico { color: var(--clay); }
   .tm-left .tm-photo { width: 72px; height: 72px; }
   .tm-tree { grid-column: 1 / -1; justify-self: center; width: min(100%, 260px); }
 }
+
+/* Learning Hub layout v2 (P8e): wheel note under the tree, foldable sections */
+.lh-hero { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); align-items: stretch; }
+.lh-wheel-about { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--line); line-height: 1.5; }
+.lh-wheel-about .ico { width: 14px; height: 14px; vertical-align: -2px; }
+.lh-side { gap: 12px; }
+.lh-side-btns { display: grid; gap: 8px; }
+.lh-side .wheel { max-width: 290px; }
+.lh-side .lh-h3 { margin: 6px 0 0; }
+button.lh-ready { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); font-weight: 500; }
+.lh-fold { padding: 0; }
+.lh-fold > summary { display: flex; align-items: center; gap: 10px; padding: 16px 20px; cursor: pointer; list-style: none; }
+.lh-fold > summary::-webkit-details-marker { display: none; }
+.lh-fold > summary h2 { margin: 0; font-size: 1.2rem; }
+.lh-fold-note { margin-left: 4px; }
+.lh-fold-ico { margin-left: auto; display: inline-flex; color: var(--muted); transition: transform .2s; }
+.lh-fold[open] .lh-fold-ico { transform: rotate(180deg); }
+.lh-fold > :not(summary) { margin-left: 20px; margin-right: 20px; }
+.lh-fold > :last-child { margin-bottom: 18px; }

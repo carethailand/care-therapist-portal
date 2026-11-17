@@ -39,6 +39,7 @@ let refl = [];
 let done = [];
 let leaves = [];
 let teamList = [];
+const openFolds = new Set();   // Study log / Topics / Recent leaves left open
 
 const isTeam = () => ctx.roles.some((r) => ['admin', 'supervisor', 'qcd'].includes(r));
 const safeUrl = (u) => (/^https:\/\//i.test(u ?? '') ? u : null);
@@ -97,6 +98,9 @@ async function drawMe(body) {
   const pr = progress(me.points);
   const st = STAGES[pr.stage];
   const canInvest = me.balance >= LEAVES_PER_POINT;
+  const fold = (key, title, extra, inner) => `<details class="card lh-fold" data-fold="${key}" ${openFolds.has(key) ? 'open' : ''}>
+      <summary><h2>${title}</h2>${extra}<span class="lh-fold-ico">${icon('chevron-down')}</span></summary>${inner}</details>`;
+  const nDone = done.length;
   body.innerHTML = `
     <div class="lh-hero">
       <section class="card lh-tree">
@@ -108,38 +112,42 @@ async function drawMe(body) {
         ${pr.next ? `<div class="bar" role="progressbar" aria-valuenow="${pr.pct}" aria-valuemin="0" aria-valuemax="100" aria-label="Progress to ${esc(STAGES[pr.stage + 1].name)}"><span style="width:${pr.pct}%"></span></div>
           <p class="small muted">${pr.next - me.points} more point${pr.next - me.points === 1 ? '' : 's'} to <strong>${esc(STAGES[pr.stage + 1].name)}</strong></p>`
           : '<p class="small">You are a <strong>Forest Guardian</strong>. ✨</p>'}
+        <p class="muted small lh-wheel-about"><strong>Self-reflection skill wheel:</strong> your own check of where you feel strong and where you’d like to grow.
+          It isn’t a score from anyone else. You choose where your skill points go, and your supervisors use it to plan support and training for what you need.
+          ${icon('lock')} Only you and your supervisors / QCD / admin see the wheel; everyone sees your tree.</p>
       </section>
       <section class="card lh-side">
         <div class="lh-leaves">
           <span class="lh-leaf-ico">${icon('leaf')}</span>
           <div><p class="lh-big">${me.balance}</p><p class="muted small">leaves to use · ${LEAVES_PER_POINT} leaves = 1 skill point</p></div>
         </div>
-        <button type="button" class="${canInvest ? 'primary' : ''}" data-act="invest">${icon('sparkles')} ${canInvest ? 'Use 10 leaves on a skill' : `${LEAVES_PER_POINT - (me.balance % LEAVES_PER_POINT)} more leaves for a skill point`}</button>
+        <div class="lh-side-btns">
+          <button type="button" class="primary" data-act="log">${icon('book')} Log a study session</button>
+          <button type="button" class="${canInvest ? 'lh-ready' : ''}" data-act="invest">${icon('sparkles')} ${canInvest ? 'Use 10 leaves on a skill' : `${LEAVES_PER_POINT - (me.balance % LEAVES_PER_POINT)} more leaves for a skill point`}</button>
+        </div>
         <h3 class="lh-h3">Self-reflection skill wheel</h3>
-        <p class="muted small">Your own check of where you feel strong and where you’d like to grow. It isn’t a score from anyone else.
-          You choose where your skill points go, and your supervisors use it to plan support and training for what you need.</p>
         ${wheelSvg(me.skills)}
-        <p class="muted small">${icon('lock')} Only you and your supervisors / QCD / admin can see your wheel. Everyone sees your tree.</p>
       </section>
     </div>
 
-    <section class="card">
-      <div class="page-head"><h2>Study log</h2>
-        <button type="button" class="primary" data-act="log">${icon('book')} Log a study session</button></div>
+    ${fold('log', 'Study log', `<span class="chip">${refl.length}</span><span class="muted small lh-fold-note">${me.logs_today} of 2 leaf logs used today</span>`, `
       <p class="muted small">Each reflection box you write properly earns a leaf (up to 5). A supervisor’s review adds 5 more.
-        Leaves count for your first 2 logs each day${me.logs_today >= 2 ? ' — <strong>you’ve used both today</strong>' : ` (${me.logs_today} of 2 used today)`}.</p>
-      ${reflList(refl)}
-    </section>
+        Leaves count for your first 2 logs each day.</p>
+      ${reflList(refl)}`)}
 
-    <section class="card">
-      <h2>Topics</h2>
+    ${fold('topics', 'Topics', `<span class="chip">${topics.filter((t) => t.active).length}</span><span class="muted small lh-fold-note">${nDone} resource${nDone === 1 ? '' : 's'} done</span>`, `
       <p class="muted small">Open a resource, then tap <strong>Done</strong> and write one line about it to earn a leaf (up to 3 a day).</p>
-      ${topicsHtml()}
-    </section>
+      ${topicsHtml()}`)}
 
-    ${leaves.length ? `<section class="card"><h2>Recent leaves</h2><ul class="lh-ledger">${leaves.slice(0, 10).map((x) => `
-      <li><span class="lh-plus">+${x.amount} ${icon('leaf')}</span> ${esc(x.reason || x.source)} <span class="muted small">${fmtDate(x.created_at)}</span></li>`).join('')}</ul></section>` : ''}`;
+    ${leaves.length ? fold('leaves', 'Recent leaves', '', `<ul class="lh-ledger">${leaves.slice(0, 10).map((x) => `
+      <li><span class="lh-plus">+${x.amount} ${icon('leaf')}</span> ${esc(x.reason || x.source)} <span class="muted small">${fmtDate(x.created_at)}</span></li>`).join('')}</ul>`) : ''}`;
 
+  // Remember which sections are open while on this tab.
+  for (const d of body.querySelectorAll('[data-fold]')) {
+    d.querySelector('summary').addEventListener('click', () => {
+      setTimeout(() => (d.open ? openFolds.add(d.dataset.fold) : openFolds.delete(d.dataset.fold)));
+    });
+  }
   body.querySelector('[data-act="look"]').addEventListener('click', lookDialog);
   body.querySelector('[data-act="invest"]').addEventListener('click', () => (canInvest ? investDialog() : null));
   body.querySelector('[data-act="log"]').addEventListener('click', logDialog);
