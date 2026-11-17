@@ -31,4 +31,4 @@ export function stickerImg(key, cls = 'sticker') {
   return s ? `<img class="${esc(cls)}" src="${stickerSrc(s.key)}" alt="Sticker: ${esc(s.label)}" width="256" height="256" loading="lazy">` : '';
 }
 
-export const ART_CREDIT = 'Stickers and milestone badges: <a href="https://www.vecteezy.com" target="_blank" rel="noopener">Vecteezy.com</a>';
+export const ART_CREDIT = 'Stickers and milestone badges from <a href="https://www.vecteezy.com" target="_blank" rel="noopener">Vecteezy.com</a> (filtered to non-AI images)';

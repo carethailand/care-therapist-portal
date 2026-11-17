@@ -19,7 +19,13 @@ export async function loadSafmeds() {
       supa.from('safmeds_cards').select('*').order('sort_order').then(must),
     ]);
     return sets.map((s) => ({ ...s, cards: cards.filter((c) => c.set_id === s.id) }));
-  } catch { return []; }   // 031 not run yet
+  } catch (e) {
+    // Show why on the page (instead of quietly hiding SAFMEDS).
+    console.warn('SAFMEDS did not load:', e);
+    const none = [];
+    none.error = e.message || String(e);
+    return none;
+  }
 }
 export const myTimings = (who) =>
   supa.from('safmeds_timings').select('set_id, correct, missed, done_on, created_at').eq('therapist_id', who)

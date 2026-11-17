@@ -71,7 +71,7 @@ export async function render(panel, context) {
         </div>` : ''}
       </div>
       <div id="lh-body" aria-live="polite"><p class="muted">Loading…</p></div>
-      <p class="credit">Tree, plant and animal art: Vecteezy.com</p>
+      <p class="credit">Tree, plant and animal art from <a href="https://www.vecteezy.com" target="_blank" rel="noopener">Vecteezy.com</a> (filtered to non-AI images)</p>
       <dialog id="lh-dlg" class="dlg"></dialog>
     </section>`;
   for (const b of panel.querySelectorAll('[data-view]')) b.addEventListener('click', () => { view = b.dataset.view; openTopic = null; draw(); });
@@ -139,6 +139,9 @@ async function drawMe(body) {
       </section>
     </div>
 
+    ${!sfSets.length ? `<section class="card muted-card"><h2>SAFMEDS</h2><p class="muted small">${sfSets.error
+      ? `SAFMEDS couldn't load: ${esc(sfSets.error)}`
+      : 'No SAFMEDS sets yet. Supervisors, QCD and admin can add them under Manage topics → SAFMEDS sets.'}</p></section>` : ''}
     ${sfSets.length ? fold('safmeds', 'SAFMEDS', `<span class="chip">${sfSets.length}</span><span class="muted small lh-fold-note">${sfSets.filter((s) => setProgress(s, sfTimings, todayLocal()).mastered).length} mastered · 1-minute timings</span>`, `
       <p class="muted small">Say All Fast, a Minute Every Day, Shuffled. Your first timing each day earns a leaf; meet a set’s aim on 3 different days to master it (+5 leaves).</p>
       ${safmedsHtml()}`) : ''}
