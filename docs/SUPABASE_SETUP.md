@@ -331,3 +331,5 @@ How to use: ⚙️ Admin → People → **🔗 Sign-in links** → tick people (
 2. **Publish** the app (it works before the SQL too: cards then show the usual badges).
 
 **My Journey → My team card / My badges** (the one place to edit your card since P8k): edit photo and "about me", and tap up to 5 earned badges in **My badges**, in the order you want. Others see only those, plus "+N" for the rest. Badges not earned are never shown. If someone hasn't chosen, the card shows their latest year, probation, longest-serving and training badges (up to 5). Training badges (Senior / QCD / Supervisor) now show on team cards too.
+
+**Update (P8l, function v5):** sign-in links now open the Portal itself (…/#signin=…) and the person taps **Continue**. The old links went to Supabase directly, and Slack's link preview "opened" them first, using them up. The secret part sits after "#", which previews never send. Expired or used links now say so clearly. Links made before this update won't work: make new ones.

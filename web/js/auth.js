@@ -45,6 +45,6 @@ function friendly(error) {
   if (/invalid login credentials/i.test(msg)) return new Error('Email or password is not right. Please try again.');
   if (/email address not authorized/i.test(msg))
     return new Error('Email sending is not set up for this address yet. Please ask an admin to reset your password.');
-  if (/rate limit/i.test(msg)) return new Error('Too many emails sent just now. Please wait an hour and try again.');
+  if (/rate limit/i.test(msg)) return new Error('The Portal can only send a few emails an hour. Please ask an admin for a sign-in link on Slack instead.');
   return new Error(msg);
 }

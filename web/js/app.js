@@ -1,7 +1,7 @@
 // App shell: decides which screen to show, builds the tab bar, routes tabs.
 import { rolesText } from './labels.js';
 import { APP_VERSION, isConfigured } from './config.js';
-import { supa, arrivedVia } from './supabase.js';
+import { supa, arrivedVia, signinLink, linkError } from './supabase.js';
 import { signIn, signOut, sendPasswordReset, setPassword, currentUser } from './auth.js';
 import { loadMe, loadRoles, loadModules } from './data.js';
 import { $, esc, showView, setMessage } from './ui.js';
@@ -97,8 +97,13 @@ async function boot() {
     if (event === 'SIGNED_OUT') showView('view-login');
   });
 
+  if (signinLink) return showLinkView();
+
   const user = await currentUser();
-  if (!user) return showView('view-login');
+  if (!user) {
+    if (linkError) setMessage($('#login-msg'), 'That sign-in link has expired or was already used. Please ask your admin for a new one.', 'error');
+    return showView('view-login');
+  }
 
   if (arrivedVia === 'invite') return showSetPassword('Welcome! Choose your password');
   if (arrivedVia === 'recovery') return showSetPassword('Choose a new password');
@@ -216,6 +221,44 @@ $('#forgot-btn').addEventListener('click', async () => {
     setMessage(msg, e.message, 'error');
   }
 });
+
+// A sign-in link from an admin: one tap on Continue uses it (only once), then
+// the person chooses their password. The screen is built here (not in
+// index.html) so an old saved copy of index.html can't break it.
+function showLinkView() {
+  let view = document.getElementById('view-link');
+  if (!view) {
+    view = document.createElement('main');
+    view.id = 'view-link';
+    view.className = 'center';
+    view.setAttribute('data-view', '');
+    view.innerHTML = `
+      <section class="card narrow login-card">
+        <img src="assets/care-logo.png" alt="CARE" class="login-logo">
+        <h1 id="link-heading"></h1>
+        <p class="muted" id="link-text"></p>
+        <button type="button" id="link-go" class="primary">Continue</button>
+        <p id="link-msg" class="msg" role="status" hidden></p>
+      </section>`;
+    document.body.prepend(view);
+    view.querySelector('#link-go').addEventListener('click', useLink);
+  }
+  const invite = signinLink.kind === 'invite';
+  $('#link-heading').textContent = invite ? 'Welcome to the CARE Portal' : 'Choose a new password';
+  $('#link-text').textContent = invite ? 'Tap Continue to choose your password.' : 'Tap Continue to set a new password for your account.';
+  setMessage($('#link-msg'), '');
+  showView('view-link');
+}
+async function useLink(ev) {
+  const btn = ev.currentTarget;
+  btn.disabled = true;
+  const { error } = await supa.auth.verifyOtp({ token_hash: signinLink.token, type: signinLink.kind });
+  if (error) {
+    btn.disabled = false;
+    return setMessage($('#link-msg'), 'This link has expired or was already used. Please ask your admin for a new one.', 'error');
+  }
+  showSetPassword(signinLink.kind === 'invite' ? 'Welcome! Choose your password' : 'Choose a new password');
+}
 
 function showSetPassword(heading) {
   $('#setpw-heading').textContent = heading;

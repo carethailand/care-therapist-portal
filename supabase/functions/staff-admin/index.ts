@@ -115,6 +115,8 @@ Deno.serve(async (req) => {
   }
 
   // 3. One-time sign-in link (no password is ever shown) ---------------------
+  //    (v5: the link opens the Portal itself; the old Supabase /verify link was
+  //    used up by Slack's link preview before people could tap it)
   // New person → "invite" link (creates the login; they choose a password).
   // Has a login → "recovery" link (they choose a new password).
   // The link works once and expires after the Email OTP time set in Supabase.
@@ -129,8 +131,12 @@ Deno.serve(async (req) => {
       kind = 'recovery';   // a login already exists for this email but isn't linked yet: it links on sign-in
       res = await admin.auth.admin.generateLink({ type: 'recovery', email: target.email, options: { redirectTo } });
     }
-    if (res.error || !res.data?.properties?.action_link) return reply(req, 400, { error: res.error?.message ?? 'Could not make a link.' });
-    return reply(req, 200, { ok: true, email: target.email, kind, link: res.data.properties.action_link });
+    const hashed = res.data?.properties?.hashed_token;
+    if (res.error || !hashed) return reply(req, 400, { error: res.error?.message ?? 'Could not make a link.' });
+    // A Portal link with the token after "#": link previews (Slack etc.) never send
+    // it to a server, so they can't use it up. The person taps Continue to use it.
+    const link = `${redirectTo}#signin=${encodeURIComponent(hashed)}&kind=${kind}`;
+    return reply(req, 200, { ok: true, email: target.email, kind, link });
   }
 
   const password = tempPassword();
