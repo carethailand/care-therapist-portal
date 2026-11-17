@@ -84,7 +84,7 @@ export function wheelSvg(skills) {
   const max = Math.max(5, ...vals);
   const cx = 160, cy = 150, R = 105;
   const pt = (i, r) => { const a = -Math.PI / 2 + (i * 2 * Math.PI) / 7; return [cx + r * Math.cos(a), cy + r * Math.sin(a)]; };
-  let g = `<svg class="wheel" viewBox="0 0 320 300" role="img" aria-label="Skill wheel: ${esc(SKILLS.map((s, i) => `${s.label} ${vals[i]}`).join(', '))}">`;
+  let g = `<svg class="wheel" viewBox="0 0 320 300" role="img" aria-label="Self-reflection skill wheel: ${esc(SKILLS.map((s, i) => `${s.label} ${vals[i]}`).join(', '))}">`;
   for (const f of [1 / 3, 2 / 3, 1]) g += `<polygon points="${SKILLS.map((_, i) => pt(i, R * f).join(',')).join(' ')}" class="wheel-ring"/>`;
   SKILLS.forEach((s, i) => {
     const [x, y] = pt(i, R);

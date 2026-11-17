@@ -115,9 +115,11 @@ async function drawMe(body) {
           <div><p class="lh-big">${me.balance}</p><p class="muted small">leaves to use · ${LEAVES_PER_POINT} leaves = 1 skill point</p></div>
         </div>
         <button type="button" class="${canInvest ? 'primary' : ''}" data-act="invest">${icon('sparkles')} ${canInvest ? 'Use 10 leaves on a skill' : `${LEAVES_PER_POINT - (me.balance % LEAVES_PER_POINT)} more leaves for a skill point`}</button>
-        <h3 class="lh-h3">My skill wheel</h3>
+        <h3 class="lh-h3">Self-reflection skill wheel</h3>
+        <p class="muted small">Your own check of where you feel strong and where you’d like to grow. It isn’t a score from anyone else.
+          You choose where your skill points go, and your supervisors use it to plan support and training for what you need.</p>
         ${wheelSvg(me.skills)}
-        <p class="muted small">Only you and your supervisors can see your wheel. Everyone sees your tree.</p>
+        <p class="muted small">${icon('lock')} Only you and your supervisors / QCD / admin can see your wheel. Everyone sees your tree.</p>
       </section>
     </div>
 
@@ -153,7 +155,8 @@ function drawStart(body) {
       <div>
         <h2>Plant your seed 🌱</h2>
         <p>You already have skills from your training. Place <strong>10 skill points</strong> across the 7 skills to show where you feel strongest today.
-          It’s a self-check, not a test: be honest, it helps you see where to grow.</p>
+          This starts your <strong>self-reflection skill wheel</strong>. It’s a self-check, not a test: be honest. It helps you see where to grow,
+          and helps your supervisors plan training for what you need.</p>
         <p class="muted small">After this, studying earns <strong>leaves</strong>. Every 10 leaves is 1 new skill point, and your tree grows:
           ${STAGES.map((s) => `${esc(s.name)} ${s.at}`).join(' · ')}.</p>
         <div class="lh-alloc">${SKILLS.map((s) => `
@@ -410,7 +413,7 @@ async function drawTeam(body) {
           <td>${p.to_review ? `<span class="chip warn">${p.to_review}</span>` : '0'}</td>
           <td>${p.last_study ? fmtDate(p.last_study) : '—'}</td>
           <td class="row-actions">
-            ${p.started ? `<button type="button" class="small-btn" data-wheel="${p.id}">Wheel</button>` : ''}
+            ${p.started ? `<button type="button" class="small-btn" data-wheel="${p.id}" title="Self-reflection skill wheel">Skill wheel</button>` : ''}
             ${p.id !== ctx.me.id ? `<button type="button" class="small-btn" data-give="${p.id}">${icon('leaf')} Give</button>` : ''}
           </td></tr>`).join('')}</tbody>
       </table></div>
@@ -467,7 +470,8 @@ async function wheelDialog(who) {
       <div class="lh-preview">${sceneSvg({ points: s.points, bg: s.bg, looks: s.looks, animal: s.animal })}</div>
       ${wheelSvg(s.skills)}
     </div>
-    <p class="small">${esc(STAGES[stageOf(s.points)].name)} · ${s.points} skill points · ${s.balance} leaves to use</p>
+    <p class="small"><strong>Self-reflection skill wheel</strong> (their own view) · ${esc(STAGES[stageOf(s.points)].name)} · ${s.points} skill points · ${s.balance} leaves to use</p>
+    <p class="muted small">Low areas are where they’d like to grow: a good place to offer support or training.</p>
     <div class="dlg-actions"><button type="button" data-cancel>Close</button></div>
   </div>`);
   d.querySelector('[data-cancel]').addEventListener('click', closeDlg);

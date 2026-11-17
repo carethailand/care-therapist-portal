@@ -301,5 +301,5 @@ How it works:
 - Each person first **plants their seed**: 10 skill points placed across the 7 skills (a self-check, up to 4 in one skill).
 - **Leaves** (worked out in the database, never by the page): 1 per reflection box written properly (15+ characters; up to 5 per log; only the first 2 logs a day), 1 per resource marked done with a one-line note (up to 3 a day), +5 when a supervisor / QCD / admin reviews a reflection. Supervisors / QCD / admin can also **Give** leaves (role-play, training…).
 - **10 leaves = 1 skill point**, which the person puts into a skill. The tree grows with total skill points: Seedling 10 · Sprout 20 · Sapling 30 · Tree 40 · Grove 60 · Forest Guardian 100 (an animal can join).
-- The **skill wheel** is private (the person + supervisors / QCD / admin). The **tree** shows on Our Team for everyone.
+- The **self-reflection skill wheel** (a self-check, used by supervisors to plan support and training) is private (the person + supervisors / QCD / admin). The **tree** shows on Our Team for everyone.
 - Supervisors / QCD / admin: **Team** view (to review, give leaves, see wheels) and **Links** view (add / edit links).

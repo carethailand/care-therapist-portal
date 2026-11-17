@@ -91,26 +91,30 @@ function cardHtml(p) {
   const rankBadges = [...(rank ? [rank] : []), ...office.slice(0, 1)];
   const ms = summaryBadges(p);
   const me = p.id === ctx.me.id;
-  const roleText = [rank ? RANK_LABEL[rank] : '', ...office.map(roleLabel)].filter(Boolean).join(' · ');
-  // Position badges (rank, admin/HR) sit on the photo; achievements get their own row.
+  // Horizontal card (P8c): photo with position badges (rank, admin/HR) on the left,
+  // name / achievements / about in the middle, the Learning Hub tree on the right.
+  // No role text line: the group heading and the badges already say it.
   const posName = (r) => (r === 'admin' || r === 'hr' ? roleLabel(r) : RANK_LABEL[r]);
-  return `<li class="tm-card${me ? ' is-me' : ''}">
-    <div class="tm-avatar">
-      ${avatarHtml(p)}
-      ${rankBadges.map((r, i) => `<img class="tm-rank ${i ? 'tm-rank-2' : 'tm-rank-1'}" src="assets/badges/${BADGE_FILE[r]}" alt="${esc(posName(r))} badge" title="${esc(posName(r))}" width="40" height="40">`).join('')}
+  const tree = treeOf[p.id];
+  const treeName = tree ? STAGES[stageOf(tree.points)].name : '';
+  return `<li class="tm-card${me ? ' is-me' : ''}${tree ? '' : ' no-tree'}">
+    <div class="tm-left">
+      <div class="tm-avatar">
+        ${avatarHtml(p)}
+        ${rankBadges.map((r, i) => `<img class="tm-rank ${i ? 'tm-rank-2' : 'tm-rank-1'}" src="assets/badges/${BADGE_FILE[r]}" alt="${esc(posName(r))} badge" title="${esc(posName(r))}" width="40" height="40">`).join('')}
+      </div>
+      <p class="muted small tm-years">${p.years == null ? '' : p.years < 1 ? 'New to CARE 🌱' : `${p.years} year${p.years > 1 ? 's' : ''} at CARE`}</p>
     </div>
     <div class="tm-body">
       <p class="tm-name">${esc(p.nickname || p.full_name)}${me ? ' <span class="chip stage">You</span>' : ''}</p>
       ${p.nickname ? `<p class="muted small tm-full">${esc(p.full_name)}</p>` : ''}
-      <p class="small tm-role">${esc(roleText)}</p>
       ${ms.length ? `<div class="tm-badges" aria-label="Achievements">
         ${ms.map((m) => `<img class="tm-ms" src="${esc(m.img)}" alt="${esc(m.label)}" title="${esc(m.label)}${m.word ? ` · ${esc(m.word)}` : ''}" width="44" height="44">`).join('')}
       </div>` : ''}
       ${p.about ? `<p class="tm-about" tabindex="0" title="Tap to read all">${esc(p.about)}</p>` : ''}
-      ${treeOf[p.id] ? `<div class="tm-tree" title="${esc(STAGES[stageOf(treeOf[p.id].points)].name)}">${sceneSvg(treeOf[p.id], { label: `${p.nickname || p.full_name}’s tree: ${STAGES[stageOf(treeOf[p.id].points)].name}` })}</div>` : ''}
-      <p class="muted small tm-years">${p.years == null ? '' : p.years < 1 ? 'New to CARE 🌱' : `${p.years} year${p.years > 1 ? 's' : ''} at CARE`}</p>
-      ${me ? '<p><button type="button" class="link" data-act="edit">Edit my card</button></p>' : ''}
+      ${me ? '<p class="tm-edit-link"><button type="button" class="link" data-act="edit">Edit my card</button></p>' : ''}
     </div>
+    ${tree ? `<div class="tm-tree" title="${esc(treeName)}">${sceneSvg(tree, { label: `${p.nickname || p.full_name}’s tree: ${treeName}` })}<span class="tm-tree-name">${esc(treeName)}</span></div>` : ''}
   </li>`;
 }
 

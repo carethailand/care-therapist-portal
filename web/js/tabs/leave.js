@@ -554,8 +554,7 @@ function printForm(person, ent, requests, people) {
         <td>Name: <strong>${esc(person.full_name)}</strong></td>
         <td>Emp. No: <strong>${esc(person.employee_no || '—')}</strong></td>
         <td>Joined on: <strong>${esc(fmtDate(person.start_date))}</strong></td></tr><tr>
-        <td>Position: <strong>${esc(rank ? RANK_LABEL[rank] : '—')}</strong></td>
-        <td colspan="2">Section/Department: <strong>${esc(person.department || '—')}</strong></td></tr></table>
+        <td colspan="3">Position: <strong>${esc(rank ? RANK_LABEL[rank] : '—')}</strong></td></tr></table>
       <p class="small">Annual leave entitlement ${year}: <strong>${ent ? Number(ent.al_days) : '—'}</strong> days${ent && Number(ent.carry_over_days) ? ` (+ ${Number(ent.carry_over_days)} carried over, use by ${esc(fmtDate(ent.carry_over_until))})` : ''}
         · Total leave taken: ${totals.map((t) => `${esc(t.code)} ${t.days}`).join(' · ')}</p>
       <table class="lf-table">
