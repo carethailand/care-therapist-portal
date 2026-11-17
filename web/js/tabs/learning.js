@@ -39,6 +39,8 @@ let refl = [];
 let done = [];
 let leaves = [];
 let teamList = [];
+let tools = [];                // CARE tools (quick links)
+const TOOL_ICONS = ['link', 'clock', 'books', 'book', 'file-text', 'school', 'sparkles', 'calendar', 'users', 'heart-handshake', 'bulb', 'tool'];
 let openTopic = null;          // code of the topic page being shown
 const openFolds = new Set();   // Study log / Topics / Recent leaves left open
 
@@ -71,7 +73,7 @@ export async function render(panel, context) {
     </section>`;
   for (const b of panel.querySelectorAll('[data-view]')) b.addEventListener('click', () => { view = b.dataset.view; openTopic = null; draw(); });
   try {
-    [topics, resources] = await Promise.all([L.loadTopics(), L.loadResources()]);
+    [topics, resources, tools] = await Promise.all([L.loadTopics(), L.loadResources(), L.loadTools()]);
   } catch (e) {
     panel.querySelector('#lh-body').innerHTML = `<p class="error">Could not load the Learning Hub: ${esc(e.message)}</p>`;
     return;
@@ -105,6 +107,7 @@ async function drawMe(body) {
       <summary><h2>${title}</h2>${extra}<span class="lh-fold-ico">${icon('chevron-down')}</span></summary>${inner}</details>`;
   const nDone = done.length;
   body.innerHTML = `
+    ${toolsHtml()}
     <div class="lh-hero">
       <section class="card lh-tree">
         ${sceneSvg({ points: me.points, bg: me.bg, looks: me.looks, animal: me.animal }, { label: `Your tree: ${st.name}` })}
@@ -161,6 +164,7 @@ async function drawMe(body) {
 function drawStart(body) {
   const pts = Object.fromEntries(SKILLS.map((s) => [s.key, 0]));
   body.innerHTML = `
+    ${toolsHtml()}
     <section class="card lh-start">
       <div class="lh-start-art">${sceneSvg({ points: 10, bg: 0, looks: [0, 0, 0, 0, 0, 0] }, { label: 'A seedling' })}</div>
       <div>
@@ -225,6 +229,19 @@ function reflList(list, { team = false } = {}) {
   }).join('')}</ul>`;
 }
 function wireRefl() { /* details/summary needs no wiring */ }
+
+// CARE tools: a row of everyday links (timesheet, ABA Binder…), each with an optional note.
+function toolsHtml() {
+  if (!tools.length) return '';
+  return `<section class="lh-tools" aria-label="CARE tools">${tools.map((t) => {
+    const url = /^https?:\/\//i.test(t.url || '') ? t.url : null;
+    const inner = `<span class="lh-tool-ico">${icon(t.icon) || icon('link')}</span>
+      <span class="lh-tool-txt"><span class="lh-tool-t">${esc(t.title)}</span>${t.note ? `<span class="lh-tool-n" title="${esc(t.note)}">${esc(t.note)}</span>` : ''}</span>`;
+    return url
+      ? `<a class="lh-tool" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${inner}</a>`
+      : `<div class="lh-tool lh-tool-off">${inner}</div>`;
+  }).join('')}</section>`;
+}
 
 // Topic cards, grouped by the 7 areas. manage = edit mode for the team.
 function topicsHtml(manage = false) {
@@ -529,6 +546,15 @@ function drawLinks(body) {
   const hidden = topics.filter((t) => !t.active);
   body.innerHTML = `
     <section class="card">
+      <div class="page-head"><h2>CARE tools</h2><button type="button" class="small-btn" data-addtool>${icon('plus')} Add a tool</button></div>
+      <p class="muted small">Everyday links shown at the top of everyone's Learning Hub. A tool can have just a note (e.g. “Ask admin for the login”).</p>
+      ${tools.length ? `<ul class="lh-res lh-res-edit">${tools.map((t) => `<li>
+        <span class="lh-kind">${icon(t.icon) || icon('link')}</span>
+        <span class="lh-grow"><strong>${esc(t.title)}</strong>${t.note ? ` <span class="muted small">· ${esc(t.note)}</span>` : ''}${t.url ? '' : ' <span class="chip">No link</span>'}</span>
+        <span class="row-actions"><button type="button" class="small-btn" data-edittool="${t.id}">Edit</button>
+        <button type="button" class="small-btn" data-deltool="${t.id}">Remove</button></span></li>`).join('')}</ul>` : '<p class="muted small">No tools yet.</p>'}
+    </section>
+    <section class="card">
       <h2>Manage topics</h2>
       <p class="muted small">Tap a topic to rename it, move it to another area, add a short description, change its order or edit its links.
         Everyone at CARE sees these on their Learning Hub. Use links that open without a special login where you can.</p>
@@ -538,10 +564,39 @@ function drawLinks(body) {
       <p class="muted small">Hidden because someone has already logged study on them. Show one again if you need it.</p>
       <ul class="lh-res">${hidden.map((t) => `<li><span class="lh-dot" style="--area:${areaColor(t.skill)}"></span><span class="lh-grow">${esc(t.title)}</span>
         <button type="button" class="small-btn" data-unhide="${esc(t.code)}">Show again</button></li>`).join('')}</ul></section>` : ''}`;
+  body.querySelector('[data-addtool]').addEventListener('click', () => toolDialog(null));
+  for (const b of body.querySelectorAll('[data-edittool]')) b.addEventListener('click', () => toolDialog(tools.find((t) => t.id === b.dataset.edittool)));
+  for (const b of body.querySelectorAll('[data-deltool]')) b.addEventListener('click', async () => {
+    const t = tools.find((x) => x.id === b.dataset.deltool);
+    if (!confirm(`Remove “${t.title}” from CARE tools?`)) return;
+    try { await L.deleteTool(t.id); tools = await L.loadTools(); draw(); toast('Tool removed'); } catch (e) { alert(e.message); }
+  });
   for (const b of body.querySelectorAll('[data-mtopic]')) b.addEventListener('click', () => topicDialog(topicOf(b.dataset.mtopic)));
   for (const b of body.querySelectorAll('[data-addtopic]')) b.addEventListener('click', () => topicDialog(null, b.dataset.addtopic));
   for (const b of body.querySelectorAll('[data-unhide]')) b.addEventListener('click', async () => {
     try { await L.setTopicActive(b.dataset.unhide, true); await reloadContent(); draw(); toast('Topic shown again'); } catch (e) { alert(e.message); }
+  });
+}
+
+function toolDialog(t) {
+  const d = openDlg(`<form class="lh-form" method="dialog">
+    <h2>${t ? 'Edit tool' : 'Add a tool'}</h2>
+    <label>Name<input name="title" maxlength="60" required value="${esc(t?.title || '')}" placeholder="CARE Timesheet"></label>
+    <label>Link <span class="muted small">(optional)</span><input name="url" type="url" pattern="https?://.*" maxlength="500" value="${esc(t?.url || '')}" placeholder="https://…"></label>
+    <label>Note <span class="muted small">(optional, shown under the name)</span><input name="note" maxlength="200" value="${esc(t?.note || '')}" placeholder="Ask admin for the login"></label>
+    <fieldset class="lh-iconpick"><legend>Icon</legend>${TOOL_ICONS.map((k) => `<label class="lh-iconopt"><input type="radio" name="icon" value="${k}" ${(t?.icon || 'link') === k ? 'checked' : ''}><span>${icon(k)}</span></label>`).join('')}</fieldset>
+    <p class="error" data-msg hidden></p>
+    <div class="dlg-actions"><button type="submit" class="primary">${icon('check')} Save</button><button type="button" data-cancel>Cancel</button></div>
+  </form>`);
+  const f = d.querySelector('form');
+  d.querySelector('[data-cancel]').addEventListener('click', closeDlg);
+  f.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      await L.saveTool({ id: t?.id, title: f.title.value.trim(), url: f.url.value.trim(), note: f.note.value.trim(), icon: f.icon.value,
+        sort_order: Math.max(0, ...tools.map((x) => x.sort_order || 0)) + 10 });
+      tools = await L.loadTools(); closeDlg(); draw(); toast('Tool saved');
+    } catch (err) { const m = d.querySelector('[data-msg]'); m.textContent = err.message; m.hidden = false; }
   });
 }
 

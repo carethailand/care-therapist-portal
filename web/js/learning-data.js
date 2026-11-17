@@ -85,3 +85,12 @@ export const topicUsed = (code) =>
 export async function reorder(table, keyCol, keys) {
   for (let i = 0; i < keys.length; i++) must(await supa.from(table).update({ sort_order: (i + 1) * 10 }).eq(keyCol, keys[i]));
 }
+
+// CARE tools (quick links at the top of the Learning Hub). Empty if 030 isn't run.
+export const loadTools = () =>
+  supa.from('learning_tools').select('*').eq('active', true).order('sort_order').then(must).catch(() => []);
+export const saveTool = (t) => (t.id
+  ? supa.from('learning_tools').update({ title: t.title, url: t.url || null, note: t.note || null, icon: t.icon }).eq('id', t.id)
+  : supa.from('learning_tools').insert({ title: t.title, url: t.url || null, note: t.note || null, icon: t.icon, sort_order: t.sort_order ?? 100 })
+).then(must);
+export const deleteTool = (id) => supa.from('learning_tools').delete().eq('id', id).then(must);

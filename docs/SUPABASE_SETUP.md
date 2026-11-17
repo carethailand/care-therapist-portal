@@ -333,3 +333,11 @@ How to use: ⚙️ Admin → People → **🔗 Sign-in links** → tick people (
 **My Journey → My team card / My badges** (the one place to edit your card since P8k): edit photo and "about me", and tap up to 5 earned badges in **My badges**, in the order you want. Others see only those, plus "+N" for the rest. Badges not earned are never shown. If someone hasn't chosen, the card shows their latest year, probation, longest-serving and training badges (up to 5). Training badges (Senior / QCD / Supervisor) now show on team cards too.
 
 **Update (P8l, function v5):** sign-in links now open the Portal itself (…/#signin=…) and the person taps **Continue**. The old links went to Supabase directly, and Slack's link preview "opened" them first, using them up. The secret part sits after "#", which previews never send. Expired or used links now say so clearly. Links made before this update won't work: make new ones.
+
+## Step 30 — Learning Hub: CARE tools + old hub history (added 2026-11-17)
+
+1. **Run** `supabase/migrations/20261117003000_learning_tools.sql` (after 029).
+2. **Run** the private file `Portal training content/Learning Hub/Learning Hub history + tools (setup).sql`. It adds the CARE tools (Timesheet, ABA Binder, Handouts, Twinkl, Canva), the extra links from the old hub's Resources sheet, and the old history: 1 leaf per different resource each current staff member looked up, with those resources shown as Done. No reflection text is copied.
+3. **Publish** the app.
+
+CARE tools show as a row at the top of the Learning Hub (a swipeable strip on phones). Supervisors / QCD / admin edit them under **Manage topics → CARE tools** (name, optional link, optional note, icon). Handouts has no link yet: add it there when ready.
