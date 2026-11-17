@@ -330,4 +330,4 @@ How to use: ⚙️ Admin → People → **🔗 Sign-in links** → tick people (
 1. **Run** `supabase/migrations/20261117002900_team_badge_showcase.sql` (after 028).
 2. **Publish** the app (it works before the SQL too: cards then show the usual badges).
 
-Our Team → **Edit my card** → **Badges on my card**: tap up to 5 earned badges, in the order you want. Others see only those, plus "+N" for the rest. Badges not earned are never shown. If someone hasn't chosen, the card shows their latest year, probation, longest-serving and training badges (up to 5). Training badges (Senior / QCD / Supervisor) now show on team cards too.
+**My Journey → My team card / My badges** (the one place to edit your card since P8k): edit photo and "about me", and tap up to 5 earned badges in **My badges**, in the order you want. Others see only those, plus "+N" for the rest. Badges not earned are never shown. If someone hasn't chosen, the card shows their latest year, probation, longest-serving and training badges (up to 5). Training badges (Senior / QCD / Supervisor) now show on team cards too.

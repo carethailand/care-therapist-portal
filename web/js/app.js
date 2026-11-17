@@ -39,6 +39,36 @@ const canAdmin = () => state.roles.some((r) => r === 'admin' || r === 'hr');
 
 const state = { me: null, roles: [], modules: [], visible: [] };
 
+// After an update, a page's new code can meet an OLD saved copy of a shared
+// file (browsers keep them up to 10 minutes) and fail to load. So when the
+// version changes we refresh the saved copies of every shared file, and if a
+// page still fails to load we refresh them again and reload once.
+const SHARED = ['auth', 'config', 'connect-data', 'data', 'doc-text', 'icons', 'labels', 'learning-data', 'leave-data',
+  'milestones', 'stickers', 'supabase', 'team-card', 'team-data', 'theme', 'training-data', 'training-export',
+  'tree-art', 'tree', 'ui'].map((n) => `js/${n}.js`);
+async function freshenCode(force = false) {
+  let seen = null;
+  try { seen = localStorage.getItem('care_portal_code'); } catch { /* storage blocked */ }
+  if (!force && seen === APP_VERSION) return;
+  await Promise.all(SHARED.map((f) => fetch(f, { cache: 'reload' }).catch(() => null)));
+  try { localStorage.setItem('care_portal_code', APP_VERSION); } catch { /* storage blocked */ }
+}
+async function loadPage(load) {
+  try {
+    return await load();
+  } catch (e) {
+    let tried = null;
+    try { tried = sessionStorage.getItem('care_portal_reloaded'); } catch { /* storage blocked */ }
+    if (tried !== APP_VERSION) {
+      try { sessionStorage.setItem('care_portal_reloaded', APP_VERSION); } catch { /* storage blocked */ }
+      await freshenCode(true);
+      window.location.reload();
+      return new Promise(() => {});   // the page is reloading
+    }
+    throw e;
+  }
+}
+
 for (const el of document.querySelectorAll('.app-version')) el.textContent = APP_VERSION;
 
 // Colour mode button(s): Auto → Light → Dark.
@@ -60,6 +90,7 @@ for (const b of document.querySelectorAll('.theme-btn')) {
 // ---------------------------------------------------------------------------
 async function boot() {
   if (!isConfigured()) return showView('view-setup');
+  await freshenCode();
 
   supa.auth.onAuthStateChange((event) => {
     if (event === 'PASSWORD_RECOVERY') showSetPassword('Choose a new password');
@@ -129,8 +160,12 @@ async function route() {
       panel.innerHTML = `${mine.length > 1 ? `<nav class="subnav" aria-label="Admin pages">${mine.map(([k, pg]) =>
         `<a href="#/admin/${k}"${k === key ? ' aria-current="page"' : ''}>${esc(pg.label)}</a>`).join('')}</nav>` : ''}
         <div id="admin-page"><p class="muted">Loading…</p></div>`;
-      const mod = await page.load();
-      await mod.render(panel.querySelector('#admin-page'), { me: state.me, roles: state.roles });
+      try {
+        const mod = await loadPage(page.load);
+        await mod.render(panel.querySelector('#admin-page'), { me: state.me, roles: state.roles });
+      } catch (e) {
+        panel.querySelector('#admin-page').innerHTML = `<p class="error">This page didn't load. Please refresh (Cmd+Shift+R). ${esc(e.message)}</p>`;
+      }
       return;
     }
   }
@@ -141,8 +176,12 @@ async function route() {
     a.toggleAttribute('aria-current', a.dataset.key === module.key);
   }
   panel.innerHTML = '<p class="muted">Loading…</p>';
-  const mod = await (TABS[module.key] || comingSoon)();
-  await mod.render(panel, { me: state.me, roles: state.roles, module, visible: state.visible, canAdmin: canAdmin() });
+  try {
+    const mod = await loadPage(TABS[module.key] || comingSoon);
+    await mod.render(panel, { me: state.me, roles: state.roles, module, visible: state.visible, canAdmin: canAdmin() });
+  } catch (e) {
+    panel.innerHTML = `<section class="card"><p class="error">This page didn't load. Please refresh (Cmd+Shift+R).</p><p class="muted small">${esc(e.message)}</p></section>`;
+  }
 }
 
 window.addEventListener('hashchange', route);

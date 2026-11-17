@@ -1168,3 +1168,20 @@ button.lh-ready { border-color: var(--accent); color: var(--accent); background:
 .tm-pick-b[aria-pressed="true"] img { filter: none; opacity: 1; }
 .tm-pick-n { position: absolute; top: 4px; right: 6px; font-size: .75rem; color: var(--accent); }
 .dlg:has(.tm-pick) { width: min(600px, 94vw); box-sizing: border-box; }
+
+/* My Journey → My team card + My badges (P8k) */
+.mc-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-bottom: 12px; }
+.mc-head h2 { margin: 0; }
+.mc-preview { grid-template-columns: 1fr; max-width: 640px; margin-bottom: 8px; }
+.mc-edit > summary { cursor: pointer; color: var(--accent); font-weight: 500; padding: 6px 0; }
+.mc-form { padding-top: 10px; max-width: 560px; }
+.mc-form .tm-edit { min-width: 0; }
+.ms-item.pickable { padding: 0; }
+.ms-pick { all: unset; box-sizing: border-box; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; text-align: center;
+  gap: 2px; padding: 12px 8px; border-radius: 16px; cursor: pointer; position: relative; }
+.ms-pick:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ms-item.pickable:hover { border-color: var(--line-strong); }
+.ms-item.on { border: 2px solid var(--accent); background: var(--accent-soft); }
+.ms-on { position: absolute; top: 8px; right: 10px; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--accent); color: #fff; font-size: .75rem; font-weight: 600; }
+.ms-onlabel { font-size: .7rem; color: var(--accent); font-weight: 600; margin-top: 2px; }
