@@ -76,21 +76,38 @@ async function loadPage(load) {
 
 for (const el of document.querySelectorAll('.app-version')) el.textContent = APP_VERSION;
 
-// New version popup. When someone comes back to the Portal (and every 10
-// minutes while it's open) we read the live version number; after a push it
-// differs, and a small bar offers "Update now". Not shown during an exam.
+// New version popup. We read the live version number a few seconds after the
+// Portal opens (the browser may have shown a saved older copy), whenever
+// someone comes back to it (tab or window), and every 5 minutes; after a push
+// it differs, and a small bar offers "Update now". Not shown during an exam.
+// Tapping the version number at the bottom checks straight away.
 let updateOffered = null;   // the version already offered (Later = don't ask again for it)
-async function checkForUpdate() {
-  if (document.hidden) return;
-  let live = null;
+let lastCheck = 0;
+async function liveVersion() {
   try {
     const r = await fetch(`js/config.js?check=${Date.now()}`, { cache: 'no-store' });
-    if (r.ok) live = (await r.text()).match(/APP_VERSION\s*=\s*['"]([^'"]+)['"]/)?.[1] ?? null;
-  } catch { return; }   // offline: try again later
+    return r.ok ? (await r.text()).match(/APP_VERSION\s*=\s*['"]([^'"]+)['"]/)?.[1] ?? null : null;
+  } catch { return null; }   // offline: try again later
+}
+async function checkForUpdate() {
+  if (document.hidden || Date.now() - lastCheck < 60 * 1000) return;
+  lastCheck = Date.now();
+  const live = await liveVersion();
   if (!live || live === APP_VERSION || live === updateOffered) return;
   if (document.querySelector('.exam-foot')) return;   // mid-exam: ask after
   updateOffered = live;
   showUpdateBar();
+}
+for (const el of document.querySelectorAll('.app-version')) {
+  el.classList.add('app-version-btn');
+  el.title = 'Tap to check for a new version';
+  el.addEventListener('click', async () => {
+    el.textContent = `${APP_VERSION} · checking…`;
+    const live = await liveVersion();
+    if (live && live !== APP_VERSION) { el.textContent = APP_VERSION; showUpdateBar(); return; }
+    el.textContent = `${APP_VERSION} · ${live ? 'up to date ✓' : 'couldn’t check (offline?)'}`;
+    setTimeout(() => { el.textContent = APP_VERSION; }, 3000);
+  });
 }
 function showUpdateBar() {
   if (document.querySelector('.update-bar')) return;
@@ -112,7 +129,10 @@ function showUpdateBar() {
   document.body.append(bar);
 }
 document.addEventListener('visibilitychange', checkForUpdate);
-setInterval(checkForUpdate, 10 * 60 * 1000);
+window.addEventListener('focus', checkForUpdate);
+window.addEventListener('online', checkForUpdate);
+setTimeout(checkForUpdate, 4000);
+setInterval(checkForUpdate, 5 * 60 * 1000);
 
 // Colour mode button(s): Auto → Light → Dark.
 function drawThemeButtons() {

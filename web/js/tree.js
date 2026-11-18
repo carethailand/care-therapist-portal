@@ -103,13 +103,13 @@ export function sceneSvg(tree, { stage = null, label = '' } = {}) {
 // Listed in the order they appear as the field grows (2, 5, 10, 15, 20, 28 flowers).
 // Front stems sink into the bushes at different depths, so the heads sit at different heights.
 const SLOTS = [
-  [445, 738, 1.08, -4, 2], [590, 750, 1, 5, 2],
-  [375, 642, 0.8, 3, 1], [655, 640, 0.82, -3, 1], [510, 560, 0.64, 0, 0],
-  [315, 748, 1, -6, 2], [710, 740, 1.05, 4, 2], [515, 632, 0.78, 2, 1], [590, 558, 0.61, 2, 0], [510, 762, 1.15, 0, 2],
-  [255, 644, 0.8, -4, 1], [770, 642, 0.78, 5, 1], [300, 563, 0.61, -2, 0], [710, 560, 0.63, 3, 0], [195, 756, 1.1, -3, 2],
-  [820, 748, 1, 6, 2], [140, 637, 0.76, 2, 1], [880, 638, 0.8, -2, 1], [190, 566, 0.57, 0, 0], [830, 564, 0.59, 0, 0],
-  [85, 740, 1, -5, 2], [930, 752, 1.08, 3, 2], [40, 647, 0.78, 4, 1], [95, 568, 0.55, 0, 0], [920, 566, 0.57, 2, 0],
-  [380, 554, 0.55, -3, 0], [640, 552, 0.55, 3, 0], [960, 644, 0.76, -3, 1],
+  [445, 698, 1.08, -4, 2], [590, 710, 1, 5, 2],
+  [375, 610, 0.8, 3, 1], [655, 608, 0.82, -3, 1], [510, 518, 0.64, 0, 0],
+  [315, 708, 1, -6, 2], [710, 700, 1.05, 4, 2], [515, 600, 0.78, 2, 1], [590, 516, 0.61, 2, 0], [510, 722, 1.15, 0, 2],
+  [255, 612, 0.8, -4, 1], [770, 610, 0.78, 5, 1], [300, 521, 0.61, -2, 0], [710, 518, 0.63, 3, 0], [195, 716, 1.1, -3, 2],
+  [820, 708, 1, 6, 2], [140, 605, 0.76, 2, 1], [880, 606, 0.8, -2, 1], [190, 524, 0.57, 0, 0], [830, 522, 0.59, 0, 0],
+  [85, 700, 1, -5, 2], [930, 712, 1.08, 3, 2], [40, 615, 0.78, 4, 1], [95, 526, 0.55, 0, 0], [920, 524, 0.57, 2, 0],
+  [380, 512, 0.55, -3, 0], [640, 510, 0.55, 3, 0], [960, 612, 0.76, -3, 1],
 ];
 // A little white daisy for the bushes.
 const daisy = (x, y, r) => `<g transform="translate(${x} ${y})">${[0, 60, 120, 180, 240, 300].map((a) =>
@@ -155,21 +155,21 @@ export function fieldSvg(tree, { stage = null, label = '' } = {}) {
     <image href="${ART}${b.file}" x="${MID - b.cx * k}" y="${BASE - b.gy * k}" width="${b.w * k}" height="${b.h * k}"/>
     <rect width="${W}" height="${H}" fill="${SKY}" opacity=".45"/>
     <ellipse cx="${(x0 + x1) / 2}" cy="${BASE - 30}" rx="${(x1 - x0) / 2 + 120}" ry="${150 + st.n * 2}" fill="url(#${id})"/>
-    <path d="M${x0 - 60} 680 C${x0 - 20} 575 ${x0 + (x1 - x0) * 0.3} 548 ${(x0 + x1) / 2} 556 S${x1 + 10} 560 ${x1 + 60} 680 Z" fill="#cfe2b4"/>`;
+    <path d="M${x0 - 60} 680 C${x0 - 20} 540 ${x0 + (x1 - x0) * 0.3} 508 ${(x0 + x1) / 2} 516 S${x1 + 10} 520 ${x1 + 60} 680 Z" fill="#cfe2b4"/>`;
   g += row(0);
   g += `<rect width="${W}" height="${H}" fill="${SKY}" opacity=".22"/>`;               // far flowers fade a little
   g += row(1);
-  g += bushRow(x0 + 30, x1 - 30, 652, 120, 1, ` filter="url(#p${id})"`);             // back bushes, paler
+  g += bushRow(x0 + 30, x1 - 30, 622, 120, 1, ` filter="url(#p${id})"`);             // back bushes, paler
   g += row(2);
   // Grass tufts in front of the stems (more as the field grows).
   const nt = Math.min(14, 2 + Math.round(st.n / 2));
   for (let i = 0; i < nt; i++) {
     const x = x0 + 30 + ((i * 0.618 + 0.31) % 1) * (x1 - x0 - 60);
-    g += piece(GRASS[i % 2], x, 700 + (i % 3) * 6, 120 + (i % 4) * 20, i % 2 === 0);
+    g += piece(GRASS[i % 2], x, 696 + (i % 3) * 6, 110 + (i % 4) * 18, i % 2 === 0);
   }
-  g += bushRow(x0 - 30, x1 + 30, 748, 235, 0);                                        // front bushes
+  g += bushRow(x0 - 30, x1 + 30, 752, 205, 0);                                        // front bushes
   const nd = Math.min(24, 2 + st.n);
-  for (let i = 0; i < nd; i++) g += daisy(x0 + 20 + ((i * 0.618) % 1) * (x1 - x0 - 40), 615 + ((i * 7) % 5) * 13, 7 + (i % 3));
+  for (let i = 0; i < nd; i++) g += daisy(x0 + 20 + ((i * 0.618) % 1) * (x1 - x0 - 40), 632 + ((i * 7) % 5) * 11, 7 + (i % 3));
   g += piece(GRASS[1], x0 + 15, 696, 140) + piece(GRASS[0], x1 - 15, 698, 125, true);   // a tuft at each end
   if (gold && tree.animal != null && ANIMALS[tree.animal]) {
     // The animal is the star: a warm glow, a white sticker outline and a few sparkles.

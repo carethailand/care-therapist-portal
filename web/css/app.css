@@ -1370,3 +1370,5 @@ a.lh-tool:hover { border-color: var(--line-strong); background: var(--surface-ra
 .lh-helping .ico { flex: none; width: 18px; height: 18px; margin-top: 2px; color: var(--accent); }
 .lh-flowers .lh-opt img { height: 64px; }
 .lh-hubseg { margin-bottom: 14px; }
+.app-version-btn { cursor: pointer; }
+.app-version-btn:hover { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
