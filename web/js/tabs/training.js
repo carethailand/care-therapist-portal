@@ -446,13 +446,19 @@ function previewCard(prog) {
 }
 
 // A training path that isn't running yet: its steps and requirements, nothing to do.
+// Steps whose details aren't written yet show only in the path line (no cards).
+const PLACEHOLDER = /talk to the admin team for details/i;
+const hasDetail = (s) => !!s.details && !PLACEHOLDER.test(s.details);
 function comingSoonCard(prog, steps) {
+  const detailed = steps.some((s) => s.kind !== 'certificate' && hasDetail(s));
+  let hero = courseHero(prog, null, '<span class="chip warn">Talk to Admin</span>');
+  if (!detailed) hero = hero.replace(/<button type="button" class="course-toggle"[\s\S]*?<\/button>/, '');
   return `
-    <section class="card course preview-card soon-card">
-      ${courseHero(prog, null, '<span class="chip warn">Talk to Admin</span>')}
-      <p class="lock-note">${icon('message-heart')} Interested in this path? Talk to the Admin team for details and next steps. Here are its steps and what each one needs.</p>
-      <ol class="csteps" data-steps="${esc(prog.key)}"${courseOpen.has(prog.key) ? '' : ' hidden'}>${steps.map((s, i) => stepShell(s, i + 1, 'todo',
-        s.details ? `<p class="small">${esc(s.details)}</p>` : '', '', true)).join('')}</ol>
+    <section class="card course preview-card soon-card${detailed ? '' : ' soon-bare'}">
+      ${hero}
+      <p class="lock-note">${icon('message-heart')} Interested in this path? Talk to the Admin team for details and next steps.${detailed ? ' Here are its steps and what each one needs.' : ''}</p>
+      ${detailed ? `<ol class="csteps" data-steps="${esc(prog.key)}"${courseOpen.has(prog.key) ? '' : ' hidden'}>${steps.map((s, i) =>
+        stepShell(hasDetail(s) ? s : { ...s, details: null }, i + 1, 'todo', '', '', true)).join('')}</ol>` : ''}
     </section>`;
 }
 

@@ -76,6 +76,44 @@ async function loadPage(load) {
 
 for (const el of document.querySelectorAll('.app-version')) el.textContent = APP_VERSION;
 
+// New version popup. When someone comes back to the Portal (and every 10
+// minutes while it's open) we read the live version number; after a push it
+// differs, and a small bar offers "Update now". Not shown during an exam.
+let updateOffered = null;   // the version already offered (Later = don't ask again for it)
+async function checkForUpdate() {
+  if (document.hidden) return;
+  let live = null;
+  try {
+    const r = await fetch(`js/config.js?check=${Date.now()}`, { cache: 'no-store' });
+    if (r.ok) live = (await r.text()).match(/APP_VERSION\s*=\s*['"]([^'"]+)['"]/)?.[1] ?? null;
+  } catch { return; }   // offline: try again later
+  if (!live || live === APP_VERSION || live === updateOffered) return;
+  if (document.querySelector('.exam-foot')) return;   // mid-exam: ask after
+  updateOffered = live;
+  showUpdateBar();
+}
+function showUpdateBar() {
+  if (document.querySelector('.update-bar')) return;
+  const bar = document.createElement('div');
+  bar.className = 'update-bar';
+  bar.setAttribute('role', 'status');
+  bar.innerHTML = `${icon('sparkles')}
+    <p><strong>A new version of the Portal is ready.</strong><span class="muted small">Save anything you're writing first.</span></p>
+    <button type="button" class="primary" data-update>Update now</button>
+    <button type="button" data-later>Later</button>`;
+  bar.querySelector('[data-later]').addEventListener('click', () => bar.remove());
+  bar.querySelector('[data-update]').addEventListener('click', async (e) => {
+    e.currentTarget.disabled = true;
+    e.currentTarget.textContent = 'Updating…';
+    // Fetch fresh copies first so the reload can't pick up old saved files.
+    await Promise.all(['js/app.js', './', ...SHARED].map((f) => fetch(f, { cache: 'reload' }).catch(() => null)));
+    window.location.reload();
+  });
+  document.body.append(bar);
+}
+document.addEventListener('visibilitychange', checkForUpdate);
+setInterval(checkForUpdate, 10 * 60 * 1000);
+
 // Colour mode button(s): Auto → Light → Dark.
 function drawThemeButtons() {
   const c = theme.getChoice();
