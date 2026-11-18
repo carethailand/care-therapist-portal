@@ -38,5 +38,6 @@ From **Vecteezy.com** (free licence). The Learning Hub page shows "Tree, flower,
 | `../tree/bg-*.svg` | "Set of illustrations green trees forest landscape banner" (Vecteezy 57988369) | Four scenes; the middle cleared so the person's tree stands alone; one scene's own large tree removed |
 | `../tree/animal-*.svg` | "Wildlife collection colorful forest animal symbols" (Vecteezy 81684276) | Nine animals cut out |
 | `../tree/flower-*.svg` (admin team flower field, added 2026-11-18) | "Mixed flower sketch in harmonious shades" (Vecteezy 63515182) | Ten flowers cut out, colours converted from CMYK |
+| `../tree/grass-*.svg`, `../tree/bush-*.svg` (flower field, added 2026-11-18) | "Collection of grass plants and bush icons in flat green" (Vecteezy 69962547) | Two grass tufts and three bushes cut out, recoloured to the field greens |
 
 All Vecteezy art used in the Portal was chosen with Vecteezy's filter for non-AI (human-made) images. The on-screen credits say so.
