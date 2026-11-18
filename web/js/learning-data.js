@@ -41,7 +41,11 @@ export const invest = (skill) => supa.rpc('learning_invest', { p_skill: skill })
 export const setLook = (bg, looks, animal) =>
   supa.rpc('learning_set_look', { p_bg: bg, p_looks: looks, p_animal: animal ?? null }).then(must);
 
-// Everyone's trees (for Our Team): [{ id, points, bg, looks, animal }]
+// Admin team: the flower field's background, flower kinds and animal.
+export const setGarden = (bg, flowers, animal) =>
+  supa.rpc('learning_set_garden', { p_bg: bg, p_flowers: flowers, p_animal: animal ?? null }).then(must);
+
+// Everyone's trees / flower fields (for Our Team): [{ id, points, bg, looks, animal, hub, flowers }]
 export const trees = () => supa.rpc('learning_trees').then(must);
 
 // --- Supervisor / QCD / admin -----------------------------------------------------------------------
@@ -65,7 +69,8 @@ export const deleteResource = (id) => supa.from('learning_resources').delete().e
 
 // Topics (supervisor / QCD / admin). Codes are hidden on screen; a new topic
 // gets the next free code for its area (e.g. D-09).
-const PREFIX = { measurement: 'A', skill_acq: 'D', behavior_red: 'E', ethics: 'G', modern_aba: 'M', school_shadow: 'SS', safe_behavior: 'SB' };
+const PREFIX = { measurement: 'A', skill_acq: 'D', behavior_red: 'E', ethics: 'G', modern_aba: 'M', school_shadow: 'SS', safe_behavior: 'SB',
+  adm_schedule: 'AS', adm_family: 'AF', adm_records: 'AR', adm_finance: 'AB', adm_team: 'AH', adm_tools: 'AT', adm_profession: 'AP' };
 export function newCode(skill, existing) {
   const pre = PREFIX[skill] || 'T';
   const nums = existing.filter((c) => c.startsWith(`${pre}-`)).map((c) => Number(c.split('-')[1]) || 0);

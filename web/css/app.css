@@ -1364,3 +1364,9 @@ a.lh-tool:hover { border-color: var(--line-strong); background: var(--surface-ra
 @media (prefers-reduced-motion: reduce) { .update-bar { animation: none; } }
 /* Training path with no step details yet: the path line is just a list */
 .soon-bare .path-btn { pointer-events: none; cursor: default; }
+
+/* Admin team Learning Hub: flower field (P9g) */
+.lh-helping { display: flex; gap: 8px; align-items: flex-start; margin: 10px 0 4px; padding: 10px 12px; border-radius: 12px; background: var(--accent-soft); color: var(--text); }
+.lh-helping .ico { flex: none; width: 18px; height: 18px; margin-top: 2px; color: var(--accent); }
+.lh-flowers .lh-opt img { height: 64px; }
+.lh-hubseg { margin-bottom: 14px; }

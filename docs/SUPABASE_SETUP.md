@@ -380,3 +380,16 @@ Training & Exam now shows **QCD Training (Therapist Liaison)** and **Supervisor 
 **Also (P9a–c, no SQL):** the last journey stage is now **Thriving**; office-only staff see their role on Home instead of the journey track; Portal managers show a small **GM** tag on their photo instead of a badge; CARE Connect inboxes (My inbox · Admin · Supervisors · Seniors) are tabs.
 
 **Also (P9e–f, no SQL):** a **new version popup**: after a push, anyone with the Portal open sees "A new version of the Portal is ready" with **Update now** / **Later** (checked when they come back to the Portal and every 10 minutes; never during an exam; Later = not asked again for that version). Training paths whose steps have no details yet (Supervisor) show just the step line, no step cards.
+
+## Step 35 — Learning Hub for the admin team: admin skills + flower field (added 2026-11-18)
+
+1. **Run** `supabase/migrations/20261118003500_admin_learning_hub.sql` (after 034).
+2. **Publish** the app.
+
+**Who:** office-only staff (Admin / HR / Portal manager with **no** therapist rank) get the admin hub. Everyone with a clinical rank keeps the therapist hub. Someone who already planted a tree keeps it.
+
+- **7 admin skills:** Scheduling & Coordination · Family Communication · Records & Privacy · Finance & Billing · Team & HR Support · Tools & Systems · Professionalism & Ethics, with 21 starter topics and a few links (Google Workspace and Slack help, PDPC Thailand).
+- **Flower field** instead of a tree, same points and stages: Bud 10 (2 flowers, mix 2 kinds) · Bloom 20 (5, 3) · Flower patch 30 (10, 4) · Garden 40 (15, 5) · Meadow 60 (20, 6) · Flower Field Keeper 100 (28 flowers + one animal). Same 4 backgrounds and 9 animals; 10 kinds of flower (Vecteezy, non-AI).
+- **Leaves:** study reflections and Done resources as before, plus **helping** (+1 each, at most 3 a day, automatic): replying to a CARE Connect message sent to Admin (once per message), answering a leave request.
+- **Portal manager** reviews admin reflections (+5), gives admin staff leaves (e.g. help outside the Portal) and manages admin topics/links (Learning Hub → Manage topics → **Admin team topics**). Supervisors / QCD don't see the admin team in Team.
+- SAFMEDS and CARE tools are hidden on the admin hub.

@@ -5,7 +5,7 @@
 import { esc } from './ui.js';
 import { rankOf, RANK_LABEL, OFFICE_ROLES, roleLabel, BADGE_FILE } from './labels.js';
 import { cardBadges } from './milestones.js';
-import { sceneSvg, STAGES, stageOf } from './tree.js';
+import { sceneSvg, stagesFor, stageOf } from './tree.js';
 
 export const initials = (p) => (p.nickname || p.full_name).trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 
@@ -24,7 +24,7 @@ export function cardHtml(p, { url = null, badge = {}, tree = null, isMe = false,
   const gm = office.includes('manager');
   const { shown, more } = cardBadges(p, badge);
   const posName = (r) => (OFFICE_ROLES.includes(r) ? roleLabel(r) : RANK_LABEL[r]);
-  const treeName = tree ? STAGES[stageOf(tree.points)].name : '';
+  const treeName = tree ? stagesFor(tree.hub)[stageOf(tree.points)].name : '';
   return `<li class="tm-card${isMe ? ' is-me' : ''}${tree ? '' : ' no-tree'}">
     <div class="tm-left">
       <div class="tm-avatar">
@@ -44,7 +44,7 @@ export function cardHtml(p, { url = null, badge = {}, tree = null, isMe = false,
       ${p.about ? `<p class="tm-about" tabindex="0" title="Tap to read all">${esc(p.about)}</p>` : ''}
       ${edit}
     </div>
-    ${tree ? `<div class="tm-tree" title="${esc(treeName)}">${sceneSvg(tree, { label: `${p.nickname || p.full_name}’s tree: ${treeName}` })}<span class="tm-tree-name">${esc(treeName)}</span></div>` : ''}
+    ${tree ? `<div class="tm-tree" title="${esc(treeName)}">${sceneSvg(tree, { label: `${p.nickname || p.full_name}’s ${tree?.hub === 'admin' ? 'flower field' : 'tree'}: ${treeName}` })}<span class="tm-tree-name">${esc(treeName)}</span></div>` : ''}
   </li>`;
 }
 

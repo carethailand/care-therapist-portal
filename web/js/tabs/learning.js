@@ -5,9 +5,10 @@
 // Leaves and points are worked out by the database; the page only shows them.
 import * as L from '../learning-data.js';
 import {
-  SKILLS, skillLabel, STAGES, GUARDIAN, LEAVES_PER_POINT, BGS, LOOKS, ANIMALS,
+  SKILLS, ADMIN_SKILLS, skillsFor, stagesFor, skillLabel, STAGES, FIELD_STAGES, GUARDIAN, LEAVES_PER_POINT, BGS, LOOKS, ANIMALS, FLOWERS,
   stageOf, progress, sceneSvg, wheelSvg, artImg,
 } from '../tree.js';
+import { rankOf, OFFICE_ROLES } from '../labels.js';
 import { esc, fmtDate, todayLocal } from '../ui.js';
 import { loadSafmeds, myTimings, setProgress, practice, saveSet, hideSet } from '../safmeds.js';
 import { icon } from '../icons.js';
@@ -29,6 +30,7 @@ const BOXES = [
   ['question', 'One question still on my mind', ''],
   ['try_next', 'One thing I’d like to try next', 'With my clients, at school…'],
 ];
+const tryNextHint = () => (field() ? 'At the front desk, with families, in the office…' : 'With my clients, at school…');
 
 let ctx;
 let panelEl;
@@ -46,8 +48,20 @@ let sfTimings = [];            // my SAFMEDS timings
 const TOOL_ICONS = ['link', 'clock', 'books', 'book', 'file-text', 'school', 'sparkles', 'calendar', 'users', 'heart-handshake', 'bulb', 'tool'];
 let openTopic = null;          // code of the topic page being shown
 const openFolds = new Set();   // Study log / Topics / Recent leaves left open
+// Office-only staff (Admin / HR / Portal manager, no therapist rank) have the admin
+// hub: admin skills and a flower field. The Portal manager looks after it.
+let hub = 'clinical';
+let manageHub = 'clinical';    // Manage topics: clinical or admin team topics (Portal manager)
+const isGM = () => ctx.roles.includes('manager');
+const officeOnly = () => !rankOf(ctx.roles) && ctx.roles.some((r) => OFFICE_ROLES.includes(r));
+const field = () => hub === 'admin';
+const hubOfSkill = (k) => (String(k).startsWith('adm_') ? 'admin' : 'clinical');
+const inHub = (t, h = hub) => hubOfSkill(t.skill) === h;
+const canEditTopic = (t) => isTeam() && (hubOfSkill(t.skill) === 'clinical' || isGM());
+const reviewer = () => (field() ? 'the Portal manager' : 'your supervisors');
 
-const areaColor = (k) => SKILLS.find((s) => s.key === k)?.color || '#6F8A69';
+const areaOf = (k) => [...SKILLS, ...ADMIN_SKILLS].find((s) => s.key === k);
+const areaColor = (k) => areaOf(k)?.color || '#6F8A69';
 const isTeam = () => ctx.roles.some((r) => ['admin', 'supervisor', 'qcd'].includes(r));
 const safeUrl = (u) => (/^https:\/\//i.test(u ?? '') ? u : null);
 const topicOf = (code) => topics.find((t) => t.code === code);
@@ -60,6 +74,8 @@ const closeDlg = () => { const d = dlg(); if (d.open) d.close(); };
 export async function render(panel, context) {
   ctx = context;
   panelEl = panel;
+  hub = officeOnly() ? 'admin' : 'clinical';
+  if (!isGM()) manageHub = 'clinical';
   panel.innerHTML = `
     <section class="lh">
       <div class="page-head">
@@ -71,7 +87,7 @@ export async function render(panel, context) {
         </div>` : ''}
       </div>
       <div id="lh-body" aria-live="polite"><p class="muted">Loading…</p></div>
-      <p class="credit">Tree, plant and animal art from <a href="https://www.vecteezy.com" target="_blank" rel="noopener">Vecteezy.com</a> (filtered to non-AI images)</p>
+      <p class="credit">Tree, flower, plant and animal art from <a href="https://www.vecteezy.com" target="_blank" rel="noopener">Vecteezy.com</a> (filtered to non-AI images)</p>
       <dialog id="lh-dlg" class="dlg"></dialog>
     </section>`;
   for (const b of panel.querySelectorAll('[data-view]')) b.addEventListener('click', () => { view = b.dataset.view; openTopic = null; draw(); });
@@ -101,57 +117,60 @@ async function draw() {
 // ---------------------------------------------------------------------------
 async function drawMe(body) {
   [me, refl, done, leaves, sfTimings] = await Promise.all([L.summary(), L.myReflections(ctx.me.id), L.myDone(ctx.me.id), L.myLeaves(ctx.me.id), myTimings(ctx.me.id)]);
+  if (me.hub) hub = me.hub;
   if (openTopic && topicOf(openTopic)) return drawTopicPage(body);
   if (!me.started) return drawStart(body);
   const pr = progress(me.points);
-  const st = STAGES[pr.stage];
+  const ST = stagesFor(hub);
+  const st = ST[pr.stage];
   const canInvest = me.balance >= LEAVES_PER_POINT;
   const fold = (key, title, extra, inner) => `<details class="card lh-fold" data-fold="${key}" ${openFolds.has(key) ? 'open' : ''}>
       <summary><h2>${title}</h2>${extra}<span class="lh-fold-ico">${icon('chevron-down')}</span></summary>${inner}</details>`;
   const nDone = done.length;
   body.innerHTML = `
-    ${toolsHtml()}
+    ${field() ? '' : toolsHtml()}
     <div class="lh-hero">
       <section class="card lh-tree">
-        ${sceneSvg({ points: me.points, bg: me.bg, looks: me.looks, animal: me.animal }, { label: `Your tree: ${st.name}` })}
+        ${sceneSvg(myScene(), { label: `Your ${field() ? 'flower field' : 'tree'}: ${st.name}` })}
         <div class="lh-stage">
           <div><h2>${esc(st.name)}</h2><p class="muted small">${me.points} skill points</p></div>
           <button type="button" class="small-btn" data-act="look">${icon('plant-2')} Change look</button>
         </div>
-        ${pr.next ? `<div class="bar" role="progressbar" aria-valuenow="${pr.pct}" aria-valuemin="0" aria-valuemax="100" aria-label="Progress to ${esc(STAGES[pr.stage + 1].name)}"><span style="width:${pr.pct}%"></span></div>
-          <p class="small muted">${pr.next - me.points} more point${pr.next - me.points === 1 ? '' : 's'} to <strong>${esc(STAGES[pr.stage + 1].name)}</strong></p>`
-          : '<p class="small">You are a <strong>Forest Guardian</strong>. ✨</p>'}
+        ${pr.next ? `<div class="bar" role="progressbar" aria-valuenow="${pr.pct}" aria-valuemin="0" aria-valuemax="100" aria-label="Progress to ${esc(ST[pr.stage + 1].name)}"><span style="width:${pr.pct}%"></span></div>
+          <p class="small muted">${pr.next - me.points} more point${pr.next - me.points === 1 ? '' : 's'} to <strong>${esc(ST[pr.stage + 1].name)}</strong>${field() ? ` · ${ST[pr.stage + 1].n} flowers, mix ${ST[pr.stage + 1].kinds} kinds` : ''}</p>`
+          : `<p class="small">You are a <strong>${esc(ST[GUARDIAN].name)}</strong>. ✨</p>`}
         <p class="muted small lh-wheel-about"><strong>Self-reflection skill wheel:</strong> your own check of where you feel strong and where you’d like to grow.
-          It isn’t a score from anyone else. You choose where your skill points go, and your supervisors use it to plan support and training for what you need.
-          ${icon('lock')} Only you and your supervisors / QCD / admin see the wheel; everyone sees your tree.</p>
+          It isn’t a score from anyone else. You choose where your skill points go, and ${reviewer()} use${field() ? 's' : ''} it to plan support and training for what you need.
+          ${icon('lock')} ${field() ? 'Only you and the Portal manager / admin see the wheel; everyone sees your flower field.' : 'Only you and your supervisors / QCD / admin see the wheel; everyone sees your tree.'}</p>
       </section>
       <section class="card lh-side">
         <div class="lh-leaves">
           <span class="lh-leaf-ico">${icon('leaf')}</span>
           <div><p class="lh-big">${me.balance}</p><p class="muted small">leaves to use · ${LEAVES_PER_POINT} leaves = 1 skill point</p></div>
         </div>
+        ${field() ? `<p class="muted small lh-helping">${icon('heart-handshake')} <span><strong>Helping earns leaves too:</strong> reply to a CARE Connect message sent to Admin, or answer a leave request (+1 each, up to 3 a day · ${me.helping_today ?? 0} today).</span></p>` : ''}
         <div class="lh-side-btns">
           <button type="button" class="primary" data-act="log">${icon('book')} Log a study session</button>
           <button type="button" class="${canInvest ? 'lh-ready' : ''}" data-act="invest">${icon('sparkles')} ${canInvest ? 'Use 10 leaves on a skill' : `${LEAVES_PER_POINT - (me.balance % LEAVES_PER_POINT)} more leaves for a skill point`}</button>
         </div>
         <h3 class="lh-h3">Self-reflection skill wheel</h3>
-        ${wheelSvg(me.skills)}
+        ${wheelSvg(me.skills, hub)}
       </section>
     </div>
 
-    ${!sfSets.length ? `<section class="card muted-card"><h2>SAFMEDS</h2><p class="muted small">${sfSets.error
+    ${field() ? '' : !sfSets.length ? `<section class="card muted-card"><h2>SAFMEDS</h2><p class="muted small">${sfSets.error
       ? `SAFMEDS couldn't load: ${esc(sfSets.error)}`
       : 'No SAFMEDS sets yet. Supervisors, QCD and admin can add them under Manage topics → SAFMEDS sets.'}</p></section>` : ''}
-    ${sfSets.length ? fold('safmeds', 'SAFMEDS', `<span class="chip">${sfSets.length}</span><span class="muted small lh-fold-note">${sfSets.filter((s) => setProgress(s, sfTimings, todayLocal()).mastered).length} mastered · 1-minute timings</span>`, `
+    ${!field() && sfSets.length ? fold('safmeds', 'SAFMEDS', `<span class="chip">${sfSets.length}</span><span class="muted small lh-fold-note">${sfSets.filter((s) => setProgress(s, sfTimings, todayLocal()).mastered).length} mastered · 1-minute timings</span>`, `
       <p class="muted small">Say All Fast, a Minute Every Day, Shuffled. Your first timing each day earns a leaf; meet a set’s aim on 3 different days to master it (+5 leaves).</p>
       ${safmedsHtml()}`) : ''}
 
     ${fold('log', 'Study log', `<span class="chip">${refl.length}</span><span class="muted small lh-fold-note">${me.logs_today} of 2 leaf logs used today</span>`, `
-      <p class="muted small">Each reflection box you write properly earns a leaf (up to 5). A supervisor’s review adds 5 more.
+      <p class="muted small">Each reflection box you write properly earns a leaf (up to 5). ${field() ? 'The Portal manager’s' : 'A supervisor’s'} review adds 5 more.
         Leaves count for your first 2 logs each day.</p>
       ${reflList(refl)}`)}
 
-    ${fold('topics', 'Topics', `<span class="chip">${topics.filter((t) => t.active).length}</span><span class="muted small lh-fold-note">${nDone} resource${nDone === 1 ? '' : 's'} done</span>`, `
+    ${fold('topics', 'Topics', `<span class="chip">${topics.filter((t) => t.active && inHub(t)).length}</span><span class="muted small lh-fold-note">${nDone} resource${nDone === 1 ? '' : 's'} done</span>`, `
       <p class="muted small">Tap a topic to open it. Open a resource, then tap <strong>Done</strong> and write one line about it to earn a leaf (up to 3 a day).</p>
       ${topicsHtml()}`)}
 
@@ -165,7 +184,7 @@ async function drawMe(body) {
     });
   }
   for (const b of body.querySelectorAll('[data-sf]')) b.addEventListener('click', () => openSafmeds(b.dataset.sf));
-  body.querySelector('[data-act="look"]').addEventListener('click', lookDialog);
+  body.querySelector('[data-act="look"]').addEventListener('click', () => (field() ? gardenDialog() : lookDialog()));
   body.querySelector('[data-act="invest"]').addEventListener('click', () => (canInvest ? investDialog() : null));
   body.querySelector('[data-act="log"]').addEventListener('click', () => logDialog());
   wireTopics(body);
@@ -173,19 +192,20 @@ async function drawMe(body) {
 }
 
 function drawStart(body) {
-  const pts = Object.fromEntries(SKILLS.map((s) => [s.key, 0]));
+  const SK = skillsFor(hub);
+  const pts = Object.fromEntries(SK.map((s) => [s.key, 0]));
   body.innerHTML = `
-    ${toolsHtml()}
+    ${field() ? '' : toolsHtml()}
     <section class="card lh-start">
-      <div class="lh-start-art">${sceneSvg({ points: 10, bg: 0, looks: [0, 0, 0, 0, 0, 0] }, { label: 'A seedling' })}</div>
+      <div class="lh-start-art">${sceneSvg({ points: 10, bg: 0, looks: [0, 0, 0, 0, 0, 0], hub, flowers: [0, 2] }, { label: field() ? 'Two flowers' : 'A seedling' })}</div>
       <div>
-        <h2>Plant your seed 🌱</h2>
-        <p>You already have skills from your training. Place <strong>10 skill points</strong> across the 7 skills to show where you feel strongest today.
+        <h2>${field() ? 'Plant your first flowers 🌷' : 'Plant your seed 🌱'}</h2>
+        <p>You already have skills from your ${field() ? 'work' : 'training'}. Place <strong>10 skill points</strong> across the 7 skills to show where you feel strongest today.
           This starts your <strong>self-reflection skill wheel</strong>. It’s a self-check, not a test: be honest. It helps you see where to grow,
-          and helps your supervisors plan training for what you need.</p>
-        <p class="muted small">After this, studying earns <strong>leaves</strong>. Every 10 leaves is 1 new skill point, and your tree grows:
-          ${STAGES.map((s) => `${esc(s.name)} ${s.at}`).join(' · ')}.</p>
-        <div class="lh-alloc">${SKILLS.map((s) => `
+          and helps ${reviewer()} plan training for what you need.</p>
+        <p class="muted small">After this, ${field() ? 'studying and helping therapists earn' : 'studying earns'} <strong>leaves</strong>. Every 10 leaves is 1 new skill point, and your ${field() ? 'flower field' : 'tree'} grows:
+          ${stagesFor(hub).map((s) => `${esc(s.name)} ${s.at}`).join(' · ')}.</p>
+        <div class="lh-alloc">${SK.map((s) => `
           <div class="lh-alloc-row"><span>${esc(s.label)}</span>
             <button type="button" class="small-btn" data-dec="${s.key}" aria-label="Less ${esc(s.label)}">−</button>
             <b data-val="${s.key}">0</b>
@@ -193,13 +213,13 @@ function drawStart(body) {
         </div>
         <p class="small"><span id="lh-left">10</span> points left · up to 4 in one skill</p>
         <p id="lh-start-msg" class="error" hidden></p>
-        <button type="button" class="primary" data-act="plant" disabled>${icon('plant-2')} Plant my tree</button>
+        <button type="button" class="primary" data-act="plant" disabled>${icon('plant-2')} ${field() ? 'Plant my flowers' : 'Plant my tree'}</button>
       </div>
     </section>
     <section class="card"><h2>Topics</h2>${topicsHtml()}</section>`;
   const used = () => Object.values(pts).reduce((a, b) => a + b, 0);
   const sync = () => {
-    for (const s of SKILLS) body.querySelector(`[data-val="${s.key}"]`).textContent = pts[s.key];
+    for (const s of SK) body.querySelector(`[data-val="${s.key}"]`).textContent = pts[s.key];
     body.querySelector('#lh-left').textContent = 10 - used();
     body.querySelector('[data-act="plant"]').disabled = used() !== 10;
   };
@@ -232,7 +252,7 @@ function reflList(list, { team = false } = {}) {
         <dl class="lh-dl">
           ${BOXES.map(([k, label]) => (r[k] ? `<dt>${esc(label)}</dt><dd>${esc(r[k])}</dd>` : '')).join('')}
           ${r.feeling ? `<dt>How I feel about it</dt><dd>${r.feeling} / 5 · ${esc(FEEL[r.feeling - 1])}</dd>` : ''}
-          ${r.review_note ? `<dt>Supervisor’s note</dt><dd class="lh-note">${esc(r.review_note)}</dd>` : ''}
+          ${r.review_note ? `<dt>Reviewer’s note</dt><dd class="lh-note">${esc(r.review_note)}</dd>` : ''}
         </dl>
         ${team ? `<button type="button" class="primary small-btn" data-review="${r.id}">${icon('check')} Review (+5 leaves)</button>` : ''}
       </details>
@@ -280,8 +300,8 @@ function toolsHtml() {
 }
 
 // Topic cards, grouped by the 7 areas. manage = edit mode for the team.
-function topicsHtml(manage = false) {
-  return SKILLS.map((s) => {
+function topicsHtml(manage = false, h = hub) {
+  return skillsFor(h).map((s) => {
     const list = topics.filter((t) => t.skill === s.key && t.active);
     if (!list.length && !manage) return '';
     return `<div class="lh-area" style="--area:${s.color}">
@@ -312,7 +332,7 @@ function wireTopics(body) {
 // One topic's own page: description, resources (Done), log on this topic.
 function drawTopicPage(body) {
   const t = topicOf(openTopic);
-  const area = SKILLS.find((s) => s.key === t.skill);
+  const area = areaOf(t.skill);
   const rs = resources.filter((r) => r.topic_code === t.code);
   body.innerHTML = `
     <button type="button" class="link lh-back" data-back>${icon('arrow-right', 'flip')} All topics</button>
@@ -329,11 +349,11 @@ function drawTopicPage(body) {
           ${d ? `<span class="chip ok" title="${esc(d.note || '')}">${icon('check')} Done</span>`
             : `<button type="button" class="small-btn" data-done="${r.id}">Done</button>`}
         </li>`;
-      }).join('')}</ul>` : '<p class="muted">No links yet. Your supervisors will add some.</p>'}
+      }).join('')}</ul>` : `<p class="muted">No links yet. ${field() ? 'The Portal manager' : 'Your supervisors'} will add some.</p>`}
       <p class="muted small">Tap <strong>Done</strong> and write one line about what you learned to earn a leaf (up to 3 a day).</p>
       <div class="dlg-actions">
         <button type="button" class="primary" data-logtopic>${icon('book')} Log a study session on this topic</button>
-        ${isTeam() ? `<button type="button" data-edittopic>${icon('settings')} Edit topic</button>` : ''}
+        ${canEditTopic(t) ? `<button type="button" data-edittopic>${icon('settings')} Edit topic</button>` : ''}
       </div>
     </section>`;
   body.querySelector('[data-back]').addEventListener('click', () => { openTopic = null; openFolds.add('topics'); draw(); });
@@ -368,7 +388,7 @@ function doneDialog(resId) {
 }
 
 function logDialog(preset = null) {
-  const opts = SKILLS.map((s) => `<optgroup label="${esc(s.label)}">${topics.filter((t) => t.skill === s.key && t.active)
+  const opts = skillsFor(hub).map((s) => `<optgroup label="${esc(s.label)}">${topics.filter((t) => t.skill === s.key && t.active)
     .map((t) => `<option value="${esc(t.code)}" ${t.code === preset ? 'selected' : ''}>${esc(t.title)}</option>`).join('')}</optgroup>`).join('');
   const d = openDlg(`<form class="lh-form" method="dialog">
     <h2>Log a study session</h2>
@@ -378,7 +398,7 @@ function logDialog(preset = null) {
     </div>
     <label>Topic<select name="topic"><option value="">General / other</option>${opts}</select></label>
     ${BOXES.map(([k, label, ph]) => `<label>${esc(label)}${k === 'studied' ? ' <span class="muted small">(needed)</span>' : ''}
-      <textarea name="${k}" rows="${k === 'studied' ? 3 : 2}" maxlength="2000" ${k === 'studied' ? 'required' : ''} placeholder="${esc(ph)}"></textarea></label>`).join('')}
+      <textarea name="${k}" rows="${k === 'studied' ? 3 : 2}" maxlength="2000" ${k === 'studied' ? 'required' : ''} placeholder="${esc(k === 'try_next' ? tryNextHint() : ph)}"></textarea></label>`).join('')}
     <fieldset class="lh-feel"><legend>How do you feel about this topic now?</legend>
       ${FEEL.map((t, i) => `<label class="check"><input type="radio" name="feeling" value="${i + 1}"> ${i + 1} · ${esc(t)}</label>`).join('')}
     </fieldset>
@@ -412,7 +432,7 @@ function investDialog() {
   const d = openDlg(`<div class="lh-form">
     <h2>Use 10 leaves</h2>
     <p>Which skill do you want to grow? You have <strong>${me.balance}</strong> leaves.</p>
-    <div class="lh-invest">${SKILLS.map((s) => `<button type="button" data-skill="${s.key}"><span>${esc(s.label)}</span><b>${me.skills?.[s.key] ?? 0} → ${(me.skills?.[s.key] ?? 0) + 1}</b></button>`).join('')}</div>
+    <div class="lh-invest">${skillsFor(hub).map((s) => `<button type="button" data-skill="${s.key}"><span>${esc(s.label)}</span><b>${me.skills?.[s.key] ?? 0} → ${(me.skills?.[s.key] ?? 0) + 1}</b></button>`).join('')}</div>
     <p class="error" data-msg hidden></p>
     <div class="dlg-actions"><button type="button" data-cancel>Cancel</button></div>
   </div>`);
@@ -424,7 +444,7 @@ function investDialog() {
       closeDlg();
       await draw();
       const after = stageOf(me.points);
-      toast(after > before ? `Your tree grew into a ${STAGES[after].name}! 🌳` : `+1 ${skillLabel(b.dataset.skill)}`);
+      toast(after > before ? `Your ${field() ? 'field' : 'tree'} grew into a ${stagesFor(hub)[after].name}! ${field() ? '🌸' : '🌳'}` : `+1 ${skillLabel(b.dataset.skill)}`);
       if (after > before) celebrate(after);
     } catch (err) { const m = d.querySelector('[data-msg]'); m.textContent = err.message; m.hidden = false; }
   });
@@ -469,15 +489,72 @@ function lookDialog() {
 }
 
 function celebrate(stage) {
+  const ST = stagesFor(hub);
   openDlg(`<div class="lh-form lh-celebrate">
     <h2>Level up! 🎉</h2>
-    <div class="lh-preview">${sceneSvg({ points: me.points, bg: me.bg, looks: me.looks, animal: me.animal })}</div>
-    <p>Your tree is now a <strong>${esc(STAGES[stage].name)}</strong>.${stage === GUARDIAN ? ' Choose an animal friend to join it!' : ' New looks are unlocked.'}</p>
+    <div class="lh-preview">${sceneSvg(myScene())}</div>
+    <p>Your ${field() ? 'flower field' : 'tree'} is now a <strong>${esc(ST[stage].name)}</strong>.${stage === GUARDIAN ? ' Choose an animal friend to join it!'
+      : field() ? ` You can now mix ${ST[stage].kinds} kinds of flower.` : ' New looks are unlocked.'}</p>
     <div class="dlg-actions"><button type="button" class="primary" data-look>${icon('plant-2')} Choose a look</button><button type="button" data-cancel>Later</button></div>
   </div>`);
   const d = dlg();
   d.querySelector('[data-cancel]').addEventListener('click', closeDlg);
-  d.querySelector('[data-look]').addEventListener('click', lookDialog);
+  d.querySelector('[data-look]').addEventListener('click', () => (field() ? gardenDialog() : lookDialog()));
+}
+
+// My scene (tree or flower field) as drawn now.
+const myScene = () => ({ points: me.points, bg: me.bg, looks: me.looks, animal: me.animal, hub, flowers: me.flowers });
+
+// Admin team: choose the background, the kinds of flower to mix, and (at 100) an animal.
+function gardenDialog() {
+  const stage = stageOf(me.points);
+  const max = FIELD_STAGES[stage].kinds;
+  const pick = { bg: me.bg ?? 0, flowers: [...(me.flowers?.length ? me.flowers : [0, 2])].slice(0, max), animal: me.animal ?? null };
+  let note = '';
+  const opt = (sel, attr, val, inner, label) =>
+    `<button type="button" class="lh-opt" ${attr}="${val}" aria-pressed="${sel}" title="${esc(label)}">${inner}<span>${esc(label)}</span></button>`;
+  const paint = (d) => {
+    d.querySelector('[data-preview]').innerHTML = sceneSvg({ points: me.points, hub: 'admin', ...pick });
+    d.querySelector('[data-count]').textContent = `${pick.flowers.length} of ${max} chosen`;
+    d.querySelector('[data-flowers]').innerHTML = FLOWERS.map((f, i) => opt(pick.flowers.includes(i), 'data-flower', i, artImg(f.file), f.name)).join('');
+    d.querySelector('[data-fnote]').textContent = note;
+    d.querySelector('[data-bgs]').innerHTML = BGS.map((b, i) => opt(pick.bg === i, 'data-bg', i, artImg(b.file), b.name)).join('');
+    d.querySelector('[data-animals]').innerHTML = stage === GUARDIAN
+      ? opt(pick.animal == null, 'data-animal', '', '<span class="lh-none">—</span>', 'No animal') + ANIMALS.map((a, i) => opt(pick.animal === i, 'data-animal', i, artImg(a.file), a.name)).join('')
+      : `<p class="muted small">${icon('lock')} Animals unlock at Flower Field Keeper (100 skill points). Then one can join your field.</p>`;
+  };
+  const d = openDlg(`<div class="lh-form lh-look">
+    <h2>Your flower field</h2>
+    <div class="lh-preview" data-preview></div>
+    <h3 class="lh-h3">Flowers to mix <span class="muted small" data-count></span></h3>
+    <div class="lh-opts lh-flowers" data-flowers></div>
+    <p class="muted small" data-fnote aria-live="polite"></p>
+    <h3 class="lh-h3">Background</h3><div class="lh-opts" data-bgs></div>
+    <h3 class="lh-h3">Animal friend</h3><div class="lh-opts" data-animals></div>
+    <p class="muted small">As your field grows you get more flowers, and can mix more kinds (up to 6).</p>
+    <p class="error" data-msg hidden></p>
+    <div class="dlg-actions"><button type="button" class="primary" data-save>${icon('check')} Save</button><button type="button" data-cancel>Cancel</button></div>
+  </div>`);
+  paint(d);
+  d.addEventListener('click', async (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    note = '';
+    if (b.dataset.flower != null) {
+      const f = Number(b.dataset.flower);
+      if (pick.flowers.includes(f)) {
+        if (pick.flowers.length > 1) pick.flowers = pick.flowers.filter((x) => x !== f); else note = 'Keep at least one flower.';
+      } else if (pick.flowers.length < max) pick.flowers.push(f);
+      else note = `You can mix ${max} kinds now. Tap one you've chosen to swap it out; more unlock as your field grows.`;
+      paint(d);
+    } else if (b.dataset.bg != null) { pick.bg = Number(b.dataset.bg); paint(d); }
+    else if (b.dataset.animal != null) { pick.animal = b.dataset.animal === '' ? null : Number(b.dataset.animal); paint(d); }
+    else if (b.hasAttribute('data-cancel')) closeDlg();
+    else if (b.hasAttribute('data-save')) {
+      try { await L.setGarden(pick.bg, pick.flowers, pick.animal); closeDlg(); await draw(); toast('Flower field updated 🌸'); } catch (err) {
+        const m = d.querySelector('[data-msg]'); m.textContent = err.message; m.hidden = false;
+      }
+    }
+  });
 }
 
 function toast(text) {
@@ -493,7 +570,8 @@ function toast(text) {
 async function drawTeam(body) {
   const [list, waiting] = await Promise.all([L.team(), L.toReview()]);
   teamList = list;
-  const others = waiting.filter((r) => r.therapist_id !== ctx.me.id);
+  // The list is already limited (the admin team only shows for the Portal manager).
+  const others = waiting.filter((r) => r.therapist_id !== ctx.me.id && list.some((p) => p.id === r.therapist_id));
   body.innerHTML = `
     <section class="card">
       <h2>To review <span class="chip">${others.length}</span></h2>
@@ -503,10 +581,10 @@ async function drawTeam(body) {
     <section class="card">
       <h2>People</h2>
       <div class="table-wrap"><table class="lh-table">
-        <thead><tr><th>Name</th><th>Tree</th><th>Points</th><th>Leaves</th><th>Logs</th><th>Waiting</th><th>Last study</th><th></th></tr></thead>
+        <thead><tr><th>Name</th><th>Tree / field</th><th>Points</th><th>Leaves</th><th>Logs</th><th>Waiting</th><th>Last study</th><th></th></tr></thead>
         <tbody>${list.map((p) => `<tr>
-          <td>${esc(p.nickname || p.full_name)}</td>
-          <td>${p.started ? esc(STAGES[stageOf(p.points)].name) : '<span class="muted">Not planted</span>'}</td>
+          <td>${esc(p.nickname || p.full_name)}${p.hub === 'admin' ? ' <span class="chip">Admin team</span>' : ''}</td>
+          <td>${p.started ? esc(stagesFor(p.hub)[stageOf(p.points)].name) : '<span class="muted">Not planted</span>'}</td>
           <td>${p.started ? p.points : '—'}</td><td>${p.balance}</td><td>${p.logs}</td>
           <td>${p.to_review ? `<span class="chip warn">${p.to_review}</span>` : '0'}</td>
           <td>${p.last_study ? fmtDate(p.last_study) : '—'}</td>
@@ -565,10 +643,10 @@ async function wheelDialog(who) {
   const d = openDlg(`<div class="lh-form">
     <h2>${esc(nameOf(who))}</h2>
     <div class="lh-wheelpair">
-      <div class="lh-preview">${sceneSvg({ points: s.points, bg: s.bg, looks: s.looks, animal: s.animal })}</div>
-      ${wheelSvg(s.skills)}
+      <div class="lh-preview">${sceneSvg({ points: s.points, bg: s.bg, looks: s.looks, animal: s.animal, hub: s.hub, flowers: s.flowers })}</div>
+      ${wheelSvg(s.skills, s.hub)}
     </div>
-    <p class="small"><strong>Self-reflection skill wheel</strong> (their own view) · ${esc(STAGES[stageOf(s.points)].name)} · ${s.points} skill points · ${s.balance} leaves to use</p>
+    <p class="small"><strong>Self-reflection skill wheel</strong> (their own view) · ${esc(stagesFor(s.hub)[stageOf(s.points)].name)} · ${s.points} skill points · ${s.balance} leaves to use</p>
     <p class="muted small">Low areas are where they’d like to grow: a good place to offer support or training.</p>
     <div class="dlg-actions"><button type="button" data-cancel>Close</button></div>
   </div>`);
@@ -579,9 +657,14 @@ async function wheelDialog(who) {
 // Manage topics (supervisor / QCD / admin): add, edit, order, hide topics; links
 // ---------------------------------------------------------------------------
 function drawLinks(body) {
-  const hidden = topics.filter((t) => !t.active);
+  const adm = manageHub === 'admin';
+  const hidden = topics.filter((t) => !t.active && inHub(t, manageHub));
   body.innerHTML = `
-    <section class="card">
+    ${isGM() ? `<div class="seg lh-hubseg" role="tablist" aria-label="Which topics">
+      <button type="button" role="tab" data-mhub="clinical" aria-selected="${!adm}">Therapist topics</button>
+      <button type="button" role="tab" data-mhub="admin" aria-selected="${adm}">Admin team topics</button>
+    </div>` : ''}
+    ${adm ? '' : `<section class="card">
       <div class="page-head"><h2>CARE tools</h2><button type="button" class="small-btn" data-addtool>${icon('plus')} Add a tool</button></div>
       <p class="muted small">Everyday links shown at the top of everyone's Learning Hub. A tool can have just a note (e.g. “Ask admin for the login”).</p>
       ${tools.length ? `<ul class="lh-res lh-res-edit">${tools.map((t) => `<li>
@@ -598,25 +681,26 @@ function drawLinks(body) {
         <span class="lh-grow"><strong>${esc(s.title)}</strong> <span class="muted small">· ${s.cards.length} cards · aim ${s.aim_correct}+ / ${s.aim_missed} missed</span></span>
         <span class="row-actions"><button type="button" class="small-btn" data-editset="${s.id}">Edit</button>
         <button type="button" class="small-btn" data-hideset="${s.id}">Remove</button></span></li>`).join('')}</ul>` : '<p class="muted small">No sets yet.</p>'}
-    </section>
+    </section>`}
     <section class="card">
-      <h2>Manage topics</h2>
+      <h2>${adm ? 'Admin team topics' : 'Manage topics'}</h2>
       <p class="muted small">Tap a topic to rename it, move it to another area, add a short description, change its order or edit its links.
-        Everyone at CARE sees these on their Learning Hub. Use links that open without a special login where you can.</p>
-      ${topicsHtml(true)}
+        ${adm ? 'The admin team (Admin / HR with no therapist rank) sees these on their Learning Hub.' : 'Therapists see these on their Learning Hub.'} Use links that open without a special login where you can.</p>
+      ${topicsHtml(true, manageHub)}
     </section>
     ${hidden.length ? `<section class="card"><h2>Hidden topics</h2>
       <p class="muted small">Hidden because someone has already logged study on them. Show one again if you need it.</p>
       <ul class="lh-res">${hidden.map((t) => `<li><span class="lh-dot" style="--area:${areaColor(t.skill)}"></span><span class="lh-grow">${esc(t.title)}</span>
         <button type="button" class="small-btn" data-unhide="${esc(t.code)}">Show again</button></li>`).join('')}</ul></section>` : ''}`;
-  body.querySelector('[data-addset]').addEventListener('click', () => setDialog(null));
+  for (const b of body.querySelectorAll('[data-mhub]')) b.addEventListener('click', () => { manageHub = b.dataset.mhub; draw(); });
+  body.querySelector('[data-addset]')?.addEventListener('click', () => setDialog(null));
   for (const b of body.querySelectorAll('[data-editset]')) b.addEventListener('click', () => setDialog(sfSets.find((s) => s.id === b.dataset.editset)));
   for (const b of body.querySelectorAll('[data-hideset]')) b.addEventListener('click', async () => {
     const s = sfSets.find((x) => x.id === b.dataset.hideset);
     if (!confirm(`Remove “${s.title}”? People's past timings are kept.`)) return;
     try { await hideSet(s.id); sfSets = await loadSafmeds(); draw(); toast('Set removed'); } catch (e) { alert(e.message); }
   });
-  body.querySelector('[data-addtool]').addEventListener('click', () => toolDialog(null));
+  body.querySelector('[data-addtool]')?.addEventListener('click', () => toolDialog(null));
   for (const b of body.querySelectorAll('[data-edittool]')) b.addEventListener('click', () => toolDialog(tools.find((t) => t.id === b.dataset.edittool)));
   for (const b of body.querySelectorAll('[data-deltool]')) b.addEventListener('click', async () => {
     const t = tools.find((x) => x.id === b.dataset.deltool);
@@ -714,7 +798,7 @@ function topicDialog(t, newSkill = null) {
   const d = openDlg(`<form class="lh-form" method="dialog">
     <h2>${isNew ? 'Add a topic' : 'Edit topic'}</h2>
     <label>Topic name<input name="title" maxlength="120" required value="${esc(t?.title || '')}" placeholder="Prompting & prompt fading"></label>
-    <label>Area<select name="skill">${SKILLS.map((s) => `<option value="${s.key}" ${s.key === skill ? 'selected' : ''}>${esc(s.label)}</option>`).join('')}</select></label>
+    <label>Area<select name="skill">${skillsFor(hubOfSkill(skill)).map((s) => `<option value="${s.key}" ${s.key === skill ? 'selected' : ''}>${esc(s.label)}</option>`).join('')}</select></label>
     <label>Short description <span class="muted small">(optional)</span><textarea name="description" rows="2" maxlength="300" placeholder="What this topic covers, in one or two lines">${esc(t?.description || '')}</textarea></label>
     ${isNew ? '' : `
       <div class="lh-row-btns"><span class="muted small">Order in its area</span>

@@ -30,12 +30,13 @@ From **Vecteezy.com** (free licence: credit "Vecteezy.com" with a link where pos
 
 ## Learning Hub tree art (added 2026-11-17)
 
-From **Vecteezy.com** (free licence). The Learning Hub page shows "Tree, plant and animal art: Vecteezy.com".
+From **Vecteezy.com** (free licence). The Learning Hub page shows "Tree, flower, plant and animal art from Vecteezy.com".
 
 | Files | Source | Changes |
 |---|---|---|
 | `../tree/look-*.svg` | "Collection of plant icons and symbol" (Vecteezy 59362849) and "A collection of tree illustrations" (Vecteezy 66328205) | Single plants and trees cut out of the vector files, colours converted from CMYK |
 | `../tree/bg-*.svg` | "Set of illustrations green trees forest landscape banner" (Vecteezy 57988369) | Four scenes; the middle cleared so the person's tree stands alone; one scene's own large tree removed |
 | `../tree/animal-*.svg` | "Wildlife collection colorful forest animal symbols" (Vecteezy 81684276) | Nine animals cut out |
+| `../tree/flower-*.svg` (admin team flower field, added 2026-11-18) | "Mixed flower sketch in harmonious shades" (Vecteezy 63515182) | Ten flowers cut out, colours converted from CMYK |
 
 All Vecteezy art used in the Portal was chosen with Vecteezy's filter for non-AI (human-made) images. The on-screen credits say so.

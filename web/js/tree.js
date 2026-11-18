@@ -1,11 +1,11 @@
-// Learning Hub "grow your tree": skills, stages, the tree scene and the skill wheel.
+// Learning Hub "grow your tree" (and the admin team's flower field): skills, stages, scenes and the skill wheel.
 // Every scene is the same size (1000×680): the background is softened so the
 // tree stands out, the tree always stands in the middle, and at Forest Guardian
 // one animal can join it. Points are worked out in the database, never here.
-import { BGS, LOOKS, ANIMALS } from './tree-art.js';
+import { BGS, LOOKS, ANIMALS, FLOWERS } from './tree-art.js';
 import { esc } from './ui.js';
 
-export { BGS, LOOKS, ANIMALS };
+export { BGS, LOOKS, ANIMALS, FLOWERS };
 
 // Areas, with colours from the Portal's own palette (badge colours + sage / clay).
 export const SKILLS = [
@@ -17,7 +17,18 @@ export const SKILLS = [
   { key: 'school_shadow', label: 'School Shadow', short: 'School', color: '#CF4F84' },
   { key: 'safe_behavior', label: 'Safe Behavior Management', short: 'Safety', color: '#4F8C86' },
 ];
-export const skillLabel = (k) => SKILLS.find((s) => s.key === k)?.label || k;
+// The admin team's hub has its own 7 skills (and a flower field instead of a tree).
+export const ADMIN_SKILLS = [
+  { key: 'adm_schedule', label: 'Scheduling & Coordination', short: 'Schedule', color: '#3B8FC4' },
+  { key: 'adm_family', label: 'Family Communication', short: 'Families', color: '#CF4F84' },
+  { key: 'adm_records', label: 'Records & Privacy', short: 'Records', color: '#4F8C86' },
+  { key: 'adm_finance', label: 'Finance & Billing', short: 'Finance', color: '#C8901A' },
+  { key: 'adm_team', label: 'Team & HR Support', short: 'Team', color: '#6F8A69' },
+  { key: 'adm_tools', label: 'Tools & Systems', short: 'Tools', color: '#80614C' },
+  { key: 'adm_profession', label: 'Professionalism & Ethics', short: 'Ethics', color: '#B95E44' },
+];
+export const skillsFor = (hub) => (hub === 'admin' ? ADMIN_SKILLS : SKILLS);
+export const skillLabel = (k) => [...SKILLS, ...ADMIN_SKILLS].find((s) => s.key === k)?.label || k;
 
 export const STAGES = [
   { name: 'Seedling', at: 10, h: 110 },
@@ -28,6 +39,17 @@ export const STAGES = [
   { name: 'Forest Guardian', at: 100, h: 500 },
 ];
 export const GUARDIAN = STAGES.length - 1;
+// Flower field: same points as the tree; more flowers, and more kinds to mix, as it grows.
+export const FIELD_STAGES = [
+  { name: 'Bud', at: 10, n: 2, kinds: 2 },
+  { name: 'Bloom', at: 20, n: 5, kinds: 3 },
+  { name: 'Flower patch', at: 30, n: 10, kinds: 4 },
+  { name: 'Garden', at: 40, n: 15, kinds: 5 },
+  { name: 'Meadow', at: 60, n: 20, kinds: 6 },
+  { name: 'Flower Field Keeper', at: 100, n: 28, kinds: 6 },
+];
+export const stagesFor = (hub) => (hub === 'admin' ? FIELD_STAGES : STAGES);
+export const kindsAt = (points) => FIELD_STAGES[stageOf(points)].kinds;
 export const LEAVES_PER_POINT = 10;
 
 export function stageOf(points) {
@@ -50,6 +72,7 @@ let uid = 0;
 
 // The scene as an <svg>. tree = { points, bg, looks:[6], animal }, stage optional (defaults from points).
 export function sceneSvg(tree, { stage = null, label = '' } = {}) {
+  if (tree.hub === 'admin') return fieldSvg(tree, { stage, label });
   const s = stage ?? stageOf(tree.points ?? 10);
   const b = BGS[tree.bg ?? 0] || BGS[0];
   const look = LOOKS[s][(tree.looks || [])[s] ?? 0] || LOOKS[s][0];
@@ -76,11 +99,54 @@ export function sceneSvg(tree, { stage = null, label = '' } = {}) {
   return `${g}</g></svg>`;
 }
 
+// Where flowers stand (x, ground y, size), best spots first; drawn back to front.
+const SLOTS = [
+  [440, 660, 1], [580, 664, 0.96], [300, 636, 0.84], [715, 640, 0.86], [510, 612, 0.74],
+  [175, 654, 0.92], [835, 656, 0.9], [390, 596, 0.64], [630, 598, 0.66], [505, 676, 1.08],
+  [250, 600, 0.64], [760, 602, 0.64], [80, 630, 0.8], [925, 632, 0.8], [345, 674, 1.02],
+  [665, 676, 1], [450, 575, 0.52], [565, 577, 0.52], [150, 585, 0.56], [855, 587, 0.56],
+  [50, 668, 0.95], [952, 670, 0.95], [310, 566, 0.48], [705, 568, 0.48], [235, 678, 1],
+  [780, 679, 1], [505, 560, 0.45], [40, 575, 0.5],
+];
+// The flower field scene (same size and backgrounds as the tree). tree = { points, bg, flowers:[…], animal }
+export function fieldSvg(tree, { stage = null, label = '' } = {}) {
+  const s = stage ?? stageOf(tree.points ?? 10);
+  const st = FIELD_STAGES[s];
+  const b = BGS[tree.bg ?? 0] || BGS[0];
+  const k = 1060 / b.w;
+  const picks = (tree.flowers?.length ? tree.flowers : [0, 2]).slice(0, st.kinds).filter((f) => FLOWERS[f]);
+  const id = `fl${uid++}`;
+  const gold = s === GUARDIAN;
+  const spots = SLOTS.slice(0, st.n).map((p, i) => ({ p, f: FLOWERS[picks[i % picks.length]] })).sort((a, z) => a.p[1] - z.p[1]);
+  const xs = SLOTS.slice(0, st.n).map((p) => p[0]);
+  const spread = Math.max(...xs) - Math.min(...xs);
+  let g = `<svg class="tree-scene" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(label || `${st.name} flower field`)}" xmlns="http://www.w3.org/2000/svg">
+    <defs><radialGradient id="${id}"><stop offset="0" stop-color="${gold ? '#fff3c4' : '#ffffff'}" stop-opacity="${gold ? 0.95 : 0.8}"/><stop offset=".6" stop-color="${gold ? '#fff3c4' : '#ffffff'}" stop-opacity=".4"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></radialGradient>
+    <clipPath id="c${id}"><rect width="${W}" height="${H}"/></clipPath></defs>
+    <g clip-path="url(#c${id})"><rect width="${W}" height="${H}" fill="${SKY}"/>
+    <image href="${ART}${b.file}" x="${MID - b.cx * k}" y="${BASE - b.gy * k}" width="${b.w * k}" height="${b.h * k}"/>
+    <rect width="${W}" height="${H}" fill="${SKY}" opacity=".45"/>
+    <ellipse cx="${MID}" cy="${BASE - 40}" rx="${spread / 2 + 170}" ry="${130 + st.n * 2}" fill="url(#${id})"/>`;
+  for (const { p: [x, y, z], f } of spots) {
+    const fh = 235 * z, fw = (fh * f.w) / f.h;
+    g += `<ellipse cx="${x}" cy="${y}" rx="${fw * 0.3}" ry="${5 * z}" fill="#2f4a2a" opacity=".16"/>`;
+    g += `<image href="${ART}${f.file}" x="${x - fw / 2}" y="${y - fh}" width="${fw}" height="${fh}"/>`;
+  }
+  if (s === GUARDIAN && tree.animal != null && ANIMALS[tree.animal]) {
+    const a = ANIMALS[tree.animal], ah = 165, aw = (ah * a.w) / a.h;
+    const ax = MID + 20, ay = 679;
+    g += `<ellipse cx="${ax + aw / 2}" cy="${ay}" rx="${aw * 0.4}" ry="7" fill="#2f4a2a" opacity=".18"/>`;
+    g += `<image href="${ART}${a.file}" x="${ax}" y="${ay - ah}" width="${aw}" height="${ah}"/>`;
+  }
+  return `${g}</g></svg>`;
+}
+
 // Small picture of one piece of art (for the choosers).
 export const artImg = (file, alt = '') => `<img src="${ART}${esc(file)}" alt="${esc(alt)}" loading="lazy">`;
 
 // Seven-sided skill wheel. skills = { key: points }.
-export function wheelSvg(skills) {
+export function wheelSvg(skills, hub = 'clinical') {
+  const SKILLS = skillsFor(hub);
   const vals = SKILLS.map((s) => Number(skills?.[s.key] || 0));
   const max = Math.max(5, ...vals);
   const cx = 200, cy = 165, R = 100;
@@ -91,7 +157,7 @@ export function wheelSvg(skills) {
     if (last && (`${last} ${w}`).length <= 10) acc[acc.length - 1] = `${last} ${w}`; else acc.push(w);
     return acc;
   }, []);
-  let g = `<svg class="wheel" viewBox="0 0 400 340" role="img" aria-label="Self-reflection skill wheel: ${esc(SKILLS.map((s, i) => `${s.label} ${vals[i]}`).join(', '))}">`;
+  let g = `<svg class="wheel" viewBox="0 -16 400 356" role="img" aria-label="Self-reflection skill wheel: ${esc(SKILLS.map((s, i) => `${s.label} ${vals[i]}`).join(', '))}">`;
   for (const f of [1 / 3, 2 / 3, 1]) g += `<polygon points="${SKILLS.map((_, i) => pt(i, R * f).join(',')).join(' ')}" class="wheel-ring"/>`;
   SKILLS.forEach((s, i) => {
     const [x, y] = pt(i, R);
