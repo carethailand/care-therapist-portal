@@ -1371,3 +1371,6 @@ a.lh-tool:hover { border-color: var(--line-strong); background: var(--surface-ra
 .lh-hubseg { margin-bottom: 14px; }
 .app-version-btn { cursor: pointer; }
 .app-version-btn:hover { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
+.lh-exp { display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; border-radius: 12px; background: var(--accent-soft); }
+.lh-exp .ico { flex: none; width: 18px; height: 18px; margin-top: 2px; color: var(--accent); }
+.lh-invest button:disabled { opacity: .55; cursor: default; }

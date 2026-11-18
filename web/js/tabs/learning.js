@@ -8,7 +8,7 @@ import {
   SKILLS, ADMIN_SKILLS, skillsFor, stagesFor, skillLabel, STAGES, FIELD_STAGES, GUARDIAN, LEAVES_PER_POINT, BGS, LOOKS, ANIMALS, FLOWERS,
   stageOf, progress, sceneSvg, wheelSvg, artImg,
 } from '../tree.js';
-import { rankOf, OFFICE_ROLES } from '../labels.js';
+import { rankOf, RANK_LABEL, OFFICE_ROLES } from '../labels.js';
 import { esc, fmtDate, todayLocal } from '../ui.js';
 import { loadSafmeds, myTimings, setProgress, practice, saveSet, hideSet } from '../safmeds.js';
 import { icon } from '../icons.js';
@@ -58,6 +58,8 @@ const field = () => hub === 'admin';
 const hubOfSkill = (k) => (String(k).startsWith('adm_') ? 'admin' : 'clinical');
 const inHub = (t, h = hub) => hubOfSkill(t.skill) === h;
 const canEditTopic = (t) => isTeam() && (hubOfSkill(t.skill) === 'clinical' || isGM());
+// Experience leaves by clinical rank (the database gives them; this only explains it).
+const expLeaves = () => ({ senior: 100, qcd: 200, supervisor: 300 })[rankOf(ctx.roles)] || 0;
 const reviewer = () => (field() ? 'the Portal manager' : 'your supervisors');
 
 const areaOf = (k) => [...SKILLS, ...ADMIN_SKILLS].find((s) => s.key === k);
@@ -151,7 +153,7 @@ async function drawMe(body) {
         ${field() ? `<p class="muted small lh-helping">${icon('heart-handshake')} <span><strong>Helping earns leaves too:</strong> reply to a CARE Connect message sent to Admin, or answer a leave request (+1 each, up to 3 a day · ${me.helping_today ?? 0} today).</span></p>` : ''}
         <div class="lh-side-btns">
           <button type="button" class="primary" data-act="log">${icon('book')} Log a study session</button>
-          <button type="button" class="${canInvest ? 'lh-ready' : ''}" data-act="invest">${icon('sparkles')} ${canInvest ? 'Use 10 leaves on a skill' : `${LEAVES_PER_POINT - (me.balance % LEAVES_PER_POINT)} more leaves for a skill point`}</button>
+          <button type="button" class="${canInvest ? 'lh-ready' : ''}" data-act="invest">${icon('sparkles')} ${canInvest ? `Use your leaves · ${Math.floor(me.balance / LEAVES_PER_POINT)} skill point${me.balance >= 2 * LEAVES_PER_POINT ? 's' : ''} ready` : `${LEAVES_PER_POINT - (me.balance % LEAVES_PER_POINT)} more leaves for a skill point`}</button>
         </div>
         <h3 class="lh-h3">Self-reflection skill wheel</h3>
         ${wheelSvg(me.skills, hub)}
@@ -212,6 +214,7 @@ function drawStart(body) {
             <button type="button" class="small-btn" data-inc="${s.key}" aria-label="More ${esc(s.label)}">+</button></div>`).join('')}
         </div>
         <p class="small"><span id="lh-left">10</span> points left · up to 4 in one skill</p>
+        ${expLeaves() ? `<p class="lh-exp">${icon('sparkles')} <span>As a <strong>${esc(RANK_LABEL[rankOf(ctx.roles)])}</strong> you've already learned a lot in your role: after planting you also get <strong>${expLeaves()} experience leaves</strong> (${expLeaves() / LEAVES_PER_POINT} skill points) to place where you like.</span></p>` : ''}
         <p id="lh-start-msg" class="error" hidden></p>
         <button type="button" class="primary" data-act="plant" disabled>${icon('plant-2')} ${field() ? 'Plant my flowers' : 'Plant my tree'}</button>
       </div>
@@ -229,7 +232,10 @@ function drawStart(body) {
     if (dec && pts[dec.dataset.dec] > 0) { pts[dec.dataset.dec]--; sync(); }
     if (e.target.closest('[data-act="plant"]')) {
       const b = e.target.closest('button'); b.disabled = true;
-      try { await L.start(pts); await draw(); } catch (err) {
+      try {
+        await L.start(pts); await draw();
+        if (me.balance >= LEAVES_PER_POINT && expLeaves()) { toast(`+${expLeaves()} experience leaves 🍃`); investDialog(); }
+      } catch (err) {
         const m = body.querySelector('#lh-start-msg'); m.textContent = err.message; m.hidden = false; b.disabled = false;
       }
     }
@@ -428,25 +434,46 @@ function logDialog(preset = null) {
   });
 }
 
+// Spend leaves 10 at a time. The window stays open while there are enough
+// leaves, so someone with a big bundle (e.g. experience leaves) can place many points.
 function investDialog() {
+  const before = stageOf(me.points);
+  let placed = 0;
   const d = openDlg(`<div class="lh-form">
-    <h2>Use 10 leaves</h2>
-    <p>Which skill do you want to grow? You have <strong>${me.balance}</strong> leaves.</p>
-    <div class="lh-invest">${skillsFor(hub).map((s) => `<button type="button" data-skill="${s.key}"><span>${esc(s.label)}</span><b>${me.skills?.[s.key] ?? 0} → ${(me.skills?.[s.key] ?? 0) + 1}</b></button>`).join('')}</div>
+    <h2>Use your leaves</h2>
+    <p data-left></p>
+    <div class="lh-invest" data-skills></div>
     <p class="error" data-msg hidden></p>
-    <div class="dlg-actions"><button type="button" data-cancel>Cancel</button></div>
+    <div class="dlg-actions"><button type="button" class="primary" data-cancel>Done</button></div>
   </div>`);
-  d.querySelector('[data-cancel]').addEventListener('click', closeDlg);
-  for (const b of d.querySelectorAll('[data-skill]')) b.addEventListener('click', async () => {
-    const before = stageOf(me.points);
+  const paint = () => {
+    const n = Math.floor(me.balance / LEAVES_PER_POINT);
+    d.querySelector('[data-left]').innerHTML = n
+      ? `You have <strong>${me.balance}</strong> leaves: enough for <strong>${n}</strong> skill point${n === 1 ? '' : 's'}. Tap a skill to grow it (10 leaves each).`
+      : `All used${placed ? ` · you placed ${placed} point${placed === 1 ? '' : 's'}` : ''}. ${me.balance} leaves left.`;
+    d.querySelector('[data-skills]').innerHTML = skillsFor(hub).map((s) => `<button type="button" data-skill="${s.key}" ${n ? '' : 'disabled'}>
+      <span>${esc(s.label)}</span><b>${me.skills?.[s.key] ?? 0}</b></button>`).join('');
+  };
+  paint();
+  const finish = async () => {
+    closeDlg();
+    if (!placed) return;
+    await draw();
+    const after = stageOf(me.points);
+    toast(after > before ? `Your ${field() ? 'field' : 'tree'} grew into a ${stagesFor(hub)[after].name}! ${field() ? '🌸' : '🌳'}` : `+${placed} skill point${placed === 1 ? '' : 's'}`);
+    if (after > before) celebrate(after);
+  };
+  d.querySelector('[data-cancel]').addEventListener('click', finish);
+  d.querySelector('[data-skills]').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-skill]'); if (!b || b.disabled) return;
+    for (const x of d.querySelectorAll('[data-skill]')) x.disabled = true;
     try {
       await L.invest(b.dataset.skill);
-      closeDlg();
-      await draw();
-      const after = stageOf(me.points);
-      toast(after > before ? `Your ${field() ? 'field' : 'tree'} grew into a ${stagesFor(hub)[after].name}! ${field() ? '🌸' : '🌳'}` : `+1 ${skillLabel(b.dataset.skill)}`);
-      if (after > before) celebrate(after);
-    } catch (err) { const m = d.querySelector('[data-msg]'); m.textContent = err.message; m.hidden = false; }
+      placed++;
+      me = await L.summary();
+      paint();
+      if (me.balance < LEAVES_PER_POINT) setTimeout(finish, 900);
+    } catch (err) { const m = d.querySelector('[data-msg]'); m.textContent = err.message; m.hidden = false; paint(); }
   });
 }
 

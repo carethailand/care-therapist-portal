@@ -393,3 +393,12 @@ Training & Exam now shows **QCD Training (Therapist Liaison)** and **Supervisor 
 - **Leaves:** study reflections and Done resources as before, plus **helping** (+1 each, at most 3 a day, automatic): replying to a CARE Connect message sent to Admin (once per message), answering a leave request.
 - **Portal manager** reviews admin reflections (+5), gives admin staff leaves (e.g. help outside the Portal) and manages admin topics/links (Learning Hub → Manage topics → **Admin team topics**). Supervisors / QCD don't see the admin team in Team.
 - SAFMEDS and CARE tools are hidden on the admin hub.
+
+## Step 36 — Learning Hub: experience leaves by rank (added 2026-11-18)
+
+1. **Run** `supabase/migrations/20261118003600_learning_experience_leaves.sql` (after 035). Everyone who has already planted gets their bundle straight away.
+2. **Publish** the app.
+
+After the 10-point self-check, each person gets a one-time bundle of **experience leaves** for their clinical rank, to place in the skills they choose: Therapist 0 · Senior 100 · QCD 200 · Supervisor 300 (10 leaves = 1 skill point, so Senior starts at Sprout, QCD at Sapling, Supervisor at Tree). A promotion tops it up automatically (e.g. Senior → QCD +100); it is never taken back. Shown in Recent leaves as "Experience as …". The admin team (no clinical rank) gets none for now. The "Use your leaves" window now stays open so many points can be placed in one go.
+
+**Also (P9h–j, no SQL):** flower field with layers, grass and bushes (Vecteezy 69962547); update popup also checks 4 s after opening, on returning to the window, and every 5 min (tap the version number to check now); plain topic cards (only the small area dot keeps its colour).
