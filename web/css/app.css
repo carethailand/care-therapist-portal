@@ -1374,3 +1374,7 @@ a.lh-tool:hover { border-color: var(--line-strong); background: var(--surface-ra
 .lh-exp { display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; border-radius: 12px; background: var(--accent-soft); }
 .lh-exp .ico { flex: none; width: 18px; height: 18px; margin-top: 2px; color: var(--accent); }
 .lh-invest button:disabled { opacity: .55; cursor: default; }
+.lh-wheel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.lh-wheel-head .lh-h3 { margin: 0; }
+.lh-alloc b.lh-changed { color: var(--clay); }
+.lh-step { margin: 0 0 10px; }

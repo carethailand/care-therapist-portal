@@ -402,3 +402,17 @@ Training & Exam now shows **QCD Training (Therapist Liaison)** and **Supervisor 
 After the 10-point self-check, each person gets a one-time bundle of **experience leaves** for their clinical rank, to place in the skills they choose: Therapist 0 · Senior 100 · QCD 200 · Supervisor 300 (10 leaves = 1 skill point, so Senior starts at Sprout, QCD at Sapling, Supervisor at Tree). A promotion tops it up automatically (e.g. Senior → QCD +100); it is never taken back. Shown in Recent leaves as "Experience as …". The admin team (no clinical rank) gets none for now. The "Use your leaves" window now stays open so many points can be placed in one go.
 
 **Also (P9h–j, no SQL):** flower field with layers, grass and bushes (Vecteezy 69962547); update popup also checks 4 s after opening, on returning to the window, and every 5 min (tap the version number to check now); plain topic cards (only the small area dot keeps its colour).
+
+## Step 37 — Learning Hub: move points on your own skill wheel (added 2026-11-18)
+
+1. **Run** `supabase/migrations/20261118003700_learning_rebalance.sql` (after 036).
+2. **Publish** the app.
+
+Learning Hub → **Move points** (next to "Self-reflection skill wheel"): take points from one skill (−) and give them to another (+), then Save. The total stays the same, so the tree / flower field never shrinks. Only the person themselves can do this, any time; no history is kept.
+
+## Step 38 — Learning Hub: leaves for years at CARE (added 2026-11-18)
+
+1. **Run** `supabase/migrations/20261118003800_learning_years_leaves.sql` (after 037). Everyone who has already planted gets theirs straight away.
+2. **Publish** the app.
+
+Every full year at CARE (from the **start date** in People) = **5 skill points (50 leaves)**, for everyone at CARE including the admin team, on top of the rank bundle (Senior 10 · QCD 20 · Supervisor 30 points). All past years count, so a Supervisor with 10 years starts in Grove and one with 12+ at Forest Guardian. Each work anniversary adds 50 more, picked up when the person next opens the Learning Hub (a 🎉 note shows). Never taken back; correcting a start date upwards tops it up. Shown in Recent leaves as "N years at CARE". The "Use your leaves" window offers 1 or 5 points a tap.
