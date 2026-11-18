@@ -1328,3 +1328,18 @@ a.lh-tool:hover { border-color: var(--line-strong); background: var(--surface-ra
 .mc-note .ico { width: 15px; height: 15px; vertical-align: -3px; margin-right: 4px; }
 .tm-card .tm-edit-link, .mc-preview .tm-card { }
 .chip.role-manager { border-color: #80614C; color: #80614C; }
+
+/* CARE Connect: inboxes as tabs (P9b) */
+.od-inboxes { display: grid; gap: 12px; }
+.od-tabs { flex-wrap: wrap; justify-self: start; max-width: 100%; }
+.od-tabs button { white-space: nowrap; }
+.od-tab-n .chip { margin-left: 4px; font-size: .7rem; padding: 0 7px; }
+.od-panel > h2 { margin-top: 0; }
+.od-team-head p { margin: 0; }
+@media (max-width: 560px) { .od-tabs { border-radius: 14px; } .od-tabs button { flex: 1 1 auto; } }
+
+/* Portal manager: small GM tag (P9b) */
+.tm-gm { position: absolute; top: -2px; left: -6px; font-size: .62rem; font-weight: 700; letter-spacing: .06em; line-height: 1;
+  padding: 4px 6px; border-radius: 999px; background: var(--text); color: var(--bg); box-shadow: 0 1px 3px rgba(0,0,0,.18); }
+.badge-stack { position: relative; }
+.home-gm { top: auto; bottom: -4px; left: auto; right: -6px; }

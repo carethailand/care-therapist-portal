@@ -19,7 +19,9 @@ export function avatarHtml(p, url, cls = 'tm-photo') {
 export function cardHtml(p, { url = null, badge = {}, tree = null, isMe = false, edit = '' } = {}) {
   const rank = rankOf(p.roles);
   const office = OFFICE_ROLES.filter((r) => p.roles.includes(r));
-  const rankBadges = [...(rank ? [rank] : []), ...office.slice(0, 1)];
+  // Portal manager shows as a small "GM" tag, not a badge.
+  const rankBadges = [...(rank ? [rank] : []), ...office.filter((r) => r !== 'manager').slice(0, 1)];
+  const gm = office.includes('manager');
   const { shown, more } = cardBadges(p, badge);
   const posName = (r) => (OFFICE_ROLES.includes(r) ? roleLabel(r) : RANK_LABEL[r]);
   const treeName = tree ? STAGES[stageOf(tree.points)].name : '';
@@ -28,6 +30,7 @@ export function cardHtml(p, { url = null, badge = {}, tree = null, isMe = false,
       <div class="tm-avatar">
         ${avatarHtml(p, url)}
         ${rankBadges.map((r, i) => `<img class="tm-rank ${i ? 'tm-rank-2' : 'tm-rank-1'}" src="assets/badges/${BADGE_FILE[r]}" alt="${esc(posName(r))} badge" title="${esc(posName(r))}" width="40" height="40">`).join('')}
+        ${gm ? '<span class="tm-gm" title="Portal manager">GM</span>' : ''}
       </div>
       <p class="muted small tm-years">${p.years == null ? '' : p.years < 1 ? 'New to CARE 🌱' : `${p.years} year${p.years > 1 ? 's' : ''} at CARE`}</p>
     </div>

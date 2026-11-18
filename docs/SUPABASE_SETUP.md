@@ -369,3 +369,12 @@ Learning Hub → **SAFMEDS**: tap a set → **Learn** (flip through, no timer) o
 Channels: **#admin-leave** (new leave request, leave cancelled) · **#tx-to-admin** (CARE Connect to Admin, passed on to Admin, training place waiting for approval) · **#tx-to-sup** (CARE Connect to Supervisors & QCD, reflection / assignment to review) · **#tx-to-senior** (CARE Connect to Seniors) · **#kudos-approval** (kudos waiting). Messages say only what is waiting and from whom (never for anonymous messages), with a link: no message text, reasons or scores.
 
 Making a webhook: Slack → **Tools & settings → Manage apps** (or api.slack.com/apps) → create an app "CARE Portal" for the CareThailand workspace → **Incoming Webhooks** → On → **Add New Webhook to Workspace** → pick the channel → copy the address. Repeat for each channel. Whoever adds the webhook must be in that channel (private channels); it keeps working after they leave. Keep the addresses private.
+
+## Step 34 — QCD and Supervisor Training "Coming soon" (added 2026-11-18)
+
+1. **Run** `supabase/migrations/20261118003400_training_coming_soon.sql` (after 033; it is safe before or after the app is published).
+2. **Publish** the app.
+
+Training & Exam now shows **QCD Training (Therapist Liaison)** and **Supervisor Training (Case Manager / Supervisor)** to everyone at CARE, marked **Talk to Admin**: the steps and what each one needs, with no lessons yet and nobody can be assigned. People who already hold the rank see "Completed before the Portal" as before. Supervisor step details say "Talk to the Admin team for details" until Songg sends them. When a path is ready, its content is added and `coming_soon` is switched off.
+
+**Also (P9a–c, no SQL):** the last journey stage is now **Thriving**; office-only staff see their role on Home instead of the journey track; Portal managers show a small **GM** tag on their photo instead of a badge; CARE Connect inboxes (My inbox · Admin · Supervisors · Seniors) are tabs.

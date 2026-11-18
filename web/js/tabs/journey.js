@@ -4,6 +4,7 @@ import { loadJourney } from '../data.js';
 import { esc, fmtDate, titleCase, todayLocal } from '../ui.js';
 import { milestones, isLongest, milestoneEligible, cardBadges, SHOW_MAX } from '../milestones.js';
 import { ART_CREDIT } from '../stickers.js';
+import { rankOf } from '../labels.js';
 import { icon } from '../icons.js';
 import { directory, setProfile, photoUrls, squarePhoto, uploadPhoto, removePhoto, badges as loadBadges, setShowcase } from '../team-data.js';
 import { trees as loadTrees } from '../learning-data.js';
@@ -21,7 +22,7 @@ const TRACK_STAGES = {
     ['roleplay_orientation', 'Role-play & orientation'],
     ['field_overlap', 'Field overlap'],
     ['probation', 'Probation'],
-    ['active', 'Therapist'],
+    ['active', 'Thriving'],
   ],
   abat: [
     ['online_course', 'Online course + exam'],
@@ -39,7 +40,7 @@ export async function render(panel, { me, roles = [] }) {
         <div><dt>Started</dt><dd>${esc(fmtDate(me.start_date))}</dd></div>
         ${staff ? `<div><dt>Probation ends</dt><dd>${esc(fmtDate(me.probation_end_date))}</dd></div>` : ''}
       </dl>
-      ${stageTrack(me.stage, me.track)}
+      ${rankOf(roles) ? stageTrack(me.stage, me.track) : ''}
     </section>
     ${milestoneEligible(me, roles) ? `<section class="card" id="mc-card" hidden>
       <div class="mc-head"><h2>My team card</h2><span class="muted small">This is how everyone sees you on Our Team.</span></div>

@@ -14,7 +14,7 @@ const LEVELS = {
     ['roleplay_orientation', 'Trainee'],
     ['field_overlap', 'Field trainee'],
     ['probation', 'Probation'],
-    ['active', 'Therapist'],
+    ['active', 'Thriving'],
   ],
   abat: [
     ['online_course', 'Learner'],
@@ -39,7 +39,7 @@ export async function render(panel, { me, roles, visible = [], canAdmin = false 
   const idx = levels.findIndex(([k]) => k === me.stage);
   const rank = rankOf(roles);
   const office = OFFICE_ROLES.filter((r) => roles.includes(r));
-  const badgeRoles = [...(rank ? [rank] : []), ...office.slice(0, 1)];
+  const badgeRoles = [...(rank ? [rank] : []), ...office.filter((r) => r !== 'manager').slice(0, 1)];  // Portal manager = small GM tag
   const tiles = visible.filter((m) => m.enabled);
 
   panel.innerHTML = `
@@ -53,15 +53,17 @@ export async function render(panel, { me, roles, visible = [], canAdmin = false 
             <div>
               ${me.stage === 'exited'
                 ? '<p class="level-kicker">Alumni</p><h2>Thank you for being part of CARE</h2>'
+                : !rank && office.length
+                  ? `<p class="level-kicker">Your role</p><h2>${esc(office.map(roleLabel).join(' · '))}</h2>`
                 : idx >= 0
                   ? `<p class="level-kicker">Level ${idx + 1} of ${levels.length}</p><h2>${esc(levels[idx][1])}</h2>`
                   : `<p class="level-kicker">Your journey</p><h2>${esc(rank ? RANK_LABEL[rank] : 'Welcome')}</h2>`}
               ${rank ? `<p class="muted small">${esc(RANK_LABEL[rank])}${office.length ? ` · ${office.map(roleLabel).join(' · ')}` : ''}</p>` : ''}
             </div>
             ${badgeRoles.length ? `<div class="badge-stack">${badgeRoles.map((r) => `
-              <img class="badge rim-${esc(r)}" src="assets/badges/${BADGE_FILE[r]}" alt="${esc(OFFICE_ROLES.includes(r) ? roleLabel(r) : RANK_LABEL[r])} badge">`).join('')}</div>` : ''}
+              <img class="badge rim-${esc(r)}" src="assets/badges/${BADGE_FILE[r]}" alt="${esc(OFFICE_ROLES.includes(r) ? roleLabel(r) : RANK_LABEL[r])} badge">`).join('')}${office.includes('manager') ? '<span class="tm-gm home-gm" title="Portal manager">GM</span>' : ''}</div>` : ''}
           </div>
-          ${idx >= 0 && me.stage !== 'exited' ? `
+          ${idx >= 0 && rank && me.stage !== 'exited' ? `
             <ol class="level-track" aria-label="Journey progress">
               ${levels.map(([k, label], i) => `<li class="${i < idx ? 'done' : i === idx ? 'current' : ''}" title="${esc(label)}"${i === idx ? ' aria-current="step"' : ''}><span class="sr-only">${esc(label)}</span></li>`).join('')}
             </ol>

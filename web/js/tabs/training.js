@@ -97,15 +97,17 @@ function previewPrograms(current) {
   if (!staff) return [];
   // Programmes that lead to a rank are previewed only by the rank below
   // (Senior training: Junior therapists; QCD training: Senior therapists).
+  // "Coming soon" outlines are shown to everyone who hasn't done them yet.
   const fromRank = { senior: 'therapist', qcd: 'senior' };
+  const legacy = legacyPrograms(current).map((p) => p.key);
   return content.programs.filter((p) => p.enabled && !current.some((e) => e.program_key === p.key)
-    && (!p.promotes_to || rankOf(ctx.roles) === fromRank[p.promotes_to]));
+    && (p.coming_soon ? !legacy.includes(p.key) : (!p.promotes_to || rankOf(ctx.roles) === fromRank[p.promotes_to])));
 }
 
 function drawHome() {
   const current = myCurrent();
   const previews = previewPrograms(current);
-  const teamPrograms = content.programs.filter((p) => p.enabled);
+  const teamPrograms = content.programs.filter((p) => p.enabled && !p.coming_soon);
   panelEl.innerHTML = `
     <div id="my-training">
     ${current.map(programCard).join('')}
@@ -416,7 +418,7 @@ function courseHero(prog, enr, statusChip) {
       ${mods.length ? `<span class="pill">${icon('book')} ${mods.length} lessons${hrs ? ` · about ${Math.round(hrs)} h` : ''}</span>` : ''}
       ${vids.length ? `<span class="pill">${icon('player-play')} ${vids.length} videos</span>` : ''}
       ${nextSes ? `<span class="pill next">${icon('calendar')} Next: ${esc(fmtDay(nextSes.held_on))}${nextSes.start_time ? `, ${esc(fmtTime(nextSes.start_time))}` : ''}</span>` : ''}
-      ${steps.filter((x) => x.kind === 'session').map((x) => `<span class="pill">${icon('school')} ${x.config?.target_hours ?? ''} h in-person training</span>`).join('')}
+      ${steps.filter((x) => x.kind === 'session').map((x) => `<span class="pill">${icon('school')} ${x.config?.target_hours ? `${x.config.target_hours} h in-person training` : 'In-person training'}</span>`).join('')}
       ${due}
     </div>
     ${enr ? `<div class="course-progress" data-progress="${esc(enr.id)}">
@@ -431,6 +433,7 @@ function courseHero(prog, enr, statusChip) {
 
 function previewCard(prog) {
   const steps = stepsOf(prog.key);
+  if (prog.coming_soon) return comingSoonCard(prog, steps);
   return `
     <section class="card course preview-card">
       ${courseHero(prog, null, '<span class="chip">Preview</span>')}
@@ -442,7 +445,18 @@ function previewCard(prog) {
     </section>`;
 }
 
-const PROGRAM_BADGE = { senior: 'senior-training', qcd: 'qcd-training' };
+// A training path that isn't running yet: its steps and requirements, nothing to do.
+function comingSoonCard(prog, steps) {
+  return `
+    <section class="card course preview-card soon-card">
+      ${courseHero(prog, null, '<span class="chip warn">Talk to Admin</span>')}
+      <p class="lock-note">${icon('message-heart')} Interested in this path? Talk to the Admin team for details and next steps. Here are its steps and what each one needs.</p>
+      <ol class="csteps" data-steps="${esc(prog.key)}"${courseOpen.has(prog.key) ? '' : ' hidden'}>${steps.map((s, i) => stepShell(s, i + 1, 'todo',
+        s.details ? `<p class="small">${esc(s.details)}</p>` : '', '', true)).join('')}</ol>
+    </section>`;
+}
+
+const PROGRAM_BADGE = { senior: 'senior-training', qcd: 'qcd-training', supervisor: 'supervisor' };
 const RANK_ORDER = ['applicant', 'therapist', 'senior', 'qcd', 'supervisor'];
 
 // A finished programme: one calm card (badge, date, certificate); the full

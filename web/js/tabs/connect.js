@@ -67,11 +67,19 @@ export async function render(panel, context) {
     <div class="od-stack">
     <section class="card" id="od-write"><p class="muted">Loading…</p></section>
     ${isStaff() ? '<section class="card" id="od-board"></section>' : ''}
-    <section class="card" id="od-mine"><p class="muted">Loading…</p></section>
     ${has('admin', 'manager', 'supervisor') ? '<section class="card" id="od-kudosq" hidden></section>' : ''}
-    <div id="od-teams">${myTeams().map((t) => `<section class="card od-team" id="od-team-${t.key}"><p class="muted">Loading ${esc(t.label)}…</p></section>`).join('')}</div>
+    <section class="card od-inboxes">
+      ${myTeams().length ? `<div class="seg od-tabs" role="tablist" aria-label="Inboxes">
+        <button type="button" role="tab" data-inbox="mine">My inbox</button>
+        ${myTeams().map((t) => `<button type="button" role="tab" data-inbox="${t.key}">${esc(t.label)}<span class="od-tab-n" data-n="${t.key}"></span></button>`).join('')}
+      </div>` : ''}
+      <div class="od-panel" id="od-mine" data-panel="mine"><p class="muted">Loading…</p></div>
+      ${myTeams().map((t) => `<div class="od-panel od-team" id="od-team-${t.key}" data-panel="${t.key}" hidden><p class="muted">Loading ${esc(t.label)}…</p></div>`).join('')}
+    </section>
     </div>
     <dialog id="od-dlg" class="dlg od-dlg"></dialog>`;
+  for (const b of panel.querySelectorAll('[data-inbox]')) b.addEventListener('click', () => showInbox(b.dataset.inbox));
+  showInbox(inboxTab);
   try { staff = await loadPeople(); } catch { staff = []; }
   drawWrite();
   await refreshAll();
@@ -82,6 +90,15 @@ async function refreshAll() {
   try { visible = await visibleMessages(); } catch { visible = []; }
   await Promise.all([drawMine(visible), drawKudosQueue(), drawBoard()]);
   for (const t of myTeams()) drawTeam(t, visible.filter(t.match));
+}
+
+// Inboxes are tabs: My inbox, then each team inbox this person belongs to.
+let inboxTab = 'mine';
+function showInbox(key) {
+  if (key !== 'mine' && !myTeams().some((t) => t.key === key)) key = 'mine';
+  inboxTab = key;
+  for (const b of panelEl.querySelectorAll('[data-inbox]')) b.setAttribute('aria-selected', String(b.dataset.inbox === key));
+  for (const p of panelEl.querySelectorAll('[data-panel]')) p.hidden = p.dataset.panel !== key;
 }
 
 // The team inboxes this person has, in this order.
@@ -230,7 +247,7 @@ async function drawMine(visible) {
   const toMeList = visible.filter(toMe);
   const all = [...sent.map((m) => ({ m, mode: 'mine' })), ...toMeList.map((m) => ({ m, mode: 'to-me' }))]
     .sort((a, b) => String(b.m.created_at).localeCompare(String(a.m.created_at)));
-  box.innerHTML = `<h2>Personal inbox</h2>
+  box.innerHTML = `${myTeams().length ? '' : '<h2>My inbox</h2>'}
     ${all.length ? `<ul class="od-list">${all.map((x) => rowHtml(x.m, { mode: x.mode })).join('')}</ul>`
       : '<p class="muted">Messages you send, and messages sent to you personally, appear here with their replies.</p>'}`;
   wireOpen(box, all.map((x) => x.m));
@@ -244,9 +261,11 @@ function drawTeam(team, list) {
   const late = open.filter(waitingTooLong).length;
   const shown = list.filter((m) => (f.status === 'all' || (f.status === 'open' ? m.status !== 'resolved' : m.status === 'resolved'))
     && (!f.kind || m.kind === f.kind));
+  const n = panelEl.querySelector(`[data-n="${team.key}"]`);
+  if (n) n.innerHTML = open.length ? ` <span class="chip${late ? ' warn' : ''}">${open.length}</span>` : '';
   box.innerHTML = `
-    <div class="page-head">
-      <h2>${esc(team.label)} ${open.length ? `<span class="chip">${open.length} open</span>` : ''} ${late ? `<span class="chip warn">${late} over ${REPLY_DAYS} days</span>` : ''}</h2>
+    <div class="page-head od-team-head">
+      <p class="muted small">${open.length ? `${open.length} open` : 'Nothing open'}${late ? ` · <strong>${late} waiting over ${REPLY_DAYS} days</strong>` : ''}</p>
       <span class="spacer"></span>
       <select data-f="kind" aria-label="Kind"><option value="">All kinds</option>${Object.entries(KIND).map(([k, [l]]) => `<option value="${k}"${f.kind === k ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>
       <select data-f="status" aria-label="Show">

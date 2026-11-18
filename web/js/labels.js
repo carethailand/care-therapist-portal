@@ -7,7 +7,7 @@ export const STAGE_LABEL = {
   roleplay_orientation: 'Role-play + orientation',
   field_overlap: 'Field overlap (sessions 1–8)',
   probation: 'Probation',
-  active: 'Active therapist',
+  active: 'Thriving',
   certified: 'Certified',
   exited: 'Left',
 };
