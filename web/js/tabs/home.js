@@ -59,7 +59,7 @@ export async function render(panel, { me, roles, visible = [], canAdmin = false 
               ${rank ? `<p class="muted small">${esc(RANK_LABEL[rank])}${office.length ? ` · ${office.map(roleLabel).join(' · ')}` : ''}</p>` : ''}
             </div>
             ${badgeRoles.length ? `<div class="badge-stack">${badgeRoles.map((r) => `
-              <img class="badge rim-${esc(r)}" src="assets/badges/${BADGE_FILE[r]}" alt="${esc(r === 'admin' || r === 'hr' ? roleLabel(r) : RANK_LABEL[r])} badge">`).join('')}</div>` : ''}
+              <img class="badge rim-${esc(r)}" src="assets/badges/${BADGE_FILE[r]}" alt="${esc(OFFICE_ROLES.includes(r) ? roleLabel(r) : RANK_LABEL[r])} badge">`).join('')}</div>` : ''}
           </div>
           ${idx >= 0 && me.stage !== 'exited' ? `
             <ol class="level-track" aria-label="Journey progress">

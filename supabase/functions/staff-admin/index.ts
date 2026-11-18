@@ -6,7 +6,7 @@
 // which must never be in the web page.
 //
 // Who may call it:
-//   - admin: anyone
+//   - admin or Portal manager: anyone
 //   - hr:    only people whose roles are just 'applicant' / 'therapist' (or none yet).
 //            HR can't create or reset a login for a senior/qcd/supervisor/hr/admin,
 //            otherwise HR could sign in as someone with more access.
@@ -87,7 +87,7 @@ Deno.serve(async (req) => {
     .eq('auth_user_id', userData.user.id)
     .maybeSingle();
   const callerRoles: string[] = (caller?.staff_roles ?? []).map((r: { role: string }) => r.role);
-  const isAdmin = callerRoles.includes('admin');
+  const isAdmin = callerRoles.includes('admin') || callerRoles.includes('manager');   // Portal manager = admin here
   const isHR = callerRoles.includes('hr');
   if (!caller || caller.status === 'exited' || (!isAdmin && !isHR)) {
     return reply(req, 403, { error: 'Only admin or HR can do this.' });

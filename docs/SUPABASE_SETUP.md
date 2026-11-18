@@ -351,3 +351,21 @@ CARE tools show as a row at the top of the Learning Hub (a swipeable strip on ph
 Learning Hub → **SAFMEDS**: tap a set → **Learn** (flip through, no timer) or **1-minute timing** (shuffled; say the answer, tap the card, mark Got it / Missed; Space / → / ← on a keyboard). The database saves the counts and decides leaves: 1 leaf for the first timing of the day; a set is **mastered** when its aim (default 30+ correct, 2 or fewer missed) is met on 3 different days, +5 leaves once per set. Each set shows the best score, aim dots (x of 3) and a chart of past timings. Supervisors / QCD / admin edit sets under **Manage topics → SAFMEDS sets** (name, aim, cards; Remove hides a set and keeps past timings).
 
 **Also (P8n, no SQL):** Training → Trainees → Open a person → **Remove from this course** (admin, active places). The place is marked Withdrawn (kept for the record, hidden from the list); they can be assigned again later.
+
+## Step 32 — Portal manager role + supervisors approve kudos (added 2026-11-18)
+
+1. **Run** `supabase/migrations/20261118003200_portal_manager_a.sql` **on its own** (adds the role name).
+2. **Run** `supabase/migrations/20261118003210_portal_manager_b.sql`.
+3. **Deploy** the updated `staff-admin` Edge Function (Portal managers can make logins and sign-in links). Verify JWT stays OFF.
+4. **Publish** the app.
+
+**Portal manager (GM)** is an office role: everything an Admin can do to run the Portal (People, logins, sign-in links, export, tabs, training content and approvals, promotions, Learning Hub, kudos), **except** leave details (requests, reasons, sessions, allowances, decisions) and the **Admin team inbox** in CARE Connect, which stay with Admin (and HR). Give yourself **Portal manager first**, save, then untick Admin (you can't remove your last control role). **Supervisors** can now approve kudos too.
+
+## Step 33 — Slack notifications (added 2026-11-18)
+
+1. **Run** `supabase/migrations/20261118003300_slack_notifications.sql`.
+2. In Slack, make an **incoming webhook** for each channel (see below), then paste the addresses into the private file `Portal people/Slack webhooks (setup).sql` and run it. It ends by posting a hello to each channel.
+
+Channels: **#admin-leave** (new leave request, leave cancelled) · **#tx-to-admin** (CARE Connect to Admin, passed on to Admin, training place waiting for approval) · **#tx-to-sup** (CARE Connect to Supervisors & QCD, reflection / assignment to review) · **#tx-to-senior** (CARE Connect to Seniors) · **#kudos-approval** (kudos waiting). Messages say only what is waiting and from whom (never for anonymous messages), with a link: no message text, reasons or scores.
+
+Making a webhook: Slack → **Tools & settings → Manage apps** (or api.slack.com/apps) → create an app "CARE Portal" for the CareThailand workspace → **Incoming Webhooks** → On → **Add New Webhook to Workspace** → pick the channel → copy the address. Repeat for each channel. Whoever adds the webhook must be in that channel (private channels); it keeps working after they leave. Keep the addresses private.

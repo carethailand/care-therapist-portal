@@ -35,9 +35,14 @@ const ADMIN_PAGES = {
   staff: { label: 'People', load: () => import(`./admin/staff.js?v=${APP_VERSION}`), roles: ['admin', 'hr'] },
   training: { label: 'Training content', load: () => import(`./admin/training.js?v=${APP_VERSION}`), roles: ['admin'] },
 };
-const canAdmin = () => state.roles.some((r) => r === 'admin' || r === 'hr');
+const canAdmin = () => state.ui.some((r) => r === 'admin' || r === 'hr');
 
-const state = { me: null, roles: [], modules: [], visible: [] };
+const state = { me: null, roles: [], ui: [], modules: [], visible: [] };
+// A Portal manager runs the Portal like an admin (state.ui adds 'admin'), but
+// leave and CARE Connect always get the real roles: leave details and the Admin
+// team inbox stay with Admin / HR. The database enforces the same rules.
+const REAL_ROLE_TABS = ['leave', 'connect', 'home', 'journey'];
+const rolesFor = (key) => (REAL_ROLE_TABS.includes(key) ? state.roles : state.ui);
 
 // After an update, a page's new code can meet an OLD saved copy of a shared
 // file (browsers keep them up to 10 minutes) and fail to load. So when the
@@ -123,12 +128,13 @@ async function enterApp(user) {
       return showView('view-unlinked');
     }
     [state.roles, state.modules] = await Promise.all([loadRoles(state.me.id), loadModules()]);
+    state.ui = state.roles.includes('manager') && !state.roles.includes('admin') ? [...state.roles, 'admin'] : state.roles;
   } catch (e) {
     $('#load-error').textContent = e.message || String(e);
     return showView('view-error');
   }
 
-  const isAdmin = state.roles.includes('admin');
+  const isAdmin = state.ui.includes('admin');
   state.visible = state.modules.filter(
     (m) => (m.enabled && m.roles.some((r) => state.roles.includes(r))) || isAdmin,
   );
@@ -157,17 +163,17 @@ async function route() {
 
   if (want.startsWith('admin/')) {
     const page = ADMIN_PAGES[want.slice(6)];
-    if (page && state.roles.some((r) => page.roles.includes(r))) {
+    if (page && state.ui.some((r) => page.roles.includes(r))) {
       for (const a of document.querySelectorAll('#tabs a')) a.removeAttribute('aria-current');
       $('#admin-btn').setAttribute('aria-current', 'page');
       const key = want.slice(6);
-      const mine = Object.entries(ADMIN_PAGES).filter(([, pg]) => state.roles.some((r) => pg.roles.includes(r)));
+      const mine = Object.entries(ADMIN_PAGES).filter(([, pg]) => state.ui.some((r) => pg.roles.includes(r)));
       panel.innerHTML = `${mine.length > 1 ? `<nav class="subnav" aria-label="Admin pages">${mine.map(([k, pg]) =>
         `<a href="#/admin/${k}"${k === key ? ' aria-current="page"' : ''}>${esc(pg.label)}</a>`).join('')}</nav>` : ''}
         <div id="admin-page"><p class="muted">Loading…</p></div>`;
       try {
         const mod = await loadPage(page.load);
-        await mod.render(panel.querySelector('#admin-page'), { me: state.me, roles: state.roles });
+        await mod.render(panel.querySelector('#admin-page'), { me: state.me, roles: state.ui });
       } catch (e) {
         panel.querySelector('#admin-page').innerHTML = `<p class="error">This page didn't load. Please refresh (Cmd+Shift+R). ${esc(e.message)}</p>`;
       }
@@ -183,7 +189,7 @@ async function route() {
   panel.innerHTML = '<p class="muted">Loading…</p>';
   try {
     const mod = await loadPage(TABS[module.key] || comingSoon);
-    await mod.render(panel, { me: state.me, roles: state.roles, module, visible: state.visible, canAdmin: canAdmin() });
+    await mod.render(panel, { me: state.me, roles: rolesFor(module.key), module, visible: state.visible, canAdmin: canAdmin() });
   } catch (e) {
     panel.innerHTML = `<section class="card"><p class="error">This page didn't load. Please refresh (Cmd+Shift+R).</p><p class="muted small">${esc(e.message)}</p></section>`;
   }

@@ -21,7 +21,7 @@ export function cardHtml(p, { url = null, badge = {}, tree = null, isMe = false,
   const office = OFFICE_ROLES.filter((r) => p.roles.includes(r));
   const rankBadges = [...(rank ? [rank] : []), ...office.slice(0, 1)];
   const { shown, more } = cardBadges(p, badge);
-  const posName = (r) => (r === 'admin' || r === 'hr' ? roleLabel(r) : RANK_LABEL[r]);
+  const posName = (r) => (OFFICE_ROLES.includes(r) ? roleLabel(r) : RANK_LABEL[r]);
   const treeName = tree ? STAGES[stageOf(tree.points)].name : '';
   return `<li class="tm-card${isMe ? ' is-me' : ''}${tree ? '' : ' no-tree'}">
     <div class="tm-left">

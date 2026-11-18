@@ -16,7 +16,7 @@ export const stageLabel = (s) => STAGE_LABEL[s] ?? titleCase(s ?? '');
 export const TRACK_LABEL = { care_hire: 'CARE staff / new hire', abat: 'ABAT course only (not CARE staff)' };
 export const trackLabel = (t) => TRACK_LABEL[t] ?? titleCase(t ?? '');
 
-export const roleLabel = (r) => (r === 'hr' || r === 'qcd' ? r.toUpperCase() : titleCase(r));
+export const roleLabel = (r) => (r === 'hr' || r === 'qcd' ? r.toUpperCase() : r === 'manager' ? 'Portal manager' : titleCase(r));
 
 // Clinical RANK: one per person, lowest to highest. Each rank includes what
 // the ranks below it can do (database rules list every rank that qualifies).
@@ -25,9 +25,11 @@ export const roleLabel = (r) => (r === 'hr' || r === 'qcd' ? r.toUpperCase() : t
 //   senior     Senior therapist: covers any case; new hires overlap with them
 //   qcd        Quality Control Department: role-play training, overlap forms, evaluations
 //   supervisor supervises therapists
-// OFFICE roles sit outside the ladder and can be added to any rank: hr, admin.
+// OFFICE roles sit outside the ladder and can be added to any rank: hr, admin, manager.
+// manager = Portal manager (GM): runs the Portal like an admin, but doesn't see
+// leave details or the Admin team inbox in CARE Connect (those stay with Admin / HR).
 export const RANKS = ['applicant', 'therapist', 'senior', 'qcd', 'supervisor'];
-export const OFFICE_ROLES = ['hr', 'admin'];
+export const OFFICE_ROLES = ['hr', 'admin', 'manager'];
 export const RANK_LABEL = {
   applicant: 'Applicant',
   therapist: 'Junior therapist',
@@ -51,7 +53,7 @@ export const rolesText = (roles) => displayRoles(roles).map((r) => r.label).join
 // Badge artwork per rank / office role (assets/badges/, credit in CREDITS.md).
 export const BADGE_FILE = {
   applicant: 'Applicant.png', therapist: 'Junior.png', senior: 'Senior.png',
-  qcd: 'QCD.png', supervisor: 'Supervisor.png', hr: 'Admin.png', admin: 'Admin.png',
+  qcd: 'QCD.png', supervisor: 'Supervisor.png', hr: 'Admin.png', admin: 'Admin.png', manager: 'Admin.png',
 };
 
 export const statusLabel = (s) => (s === 'exited' ? 'Left CARE' : titleCase(s ?? ''));

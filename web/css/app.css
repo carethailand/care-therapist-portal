@@ -1327,3 +1327,4 @@ a.lh-tool:hover { border-color: var(--line-strong); background: var(--surface-ra
 .mc-note { margin: 0; display: block; }
 .mc-note .ico { width: 15px; height: 15px; vertical-align: -3px; margin-right: 4px; }
 .tm-card .tm-edit-link, .mc-preview .tm-card { }
+.chip.role-manager { border-color: #80614C; color: #80614C; }

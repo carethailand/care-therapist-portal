@@ -68,7 +68,7 @@ export async function render(panel, context) {
     <section class="card" id="od-write"><p class="muted">Loading…</p></section>
     ${isStaff() ? '<section class="card" id="od-board"></section>' : ''}
     <section class="card" id="od-mine"><p class="muted">Loading…</p></section>
-    ${has('admin') ? '<section class="card" id="od-kudosq" hidden></section>' : ''}
+    ${has('admin', 'manager', 'supervisor') ? '<section class="card" id="od-kudosq" hidden></section>' : ''}
     <div id="od-teams">${myTeams().map((t) => `<section class="card od-team" id="od-team-${t.key}"><p class="muted">Loading ${esc(t.label)}…</p></section>`).join('')}</div>
     </div>
     <dialog id="od-dlg" class="dlg od-dlg"></dialog>`;

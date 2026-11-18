@@ -25,7 +25,8 @@ const RANK_HELP = {
 };
 const OFFICE_HELP = {
   hr: 'Adds and edits staff records',
-  admin: 'Full control, including ranks and tab switches',
+  admin: 'Office admin: everything, including leave and the Admin team inbox',
+  manager: 'Portal manager (GM): runs the Portal (people, tabs, training, Learning Hub, kudos), without leave details or the Admin team inbox',
 };
 
 let ctx; // { me, roles }
@@ -89,7 +90,7 @@ export async function render(panel, context) {
   await reload();
 }
 
-const isAdmin = () => ctx.roles.includes('admin');
+const isAdmin = () => ctx.roles.includes('admin') || ctx.roles.includes('manager');
 
 async function reload() {
   const list = panelEl.querySelector('#staff-list');
@@ -225,10 +226,12 @@ function openPerson(p) {
         <legend>Office roles <span class="muted small">(optional, on top of the rank)</span></legend>
         ${OFFICE_ROLES.map((r) => {
           const locked = !isAdmin();
-          const self = !isNew && p.id === ctx.me.id && r === 'admin';
+          // You can't remove your own control: keep Admin or Portal manager (one of them).
+          const mine = roles.filter((x) => x === 'admin' || x === 'manager');
+          const self = !isNew && p.id === ctx.me.id && mine.length === 1 && mine[0] === r;
           return `<label class="check${locked ? ' locked' : ''}">
             <input type="checkbox" name="office" value="${r}"${roles.includes(r) ? ' checked' : ''}${locked || self ? ' disabled data-fixed' : ''}>
-            <span><strong>${esc(roleLabel(r))}</strong> <span class="muted small">${esc(OFFICE_HELP[r])}${locked ? ' · admin only' : ''}${self ? " · you can't remove your own admin" : ''}</span></span>
+            <span><strong>${esc(roleLabel(r))}</strong> <span class="muted small">${esc(OFFICE_HELP[r])}${locked ? ' · admin only' : ''}${self ? ' · you can’t remove your own (give yourself the other first)' : ''}</span></span>
           </label>`;
         }).join('')}
       </fieldset>
