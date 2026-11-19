@@ -610,3 +610,11 @@ Run `supabase/migrations/20261118005500_badge_gifts.sql` after Step 54, then pub
 - **Our Team → a person's card → 🎖️ Give a badge** (Supervisor, QCD, admin, Portal manager): School shadow, Supporter, Stimuli Master, Unshakable. Not to yourself; each badge once per person. Admin / Portal manager can **Take back**.
 - Hand-given badges never show as locked; the person sees them once given (card + My Journey), and can pick them for their team card.
 - **Kudos received** (THANKS badges, 1–30): thank-yous sent to you with the sender's name. Anonymous ones never count.
+
+## Step 56 — Office badges: Scheduler + Centre manager (added 2026-11-20)
+
+Run `supabase/migrations/20261118005600_admin_badges.sql` after Step 55, then publish the app (Q12).
+
+- Two more hand-given badges in Our Team → Give a badge, **only for Admin / the Portal manager**: Scheduler and Centre manager. Supervisors and QCD only see the 4 clinical ones.
+- Every hand-given badge now has a short meaning, shown when giving it, under it in My Journey, and when you point at it on a team card.
+- School shadow, Supporter, Stimuli Master and Unshakable no longer have a ribbon (the picture says it); Kudos received keeps its THANKS ribbon with the count.

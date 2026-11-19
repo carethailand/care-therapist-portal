@@ -61,8 +61,10 @@ Hand-given badges (Supervisor / QCD / admin give them in Our Team) and Kudos rec
 
 | Files | Source | Changes |
 |---|---|---|
-| `../milestones/school-shadow.svg` | "Mysterious spy character with fedora hat and sunglasses", Vecteezy ID 87539935 | Background removed; on cream in a slate-blue round frame; SHADOW ribbon |
-| `../milestones/supporter.svg` | Retro sunset logo with two cheering figures (Illustrator file; Vecteezy ID: add) | Only the round logo used (no poster or T-shirt); grunge specks removed; gold frame; SUPPORTER ribbon |
-| `../milestones/stimuli-master.svg` | Hand-drawn light bulb "IDEAS" (Illustrator file; Vecteezy ID: add) | Only the bulb and rays (no word, no yellow card); soft yellow round frame; STIMULI ribbon |
-| `../milestones/unshakable.svg` | Cowboy silhouette tipping his hat (Illustrator file; Vecteezy ID: add) | Cut at the waist; sunset background and clay frame added; UNSHAKABLE ribbon |
+| `../milestones/school-shadow.svg` | "Mysterious spy character with fedora hat and sunglasses", Vecteezy ID 87539935 | Background removed; on cream in a slate-blue round frame |
+| `../milestones/supporter.svg` | Retro sunset logo with two cheering figures (Illustrator file; Vecteezy ID: add) | Only the round logo used (no poster or T-shirt); grunge specks removed; gold frame |
+| `../milestones/stimuli-master.svg` | Hand-drawn light bulb "IDEAS" (Illustrator file; Vecteezy ID: add) | Only the bulb and rays (no word, no yellow card); soft yellow round frame |
+| `../milestones/unshakable.svg` | Cowboy silhouette tipping his hat (Illustrator file; Vecteezy ID: add) | Cut at the waist; sunset background and clay frame added |
 | `../milestones/thanked-*.svg` (kudos received) | Heart with small hearts, bottom-left of an 8-heart sheet (Illustrator file; Vecteezy ID: add) | Silver / gold / holographic round frame; stars 1 / 2 / 3; THANKS ribbon |
+| `../milestones/scheduler.svg` (office badge) | "Calendar mascot illustration holding a golden badge", Vecteezy ID 3270179 | White background removed; peach round frame |
+| `../milestones/centre-manager.svg` (office badge) | "Badge of honor icon set representing employee award", Vecteezy ID 80778759 (solid version) | Person recoloured slate blue, rosette gold; cream round frame |

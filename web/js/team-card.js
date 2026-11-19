@@ -38,7 +38,7 @@ export function cardHtml(p, { url = null, badge = {}, tree = null, isMe = false,
       <p class="tm-name">${esc(p.nickname || p.full_name)}${isMe ? ' <span class="chip stage">You</span>' : ''}</p>
       ${p.nickname ? `<p class="muted small tm-full">${esc(p.full_name)}</p>` : ''}
       ${shown.length ? `<div class="tm-badges" aria-label="Achievements">
-        ${shown.map((m) => `<img class="tm-ms" src="${esc(m.img)}" alt="${esc(m.label)}" title="${esc(m.label)}${m.word ? ` · ${esc(m.word)}` : ''}" width="44" height="44">`).join('')}
+        ${shown.map((m) => `<img class="tm-ms" src="${esc(m.img)}" alt="${esc(m.label)}" title="${esc(m.label)}${m.word ? ` · ${esc(m.word)}` : ''}${m.about ? `: ${esc(m.about)}` : ''}" width="44" height="44">`).join('')}
         ${more > 0 ? `<span class="tm-more" title="${more} more badge${more === 1 ? '' : 's'}">+${more}</span>` : ''}
       </div>` : ''}
       ${p.about ? `<p class="tm-about" tabindex="0" title="Tap to read all">${esc(p.about)}</p>` : ''}

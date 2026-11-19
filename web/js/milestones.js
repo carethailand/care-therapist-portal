@@ -31,11 +31,15 @@ const FAMILY = [
 // Hand-given badges (Portal 055): Supervisor / QCD / admin give them in Our Team.
 // They only appear once given — never as locked badges. (Art still to come: growth-seeker,
 // shining-ray, bip-master, helping-hand.)
+// `about` = what the badge means (shown when giving it, in My Journey and on the card).
+// by: 'admin' = only Admin / the Portal manager give it (office badges).
 export const GIVEN = [
-  { key: 'school-shadow', label: 'School shadow', about: 'Shadowed at school' },
-  { key: 'supporter', label: 'Supporter', about: 'Always cheering people up' },
-  { key: 'stimuli-master', label: 'Stimuli Master', about: 'Brings great stimuli ideas to the cases' },
-  { key: 'unshakable', label: 'Unshakable', about: 'Great spirit in hard sessions; calm with big behaviour' },
+  { key: 'school-shadow', label: 'School shadow', about: 'Did a great job at school: the school team was happy and gave compliments' },
+  { key: 'supporter', label: 'Supporter', about: 'Always cheering the team on: lifts people up and backs them when it’s hard' },
+  { key: 'stimuli-master', label: 'Stimuli Master', about: 'Makes creative, eye-catching stimuli that bring fresh ideas to the cases' },
+  { key: 'unshakable', label: 'Unshakable', about: 'Great spirit in hard sessions: no complaints, calm with big behaviour, focused on solutions' },
+  { key: 'scheduler', label: 'Scheduler', about: 'Keeps CARE’s schedule running smoothly: sessions, cover and changes, with great attention to detail', by: 'admin' },
+  { key: 'centre-manager', label: 'Centre manager', about: 'Leads the CARE centre and the office team, keeping everything running well', by: 'admin' },
 ];
 export const givenImg = (key) => file(key);
 // Every achievement for the collection: for the 1/5/10 families, the highest
@@ -50,7 +54,7 @@ function achievements(a = {}, clinical = true) {
     out.push({ key: 'safmeds', label: 'SAFMEDS master', img: file('safmeds'), earned: !!a.safmeds, on: null, lockText: 'Master a SAFMEDS set' });
   }
   for (const g of GIVEN) {
-    if (Number(a.gifts?.[g.key]) > 0) out.push({ key: g.key, label: g.label, img: file(g.key), earned: true, on: null, lockText: 'Given' });
+    if (Number(a.gifts?.[g.key]) > 0) out.push({ key: g.key, label: g.label, img: file(g.key), earned: true, on: null, lockText: 'Given', about: g.about });
   }
   for (const f of FAMILY) {
     const have = Number(a[f.key]) || 0;
@@ -150,7 +154,7 @@ export async function isLongest(me) {
 // 5 to show; badges not earned are never shown, even if chosen.
 // ---------------------------------------------------------------------------
 export const SHOW_MAX = 5;
-const ACH_KEY = /^(abat|safmeds|(resources|logs|kudos|thanked)-\d+|school-shadow|supporter|stimuli-master|unshakable)$/;   // newest is shown with longest
+const ACH_KEY = /^(abat|safmeds|(resources|logs|kudos|thanked)-\d+|school-shadow|supporter|stimuli-master|unshakable|scheduler|centre-manager)$/;   // newest is shown with longest
 const TRAINING = [
   { key: 'supervisor', label: 'Supervisor Training' },
   { key: 'qcd-training', label: 'QCD Training' },
@@ -172,7 +176,7 @@ export function earnedBadges(p, extra = {}) {
     if (p.years != null && p.years >= n) out.push({ key: `year-${n}`, years: n, img: file(`year-${n}`), label: `${n} year${n > 1 ? 's' : ''} at CARE`, word: WORD[n] || '' });
   }
   if (p.probation_passed) out.push({ key: 'probation', img: file('probation'), label: 'Passed probation' });
-  out.push(...achievements(extra, THERAPIST_RANKS.includes(r)).filter((m) => m.earned).map(({ key, img, label, word }) => ({ key, img, label, word })));
+  out.push(...achievements(extra, THERAPIST_RANKS.includes(r)).filter((m) => m.earned).map(({ key, img, label, word, about }) => ({ key, img, label, word, about })));
   return out;
 }
 

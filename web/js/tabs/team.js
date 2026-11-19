@@ -70,7 +70,7 @@ export async function render(panel, ctx) {
     dlg.innerHTML = `<div class="lh-form">
       <h2>Give ${esc(name)} a badge</h2>
       <p class="muted small">Pick one. ${esc(name)} sees it on their card and in My Journey straight away. Each badge can be given once.</p>
-      <ul class="tm-give">${GIVEN.map((g) => {
+      <ul class="tm-give">${GIVEN.filter((g) => g.by !== 'admin' || has('admin', 'manager')).map((g) => {
         const got = Number(held[g.key]) > 0;
         return `<li><img src="${givenImg(g.key)}" alt="" width="64" height="64">
           <span><strong>${esc(g.label)}</strong><br><span class="muted small">${esc(g.about)}</span></span>
