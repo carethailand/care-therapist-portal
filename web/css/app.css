@@ -1504,3 +1504,5 @@ a.lh-tool:hover { border-color: var(--line-strong); background: var(--surface-ra
   .sv-item { flex-direction: column; align-items: stretch; }
   .sv-pick { justify-content: flex-end; }
 }
+.sv-grouphead { margin: 14px 0 6px; font-weight: 700; font-size: .85rem; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.sv-grouphead:first-child { margin-top: 0; }

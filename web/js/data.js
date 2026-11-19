@@ -1,6 +1,7 @@
 // Reads for the logged-in person. Row Level Security on the server decides
 // what each person may see — these queries never try to filter by role.
 import { supa } from './supabase.js';
+import { sortByName } from './ui.js';
 
 export async function loadMe(authUserId) {
   const { data, error } = await supa
@@ -41,7 +42,7 @@ export async function listStaff() {
     .select(`id,auth_user_id,email,full_name,nickname,employee_no,department,track,stage,status,accepted_on,start_date,probation_end_date,exited_on,legacy_training,binder_user_id,created_at,updated_at,${ROLES_JOIN}`)
     .order('full_name');
   if (error) throw error;
-  return data.map((p) => ({ ...p, roles: p.staff_roles.map((r) => r.role) }));
+  return sortByName(data.map((p) => ({ ...p, roles: p.staff_roles.map((r) => r.role) })));
 }
 
 export async function addPerson(fields) {

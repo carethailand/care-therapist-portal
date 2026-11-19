@@ -507,3 +507,20 @@ The current therapist (Junior, Senior, QCD or Supervisor) with the latest start 
 - **Supervisors + admin / Portal manager** → **Edit checklist**: change wording, groups, levels, add / remove / reorder items and sections. Each save is a new version; recorded sessions keep the wording they were scored with.
 - The checklist starts as the QCD master (Junior 22 items, Senior 43). The **Supervisor** level has no items yet (Chandni's list).
 - HR doesn't see this tab. Scores and short text only (no files): about 1 MB a year for QCD sessions.
+
+## Step 46 — Leave: ask to cancel approved leave (added 2026-11-19)
+
+1. **Run** `supabase/migrations/20261118004600_leave_cancel_request.sql` (after 045).
+2. **Publish** the app (P9z).
+
+- **Pending** request: the therapist cancels it straight away (as before).
+- **Approved** leave that hasn't ended: the therapist taps **Ask to cancel** and gives a short reason. It shows "Cancel requested" (they can tap **Keep my leave** to withdraw). Slack admin-leave gets "Cancel request".
+- **Admin / HR** see it in **Waiting for HR** (and the new **Cancel requests** filter): **Approve cancel** (leave cancelled, days back on the balance) or **Keep leave** (with a note the therapist sees).
+
+## Step 47 — Supervision list by rank + names A–Z everywhere (added 2026-11-19)
+
+1. **Run** `supabase/migrations/20261118004700_supervision_people_rank.sql` (after 046).
+2. **Publish** the app (P9z).
+
+- Supervision → Team: supervisors are no longer listed (they don't get QCD sessions); the list is grouped **QCD → Senior → Junior**, names A–Z in each group. Supervisors have no "My supervision" view for now, and the QCD form's level choice is Junior or Senior / QCD.
+- Names are sorted A–Z (by the name people see, ignoring capitals) on every page: People, Our Team, Leave, Training, onboarding, CARE Connect, Learning Hub team, Supervision.

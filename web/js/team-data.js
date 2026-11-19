@@ -2,6 +2,7 @@
 // photo, milestone results — no HR details). Photos live in the private
 // "team-photos" store; the page asks for short-lived links to show them.
 import { supa } from './supabase.js';
+import { sortByName } from './ui.js';
 
 const BUCKET = 'team-photos';
 const must = ({ data, error }) => {
@@ -9,7 +10,7 @@ const must = ({ data, error }) => {
   return data;
 };
 
-export const directory = () => supa.rpc('team_directory').then(must);
+export const directory = () => supa.rpc('team_directory').then(must).then(sortByName);
 
 // Chosen badges + "completed before the Portal" ticks, for everyone's card.
 export const badges = () => supa.rpc('team_badges').then(must);

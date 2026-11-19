@@ -2,6 +2,7 @@
 // messages to you, or the team a message was sent to); every change goes
 // through a database function.
 import { supa } from './supabase.js';
+import { sortByName } from './ui.js';
 
 const must = ({ data, error }) => {
   if (error) throw new Error(error.message || String(error));
@@ -16,7 +17,7 @@ export const sendMessage = (m) => supa.rpc('connect_send', {
   p_kudos_to: m.kudos ? (m.kudosTo || null) : null,
 }).then(must);
 
-export const people = () => supa.rpc('connect_people').then(must);
+export const people = () => supa.rpc('connect_people').then(must).then(sortByName);
 // Everything I sent, named and anonymous (anonymous ones come from a locked
 // private link, so they follow my account to any device).
 export const myMessages = () => supa.rpc('connect_my_messages').then(must);

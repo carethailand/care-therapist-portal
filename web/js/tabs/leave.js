@@ -2,7 +2,7 @@
 // the request inbox (approve / decline, families notified) and each person's
 // annual leave allowance. Children appear only as case codes (e.g. "ABC").
 import {
-  loadLeaveRef, loadMyLeave, submitLeave, cancelLeave, staffPicklist, countDays, daysUntil, FIVE_DAY_RANKS,
+  loadLeaveRef, loadMyLeave, submitLeave, cancelLeave, requestCancel, withdrawCancel, decideCancel, staffPicklist, countDays, daysUntil, FIVE_DAY_RANKS,
   loadTeamLeave, decideLeave, markNotified, saveEntitlement, arrangeSession,
 } from '../leave-data.js';
 import { listStaff } from '../data.js';
@@ -159,6 +159,19 @@ async function drawMine() {
       try { await cancelLeave(b.dataset.cancel); await drawMine(); } catch (e) { alert(e.message); }
     });
   }
+  for (const b of box.querySelectorAll('[data-askcancel]')) {
+    b.addEventListener('click', async () => {
+      const reason = prompt('This leave is already approved, so Admin / HR will decide. Why do you want to cancel it?');
+      if (reason === null) return;
+      try { await requestCancel(b.dataset.askcancel, reason); await drawMine(); if (isLeaveTeam()) await drawTeam(); } catch (e) { alert(e.message); }
+    });
+  }
+  for (const b of box.querySelectorAll('[data-withdraw]')) {
+    b.addEventListener('click', async () => {
+      if (!confirm('Withdraw your cancel request and keep this leave?')) return;
+      try { await withdrawCancel(b.dataset.withdraw); await drawMine(); if (isLeaveTeam()) await drawTeam(); } catch (e) { alert(e.message); }
+    });
+  }
 }
 
 function sessionsText(r, people) {
@@ -183,6 +196,8 @@ function requestRow(r, { mine = false, people = picklist, team = false } = {}) {
       <p class="muted small">${esc(range(r))}${r.reason ? ` · ${esc(r.reason)}` : ''}</p>
       ${sessionsText(r, people)}
       ${r.decision_note ? `<p class="small">HR note: ${esc(r.decision_note)}</p>` : ''}
+      ${r.status === 'approved' && r.cancel_requested_at ? `<p class="small lv-cancelreq">🙋 ${mine ? 'You asked' : 'Asked'} to cancel ${esc(fmtDate(String(r.cancel_requested_at).slice(0, 10)))}${r.cancel_reason ? `: “${esc(r.cancel_reason)}”` : ''}</p>` : ''}
+      ${r.cancel_note ? `<p class="small">${r.status === 'cancelled' ? 'Cancel approved' : 'Leave kept'}: ${esc(r.cancel_note)}</p>` : ''}
       ${r.status === 'approved' ? `<p class="small muted">Approved ${esc(fmtDate(String(r.decided_at).slice(0, 10)))}${nameOf(people, r.decided_by) ? ` by ${esc(nameOf(people, r.decided_by))}` : ''}${r.families_notified_on ? ` · families notified ${esc(fmtDate(r.families_notified_on))}` : r.sessions?.length ? ' · families not yet notified' : ''}</p>` : ''}
     </div>
     <div class="lv-side">
@@ -190,6 +205,8 @@ function requestRow(r, { mine = false, people = picklist, team = false } = {}) {
       ${r.status === 'approved' && r.sessions?.length
         ? (r.families_notified_on ? '<span class="chip ok">Families notified ✓</span>' : '<span class="chip warn">Families: to notify</span>') : ''}
       ${mine && r.status === 'pending' ? `<button type="button" class="small-btn" data-cancel="${esc(r.id)}">Cancel</button>` : ''}
+      ${mine && r.status === 'approved' && r.cancel_requested_at ? `<span class="chip warn">Cancel requested</span><button type="button" class="link small" data-withdraw="${esc(r.id)}">Keep my leave</button>` : ''}
+      ${mine && r.status === 'approved' && !r.cancel_requested_at && r.end_date >= todayLocal() ? `<button type="button" class="small-btn" data-askcancel="${esc(r.id)}">Ask to cancel</button>` : ''}
       ${team ? teamActions(r) : ''}
     </div>
   </li>`;
@@ -342,7 +359,10 @@ function teamActions(r) {
   if (r.status === 'approved' && isAdmin() && !r.families_notified_on && r.sessions?.length) {
     out.push(`<button type="button" class="small-btn" data-notified="${esc(r.id)}">Families notified</button>`);
   }
-  if (r.status === 'approved') out.push(`<button type="button" class="link small" data-tcancel="${esc(r.id)}">Cancel leave</button>`);
+  if (r.status === 'approved' && r.cancel_requested_at) {
+    out.push(`<button type="button" class="small-btn primary" data-cancelok="${esc(r.id)}">Approve cancel</button>`);
+    out.push(`<button type="button" class="small-btn" data-cancelno="${esc(r.id)}">Keep leave</button>`);
+  } else if (r.status === 'approved') out.push(`<button type="button" class="link small" data-tcancel="${esc(r.id)}">Cancel leave</button>`);
   return out.join('');
 }
 
@@ -359,16 +379,19 @@ async function drawTeam() {
   }
   const staff = people.filter((p) => p.status !== 'exited' && p.track !== 'abat' && rankOf(p.roles) !== 'applicant');
   const shown = data.requests.filter((r) => teamFilter === 'all' || r.status === teamFilter
+    || ((teamFilter === 'cancelreq' || teamFilter === 'pending') && r.status === 'approved' && r.cancel_requested_at)
     || (teamFilter === 'notify' && r.status === 'approved' && !r.families_notified_on && r.sessions.length)
     || (teamFilter === 'arrange' && ['pending', 'approved'].includes(r.status) && unarranged(r) > 0));
   const waiting = data.requests.filter((r) => r.status === 'pending').length;
+  const cancelReqs = data.requests.filter((r) => r.status === 'approved' && r.cancel_requested_at).length;
 
   box.innerHTML = `
     <section class="card">
       <div class="page-head">
-        <h2>Team requests ${waiting ? `<span class="chip warn">${waiting} waiting</span>` : ''}</h2>
+        <h2>Team requests ${waiting ? `<span class="chip warn">${waiting} waiting</span>` : ''}${cancelReqs ? ` <span class="chip warn">${cancelReqs} to cancel</span>` : ''}</h2>
         <select id="lv-filter" aria-label="Show">
           <option value="pending"${teamFilter === 'pending' ? ' selected' : ''}>Waiting for HR</option>
+          <option value="cancelreq"${teamFilter === 'cancelreq' ? ' selected' : ''}>Cancel requests${cancelReqs ? ` (${cancelReqs})` : ''}</option>
           <option value="arrange"${teamFilter === 'arrange' ? ' selected' : ''}>Sessions to arrange</option>
           <option value="notify"${teamFilter === 'notify' ? ' selected' : ''}>Families not yet notified</option>
           <option value="approved"${teamFilter === 'approved' ? ' selected' : ''}>Approved</option>
@@ -419,6 +442,19 @@ async function drawTeam() {
       if (d === null) return;
       if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) { alert('Please use the format YYYY-MM-DD.'); return; }
       act(() => markNotified(b.dataset.notified, d));
+    });
+  }
+  for (const b of box.querySelectorAll('[data-cancelok]')) {
+    b.addEventListener('click', () => {
+      if (!confirm('Approve the cancel? The leave is cancelled and the days come back to their balance.')) return;
+      act(() => decideCancel(b.dataset.cancelok, true, prompt('Note for the therapist (optional):') || null));
+    });
+  }
+  for (const b of box.querySelectorAll('[data-cancelno]')) {
+    b.addEventListener('click', () => {
+      const note = prompt('Why does the leave stay? (The therapist will see this note.)');
+      if (note === null) return;
+      act(() => decideCancel(b.dataset.cancelno, false, note));
     });
   }
   for (const b of box.querySelectorAll('[data-tcancel]')) {

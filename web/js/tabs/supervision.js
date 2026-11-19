@@ -7,7 +7,7 @@
 // Case codes only (3 letters), never a child's name. No files.
 import { supa } from '../supabase.js';
 import { rankOf } from '../labels.js';
-import { esc, fmtDate, todayLocal } from '../ui.js';
+import { esc, fmtDate, todayLocal, byName } from '../ui.js';
 import { icon } from '../icons.js';
 
 const must = ({ data, error }) => { if (error) throw new Error(error.message || String(error)); return data; };
@@ -39,7 +39,10 @@ const has = (...r) => ctx.roles.some((x) => r.includes(x));
 const isTeam = () => has('admin', 'supervisor', 'qcd');
 const canRecord = () => has('qcd', 'supervisor');
 const canEdit = () => has('admin', 'supervisor');
-const myLevel = () => ({ therapist: 'junior', senior: 'senior', qcd: 'senior', supervisor: 'supervisor' })[rankOf(ctx.roles)] || null;
+// Supervisors don't get QCD sessions, so they have no "My supervision" (yet).
+const myLevel = () => ({ therapist: 'junior', senior: 'senior', qcd: 'senior' })[rankOf(ctx.roles)] || null;
+const RANK_GROUPS = [['qcd', 'QCD'], ['senior', 'Senior'], ['therapist', 'Junior']];
+const qcdLevels = (body) => (body.levels || []).filter((l) => l.key !== 'supervisor');
 const nameOf = (p) => p.nickname || p.full_name;
 const fmtScore = (n) => (n == null ? '—' : Number(n).toFixed(2));
 const dlg = () => panelEl.querySelector('#sv-dlg');
@@ -176,13 +179,19 @@ async function drawTeam() {
     const q = search.trim().toLowerCase();
     const shown = people.filter((p) => (!q || `${p.nickname || ''} ${p.full_name}`.toLowerCase().includes(q))
       && (filter === 'all' || (filter === 'flag' && p.flag) || (filter === 'none' && !p.sessions)));
-    box.querySelector('#sv-people').innerHTML = shown.length ? shown.map((p) => `
+    const rowHtml = (p) => `
       <li><button type="button" class="sv-person${p.flag ? ' flag' : ''}" data-person="${esc(p.id)}">
-        <span class="sv-name"><strong>${esc(nameOf(p))}</strong> <span class="chip">${esc(LEVEL[p.level] || p.level)}</span></span>
+        <span class="sv-name"><strong>${esc(nameOf(p))}</strong> </span>
         <span class="muted small">${p.sessions ? `${p.sessions} QCD${p.sessions === 1 ? '' : 's'} in ${year}` : `No QCD in ${year}`}${p.last_on ? ` · last ${esc(fmtDate(p.last_on))}` : ''}</span>
         <span class="sv-total${p.last_total != null && Number(p.last_total) < LOW ? ' low' : ''}">${fmtScore(p.last_total)}</span>
         ${p.flag ? `<span class="chip warn sv-flag">PIP suggested</span>` : ''}
-      </button></li>`).join('') : '<li class="muted">Nobody matches.</li>';
+      </button></li>`;
+    box.querySelector('#sv-people').innerHTML = shown.length
+      ? RANK_GROUPS.map(([k, label]) => {
+        const g = shown.filter((p) => (p.rank || (p.level === 'junior' ? 'therapist' : 'senior')) === k).sort(byName);
+        return g.length ? `<li class="sv-grouphead">${esc(label)} <span class="muted small">${g.length}</span></li>${g.map(rowHtml).join('')}` : '';
+      }).join('')
+      : '<li class="muted">Nobody matches.</li>';
     for (const b of box.querySelectorAll('[data-person]')) b.addEventListener('click', () => personDialog(people.find((p) => p.id === b.dataset.person)));
   };
   paint();
@@ -262,7 +271,7 @@ async function recordDialog(p, rec) {
     <div class="sv-meta">
       <label>Date<input type="date" name="held_on" value="${esc(rec?.held_on || todayLocal())}" max="${todayLocal()}" required></label>
       <label>Case code <span class="muted small">(3 letters)</span><input name="case_code" maxlength="3" value="${esc(rec?.case_code || '')}" placeholder="ABC" style="text-transform:uppercase"></label>
-      <label>Level<select name="level">${(body.levels || []).map((l) => `<option value="${esc(l.key)}"${l.key === level ? ' selected' : ''}>${esc(l.label)}</option>`).join('')}</select></label>
+      <label>Level<select name="level">${qcdLevels(body).map((l) => `<option value="${esc(l.key)}"${l.key === level ? ' selected' : ''}>${esc(l.label)}</option>`).join('')}</select></label>
     </div>
     <details class="sv-scale"><summary class="small">Scale ${vals[0]}–${vals[vals.length - 1]}${scale.na ? ' or N/A' : ''}: what each score means</summary>
       <ul class="small">${(scale.labels || []).map((l) => `<li><b>${l.v}</b> ${esc(l.label)}${l.hint ? ` <span class="muted">· ${esc(l.hint)}</span>` : ''}</li>`).join('')}</ul></details>
@@ -324,7 +333,7 @@ async function recordDialog(p, rec) {
 // ---------------------------------------------------------------------------
 function formEditor() {
   const body = JSON.parse(JSON.stringify(form.body));
-  const levels = body.levels || [];
+  const levels = qcdLevels(body);
   const newKey = (prefix) => `${prefix}${Date.now().toString(36).slice(-6)}${Math.floor(Math.random() * 36).toString(36)}`;
   const d = openDlg('<div class="lh-form"></div>', true);
   const paint = () => {
@@ -359,7 +368,7 @@ function formEditor() {
     f.addEventListener('click', (e) => {
       const t = e.target.closest('button'); if (!t || t.type === 'submit') return;
       read();
-      if (t.dataset.add != null) body.sections[+t.dataset.add].items.push({ key: newKey('i'), text: '', group: '', levels: levels.map((l) => l.key).filter((k) => k !== 'supervisor') });
+      if (t.dataset.add != null) body.sections[+t.dataset.add].items.push({ key: newKey('i'), text: '', group: '', levels: levels.map((l) => l.key) });
       else if (t.dataset.rm) { const [a, b] = t.dataset.rm.split('|').map(Number); body.sections[a].items.splice(b, 1); }
       else if (t.dataset.up) { const [a, b] = t.dataset.up.split('|').map(Number); const it = body.sections[a].items; [it[b - 1], it[b]] = [it[b], it[b - 1]]; }
       else if (t.dataset.rmSec != null) body.sections.splice(+t.dataset.rmSec, 1);

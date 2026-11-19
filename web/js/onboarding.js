@@ -3,7 +3,7 @@
 // and a trainer's own list of sessions. Who can see and do what is decided by
 // the database (Portal 039); the paper checklists stay outside the Portal.
 import { supa } from './supabase.js';
-import { esc, fmtDate, todayLocal } from './ui.js';
+import { esc, fmtDate, todayLocal, sortByName } from './ui.js';
 import { icon } from './icons.js';
 import { assignPeople } from './training-data.js';
 
@@ -62,7 +62,7 @@ const STAGE_NEEDS = {
 // Data
 // ---------------------------------------------------------------------------
 export const loadItems = (who = null) => supa.rpc('onboarding_items', { p_who: who }).then(must);
-export const loadPeople = () => supa.rpc('onboarding_people').then(must);
+export const loadPeople = () => supa.rpc('onboarding_people').then(must).then(sortByName);
 export const loadLed = () => supa.rpc('onboarding_led').then(must);
 const planItem = (f) => supa.rpc('onboarding_plan', {
   p_who: f.who, p_step: f.step, p_seq: f.seq ?? 0, p_title: f.title || null, p_held_on: f.held_on || null,

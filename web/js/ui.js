@@ -41,3 +41,8 @@ export function todayLocal() {
 
 export const titleCase = (s) =>
   String(s ?? '').replaceAll('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
+// Names A–Z by the name people see (nickname, else full name), ignoring case.
+export const byName = (a, b) => (a.nickname || a.full_name || '').trim()
+  .localeCompare((b.nickname || b.full_name || '').trim(), 'en', { sensitivity: 'base' });
+export const sortByName = (list) => [...(list || [])].sort(byName);

@@ -2,6 +2,7 @@
 // functions (learning_log, learning_done, learning_review…); this file only
 // asks for them and reads the results.
 import { supa } from './supabase.js';
+import { sortByName } from './ui.js';
 
 const must = ({ data, error }) => {
   if (error) throw new Error(error.message || String(error));
@@ -53,7 +54,7 @@ export const setGarden = (bg, flowers, animal) =>
 export const trees = () => supa.rpc('learning_trees').then(must);
 
 // --- Supervisor / QCD / admin -----------------------------------------------------------------------
-export const team = () => supa.rpc('learning_team').then(must);
+export const team = () => supa.rpc('learning_team').then(must).then(sortByName);
 
 export const toReview = () =>
   supa.from('learning_reflections').select('*').eq('status', 'submitted').order('created_at').limit(200).then(must);
