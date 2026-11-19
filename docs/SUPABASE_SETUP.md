@@ -556,3 +556,15 @@ While scoring a live QCD, the draft is saved on the device **and** in the Portal
 - **Everyone** (office staff too; HR can now open the Supervision tab) sees **Yearly review {year}** in My supervision → **Year-end reflection**: the CARE Year-End Reflection & Growth Review, 22 questions in 6 parts (Thai or English), one part at a time with a side list showing progress. It saves as they type (🔒 draft only they can see), then **Submit**. They can still change it after submitting.
 - **Supervisors + admin / Portal manager** → Team → **Yearly review**: everyone grouped (Supervisors, QCD, Senior, Junior, Office team) A–Z with "submitted / draft / not started"; open a submitted one to read it. Drafts can't be opened. QCD don't see this list.
 - The questions are a versioned form ('self') kept in the database; answers keep the version they were written with.
+
+## Step 51 — Yearly review, step 2: admin evaluation (added 2026-11-19)
+
+1. **Run** `supabase/migrations/20261118005100_yearly_admin_eval.sql` (after 050).
+2. **Publish** the app (Q4).
+3. In Supervision → Team → Yearly review → **Admin sections**, check each section's owner (the SQL looks up Pao, Oat and Ploy by nickname; pick the right person if one is "Nobody yet").
+4. Open **P'A** and **Chandni** → tick **No yearly review for this person**.
+
+- **Admin evaluation**, twice a year (half 1 Jan–Jun, half 2 Jul–Dec; any time): Human Resources · Billing / Payroll · Scheduling, 0–3 or N/A per item (scale from the half-year admin sheet; Time late rule shown). Each section is scored **only by its owner**; the Portal manager can cover any section. Section average + **HR performance** = average of the three sections.
+- **Attendance** for the half (AL / PL / SL / LWP / other, approved leave from Leave & HR, plus the AL allowance) is shown to Admin and HR for the discussion; it isn't scored.
+- Team → Yearly review: each person shows reflection status + admin progress (half 1 x/3 · half 2 x/3); filter **Admin to score**. Open a person → **Reflection | Admin evaluation**.
+- Who reads: supervisors + admin / Portal manager. The person sees scores only when the review is released (step 4). Office staff write a reflection but aren't evaluated here.

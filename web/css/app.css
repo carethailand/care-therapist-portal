@@ -1639,3 +1639,12 @@ a.lh-tool:hover { border-color: var(--line-strong); background: var(--surface-ra
 .sv-ans-a { margin: 0; white-space: normal; }
 .sv-person[disabled] { opacity: .8; cursor: default; }
 @media (max-width: 560px) { .sv-steps li { grid-template-columns: 28px minmax(0, 1fr); } .sv-step-side { grid-column: 2; justify-content: flex-start; } }
+.sv-adm legend { display: flex; gap: 6px; align-items: baseline; width: 100%; }
+.sv-adm legend .sv-total { margin-left: auto; }
+.sv-adm .sv-item b.sv-score { flex: none; }
+.sv-attend { background: var(--surface-raised); border: 1px solid var(--line); border-radius: 14px; padding: 10px 14px; margin: 8px 0; }
+.sv-attend h3 { margin: 0 0 6px; font-size: .95rem; }
+.sv-attgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+.sv-attgrid div { display: grid; }
+.sv-attgrid b { font-size: 1.2rem; font-variant-numeric: tabular-nums; }
+.sv-person.sv-off { opacity: .6; }

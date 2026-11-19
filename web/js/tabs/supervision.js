@@ -22,6 +22,13 @@ const api = {
   remove: (id) => supa.rpc('sv_record_delete', { p_id: id }).then(must),
   reflection: (who, yr) => supa.rpc('sv_reflection_get', { p_who: who, p_year: yr }).then(must),
   saveReflection: (yr, answers, submit) => supa.rpc('sv_reflection_save', { p_year: yr, p_answers: answers, p_submit: submit }).then(must),
+  adminGet: (who, yr) => supa.rpc('sv_admin_eval_get', { p_who: who, p_year: yr }).then(must),
+  adminSave: (who, yr, half, section, scores, note) => supa.rpc('sv_admin_eval_save', { p_who: who, p_year: yr, p_half: half, p_section: section, p_scores: scores, p_note: note }).then(must),
+  adminOwners: (owners) => supa.rpc('sv_admin_eval_owners', { p_owners: owners }).then(must),
+  setNoYearly: (who, none) => supa.rpc('sv_set_no_yearly', { p_who: who, p_none: none }).then(must),
+  leaveTaken: (who, from, to) => supa.from('leave_requests').select('type,days,start_date').eq('therapist_id', who).eq('status', 'approved')
+    .gte('start_date', from).lte('start_date', to).then(must),
+  alDays: (who, yr) => supa.from('leave_entitlements').select('al_days').eq('therapist_id', who).eq('year', yr).maybeSingle().then(must),
   yearlyPeople: (yr) => supa.rpc('sv_yearly_people', { p_year: yr }).then(must),
   draftGet: (who) => supa.rpc('sv_draft_get', { p_who: who }).then(must),
   draftPut: (who, version, state) => supa.rpc('sv_draft_put', { p_who: who, p_version: version, p_state: state }).then(must),
@@ -819,48 +826,171 @@ function reflectionEditor(rec, body, readOnly = false) {
   paintSide(); paintMain();
 }
 
-// Team: who has written their reflection (supervisors + admin).
+// Team → Yearly review (supervisors + admin): reflection + admin evaluation progress.
 let yearlyFilter = 'all';
+let adminForm = null;
+async function loadAdminForm() { adminForm = await api.form('admin_eval'); if (!adminForm) throw new Error('The admin evaluation isn’t set up yet (Portal 051).'); return adminForm; }
+const myAdminSections = () => (adminForm?.body.sections || []).filter((sc) => sc.owner === ctx.me.id || has('manager')).map((sc) => sc.key);
+const nowHalf = () => (Number(todayLocal().slice(5, 7)) <= 6 ? 1 : 2);
+
 async function drawYearly() {
   const box = panelEl.querySelector('#sv-yearly');
   if (!box) return;
   let list = [];
-  try { list = await api.yearlyPeople(year); } catch (e) { box.innerHTML = `<section class="card"><p class="error">${esc(e.message)}</p></section>`; return; }
-  const sub = list.filter((p) => p.reflection === 'submitted').length;
+  try { [list] = await Promise.all([api.yearlyPeople(year), adminForm ? null : loadAdminForm().catch(() => null)]); } catch (e) { box.innerHTML = `<section class="card"><p class="error">${esc(e.message)}</p></section>`; return; }
+  const secs = adminForm?.body.sections || [];
+  const nSec = secs.length || 3;
+  const mine = myAdminSections();
+  const owner = mine.length > 0 && has('admin');
+  const active = list.filter((p) => !p.no_yearly);
+  const evaluated = active.filter((p) => p.rank !== 'office');
+  const sub = active.filter((p) => p.reflection === 'submitted').length;
   const groups = [['supervisor', 'Supervisors'], ['qcd', 'QCD'], ['senior', 'Senior'], ['therapist', 'Junior'], ['office', 'Office team']];
-  const shown = list.filter((p) => yearlyFilter === 'all' || (yearlyFilter === 'waiting' && p.reflection !== 'submitted'));
+  const keep = (p) => yearlyFilter === 'all' || (yearlyFilter === 'waiting' && p.reflection !== 'submitted')
+    || (yearlyFilter === 'admin' && p.rank !== 'office' && (p[`admin_h${nowHalf()}`] || 0) < nSec);
+  const shown = active.filter(keep);
+  const chip = (n) => `<span class="chip ${n >= nSec ? 'ok' : n ? 'warn' : ''}">${n}/${nSec}</span>`;
   box.innerHTML = `<section class="card">
-    <div class="page-head sv-head"><h2>Yearly review · ${year}</h2></div>
+    <div class="page-head sv-head"><h2>Yearly review · ${year}</h2><span class="spacer"></span>
+      ${has('admin') ? `<button type="button" class="small-btn" data-owners>${icon('settings')} Admin sections</button>` : ''}</div>
     <div class="sv-tools">
-      <span class="muted small">Year-end reflections: <strong>${sub}</strong> of ${list.length} submitted</span><span class="spacer"></span>
+      <span class="muted small">Reflections <strong>${sub}</strong>/${active.length} · admin half ${nowHalf()} done for <strong>${evaluated.filter((p) => (p[`admin_h${nowHalf()}`] || 0) >= nSec).length}</strong>/${evaluated.length}</span><span class="spacer"></span>
       <div class="seg" role="tablist"><button type="button" role="tab" data-yf="all" aria-selected="${yearlyFilter === 'all'}">Everyone</button>
-        <button type="button" role="tab" data-yf="waiting" aria-selected="${yearlyFilter === 'waiting'}">Not submitted</button></div>
+        <button type="button" role="tab" data-yf="waiting" aria-selected="${yearlyFilter === 'waiting'}">Reflection not in</button>
+        ${owner || has('admin') ? `<button type="button" role="tab" data-yf="admin" aria-selected="${yearlyFilter === 'admin'}">Admin to score</button>` : ''}</div>
     </div>
+    ${owner ? `<p class="muted small">You score: <strong>${esc(secs.filter((sc) => mine.includes(sc.key)).map((sc) => sc.title).join(', ') || '—')}</strong>. Open a person → Admin evaluation.</p>` : ''}
     <ul class="sv-people">${groups.map(([k, label]) => {
       const g = shown.filter((p) => p.rank === k).sort(byName);
       return g.length ? `<li class="sv-grouphead">${esc(label)} <span class="muted small">${g.length}</span></li>${g.map((p) => `
-        <li><button type="button" class="sv-person" data-yp="${esc(p.id)}"${p.reflection === 'submitted' ? '' : ' disabled'}>
+        <li><button type="button" class="sv-person" data-yp="${esc(p.id)}">
           <span class="sv-name"><strong>${esc(nameOf(p))}</strong></span>
-          <span class="muted small">Reflection: ${p.reflection === 'submitted' ? `submitted ${esc(whenText(p.submitted_at))}` : p.reflection === 'started' ? 'started, not submitted' : 'not started'}</span>
-          <span class="chip ${p.reflection === 'submitted' ? 'ok' : p.reflection === 'started' ? 'warn' : ''}">${p.reflection === 'submitted' ? 'Read' : p.reflection === 'started' ? 'Draft' : '—'}</span>
+          <span class="muted small">Reflection: ${p.reflection === 'submitted' ? `submitted ${esc(whenText(p.submitted_at))}` : p.reflection === 'started' ? 'draft' : 'not started'}${p.rank !== 'office' ? ` · admin half 1 ${p.admin_h1 || 0}/${nSec} · half 2 ${p.admin_h2 || 0}/${nSec}` : ''}</span>
+          ${p.rank !== 'office' ? chip(p[`admin_h${nowHalf()}`] || 0) : `<span class="chip ${p.reflection === 'submitted' ? 'ok' : ''}">${p.reflection === 'submitted' ? 'Reflection in' : '—'}</span>`}
         </button></li>`).join('')}` : '';
-    }).join('') || '<li class="muted">Nobody here.</li>'}</ul>
-    <p class="muted small">Only submitted reflections can be opened; drafts stay private to the person.</p>
+    }).join('') || '<li class="muted">Nobody here.</li>'}
+    ${list.some((p) => p.no_yearly) ? `<li class="sv-grouphead">No yearly review <span class="muted small">${list.filter((p) => p.no_yearly).length}</span></li>
+      ${list.filter((p) => p.no_yearly).sort(byName).map((p) => `<li><button type="button" class="sv-person sv-off" data-yp="${esc(p.id)}"><span class="sv-name"><strong>${esc(nameOf(p))}</strong></span><span class="muted small">Not reviewed</span><span></span></button></li>`).join('')}` : ''}
+    </ul>
+    <p class="muted small">The person sees admin and clinical scores only when the review is released at the end of the year. Reflection drafts stay private.</p>
   </section>`;
   box.querySelectorAll('[data-yf]').forEach((b) => b.addEventListener('click', () => { yearlyFilter = b.dataset.yf; drawYearly(); }));
-  box.querySelectorAll('[data-yp]').forEach((b) => b.addEventListener('click', () => reflectionReader(list.find((p) => p.id === b.dataset.yp))));
+  box.querySelectorAll('[data-yp]').forEach((b) => b.addEventListener('click', () => yearlyPerson(list.find((p) => p.id === b.dataset.yp))));
+  box.querySelector('[data-owners]')?.addEventListener('click', ownersDialog);
 }
 
-async function reflectionReader(p) {
+// One person's yearly review: Reflection | Admin evaluation.
+async function yearlyPerson(p, tab = null) {
+  tab = tab || (myAdminSections().length && p.rank !== 'office' ? 'admin' : 'reflection');
   const d = openDlg(`<div class="lh-form"><h2>${esc(nameOf(p))}</h2><p class="muted">Loading…</p></div>`, true);
-  let r; let body;
-  try { r = await api.reflection(p.id, year); body = await selfBody(r?.form_version); } catch (e) { d.innerHTML = `<p class="error">${esc(e.message)}</p>`; return; }
-  if (!r) { d.innerHTML = '<p class="muted">Not submitted yet.</p><div class="dlg-actions"><button type="button" data-close>Close</button></div>'; d.querySelector('[data-close]').addEventListener('click', closeDlg); return; }
-  d.innerHTML = `<div class="lh-form sv-read">
-    <h2>${esc(nameOf(p))} · year-end reflection ${year}</h2>
-    <p class="muted small">Submitted ${esc(whenText(r.submitted_at))}${r.updated_at && r.updated_at !== r.submitted_at ? ` · last changed ${esc(whenText(r.updated_at))}` : ''}</p>
-    ${(body.parts || []).map((pt) => `<h3>${esc(pt.title)}</h3>${pt.questions.map((q) => `<div class="sv-ans"><p class="sv-ans-q">${esc(q.text)}</p>
-      <p class="sv-ans-a">${String(r.answers?.[q.key] || '').trim() ? esc(r.answers[q.key]).replace(/\n/g, '<br>') : '<span class="muted">No answer</span>'}</p></div>`).join('')}`).join('')}
-    <div class="dlg-actions"><button type="button" data-close>Close</button></div></div>`;
+  const head = `<h2>${esc(nameOf(p))} · yearly review ${year}</h2>
+    ${has('admin') ? `<label class="check small"><input type="checkbox" data-noyearly${p.no_yearly ? ' checked' : ''}> No yearly review for this person (e.g. not evaluated by anyone)</label>` : ''}
+    <div class="seg" role="tablist" style="margin:6px 0 10px"><button type="button" role="tab" data-yt="reflection" aria-selected="${tab === 'reflection'}">Reflection</button>
+      ${p.rank !== 'office' ? `<button type="button" role="tab" data-yt="admin" aria-selected="${tab === 'admin'}">Admin evaluation</button>` : ''}</div>`;
+  const wire = () => {
+    d.querySelectorAll('[data-yt]').forEach((b) => b.addEventListener('click', () => yearlyPerson(p, b.dataset.yt)));
+    d.querySelector('[data-noyearly]')?.addEventListener('change', async (e) => {
+      try { await api.setNoYearly(p.id, e.target.checked); p.no_yearly = e.target.checked; drawYearly(); } catch (err) { alert(err.message); e.target.checked = !e.target.checked; }
+    });
+    d.querySelector('[data-close]')?.addEventListener('click', closeDlg);
+  };
+  if (tab === 'reflection') {
+    let r = null; let body;
+    try { r = await api.reflection(p.id, year); body = await selfBody(r?.form_version); } catch (e) { d.innerHTML = `<p class="error">${esc(e.message)}</p>`; return; }
+    d.innerHTML = `<div class="lh-form sv-read">${head}
+      ${!r ? `<p class="muted">${p.reflection === 'started' ? 'Started but not submitted yet (drafts are private).' : 'Not started yet.'}</p>` : `
+      <p class="muted small">Submitted ${esc(whenText(r.submitted_at))}${r.updated_at && r.updated_at !== r.submitted_at ? ` · last changed ${esc(whenText(r.updated_at))}` : ''}</p>
+      ${(body.parts || []).map((pt) => `<h3>${esc(pt.title)}</h3>${pt.questions.map((q) => `<div class="sv-ans"><p class="sv-ans-q">${esc(q.text)}</p>
+        <p class="sv-ans-a">${String(r.answers?.[q.key] || '').trim() ? esc(r.answers[q.key]).replace(/\n/g, '<br>') : '<span class="muted">No answer</span>'}</p></div>`).join('')}`).join('')}`}
+      <div class="dlg-actions"><button type="button" data-close>Close</button></div></div>`;
+    wire(); return;
+  }
+  // admin evaluation
+  let evals = []; let form;
+  try { [evals, form] = await Promise.all([api.adminGet(p.id, year), adminForm || loadAdminForm()]); } catch (e) { d.innerHTML = `<p class="error">${esc(e.message)}</p>`; return; }
+  let half = p._half || nowHalf();
+  const paint = async () => {
+    const body = form.body; const scale = body.scale;
+    const rows = evals.filter((e) => e.half === half);
+    const avgs = body.sections.map((sc) => rows.find((e) => e.section === sc.key)?.average).filter((v) => v != null).map(Number);
+    const hrPerf = avgs.length ? avgs.reduce((a, b) => a + b, 0) / avgs.length : null;
+    const mineKeys = myAdminSections();
+    d.innerHTML = `<div class="lh-form">${head}
+      <div class="sv-tools"><div class="seg" role="tablist">${[1, 2].map((h) => `<button type="button" role="tab" data-half="${h}" aria-selected="${half === h}">Half ${h} <span class="muted small">${h === 1 ? 'Jan–Jun' : 'Jul–Dec'}</span></button>`).join('')}</div>
+        <span class="spacer"></span><span>HR performance <span class="sv-total${hrPerf != null && hrPerf < LOW ? ' low' : ''}">${fmtScore(hrPerf)}</span> <span class="muted small">(${avgs.length}/${body.sections.length} sections)</span></span></div>
+      <details class="sv-scale"><summary class="small">Scale 0–3: what each score means</summary><ul class="small">${scale.labels.map((l) => `<li><b>${l.v}</b> ${esc(l.label)}</li>`).join('')}</ul></details>
+      ${body.sections.map((sc) => {
+        const e = rows.find((x) => x.section === sc.key);
+        const can = mineKeys.includes(sc.key) && p.id !== ctx.me.id && !p.no_yearly;
+        const val = (k) => e?.scores?.[k];
+        return `<fieldset class="sv-sec-edit sv-adm" data-sec="${esc(sc.key)}"><legend>${esc(sc.title)} <span class="muted small">· ${esc(sc.owner_name || 'no owner set')}</span>
+            <span class="sv-total small">${fmtScore(e?.average)}</span></legend>
+          ${sc.items.map((it) => `<div class="sv-item"><span>${esc(it.text)}${it.note ? `<br><span class="muted small">${esc(it.note)}</span>` : ''}</span>
+            ${can ? `<span class="sv-pick">${[0, 1, 2, 3].map((v) => `<button type="button" data-k="${esc(it.key)}" data-v="${v}" aria-pressed="${val(it.key) === v}">${v}</button>`).join('')}<button type="button" data-k="${esc(it.key)}" data-v="na" aria-pressed="${val(it.key) === 'na'}">N/A</button></span>`
+              : `<b class="sv-score s${esc(String(val(it.key) ?? ''))}">${val(it.key) === undefined ? '—' : val(it.key) === 'na' ? 'N/A' : val(it.key)}</b>`}</div>`).join('')}
+          ${can ? `<label class="small">Comment <span class="muted">(optional)</span><textarea data-note rows="2" maxlength="1500">${esc(e?.note || '')}</textarea></label>
+            <p class="row-actions"><span class="muted small" data-msg>${e ? `Scored ${esc(whenText(e.scored_at))} by ${esc(e.scorer || '')}` : 'Not scored yet'}</span><span class="spacer"></span><button type="button" class="small-btn primary" data-savesec>${icon('check')} Save ${esc(sc.title)}</button></p>`
+            : `${e?.note ? `<p class="small"><strong>Comment:</strong> ${esc(e.note)}</p>` : ''}<p class="muted small">${e ? `Scored ${esc(whenText(e.scored_at))} by ${esc(e.scorer || '')}` : 'Not scored yet'}</p>`}
+        </fieldset>`;
+      }).join('')}
+      <div class="sv-attend" data-attend><p class="muted small">Attendance…</p></div>
+      <div class="dlg-actions"><button type="button" data-close>Close</button></div></div>`;
+    wire();
+    d.querySelectorAll('[data-half]').forEach((b) => b.addEventListener('click', () => { half = +b.dataset.half; p._half = half; paint(); }));
+    for (const fs of d.querySelectorAll('.sv-adm')) {
+      const key = fs.dataset.sec; const e = rows.find((x) => x.section === key);
+      const sc = { ...(e?.scores || {}) };
+      fs.addEventListener('click', async (ev) => {
+        const b = ev.target.closest('[data-k]');
+        if (b) {
+          const v = b.dataset.v === 'na' ? 'na' : Number(b.dataset.v);
+          if (sc[b.dataset.k] === v) delete sc[b.dataset.k]; else sc[b.dataset.k] = v;
+          fs.querySelectorAll(`[data-k="${CSS.escape(b.dataset.k)}"]`).forEach((x) => x.setAttribute('aria-pressed', String(sc[b.dataset.k] !== undefined && String(sc[b.dataset.k]) === x.dataset.v)));
+          return;
+        }
+        if (ev.target.closest('[data-savesec]')) {
+          const msg = fs.querySelector('[data-msg]');
+          try {
+            await api.adminSave(p.id, year, half, key, sc, fs.querySelector('[data-note]')?.value || '');
+            evals = await api.adminGet(p.id, year); drawYearly(); paint();
+          } catch (err) { msg.textContent = err.message; msg.classList.add('error'); }
+        }
+      });
+    }
+    // attendance from Leave & HR (Admin / HR only)
+    const att = d.querySelector('[data-attend]');
+    const leaveTeam = has('hr') || (has('admin') && !has('manager'));
+    if (!leaveTeam) { att.innerHTML = '<p class="muted small">Attendance (from Leave & HR) is shown to Admin and HR.</p>'; return; }
+    try {
+      const from = `${year}-${half === 1 ? '01-01' : '07-01'}`; const to = `${year}-${half === 1 ? '06-30' : '12-31'}`;
+      const [taken, ent] = await Promise.all([api.leaveTaken(p.id, from, to), api.alDays(p.id, year)]);
+      const sum = (codes) => taken.filter((x) => codes.includes(x.type)).reduce((n, x) => n + Number(x.days), 0);
+      const fmt = (n) => String(Math.round(n * 10) / 10);
+      att.innerHTML = `<h3>Attendance · half ${half} <span class="muted small">(${esc(fmtDate(from))} – ${esc(fmtDate(to))}, approved leave, from Leave & HR)</span></h3>
+        <div class="sv-attgrid">${[['Annual leave allowance (year)', ent?.al_days != null ? String(Number(ent.al_days)) : '—'], ['Annual leave', fmt(sum(['AL']))], ['Personal leave', fmt(sum(['PL']))],
+          ['Sick leave', fmt(sum(['SL']))], ['Leave without pay', fmt(sum(['LWP']))], ['Other leave', fmt(sum(['OL', 'BL']))]]
+          .map(([l, v]) => `<div><span class="muted small">${esc(l)}</span><b>${esc(v)}</b></div>`).join('')}</div>
+        <p class="muted small">Days. Shown for the discussion; not part of the score.</p>`;
+    } catch (e) { att.innerHTML = `<p class="muted small">Attendance couldn't load: ${esc(e.message)}</p>`; }
+  };
+  paint();
+}
+
+// Admin: who scores each section.
+async function ownersDialog() {
+  let form; let staff = [];
+  try { form = await loadAdminForm(); staff = await import('../data.js').then((m) => m.listStaff()); } catch (e) { alert(e.message); return; }
+  const office = staff.filter((x) => x.status !== 'exited' && (x.roles || []).some((r) => ['admin', 'hr', 'manager'].includes(r)));
+  const d = openDlg(`<form class="lh-form"><h2>Admin evaluation sections</h2>
+    <p class="muted small">Each section is scored only by its owner (the Portal manager can cover any section).</p>
+    ${form.body.sections.map((sc) => `<label>${esc(sc.title)}<select data-owner="${esc(sc.key)}"><option value="">Nobody yet</option>
+      ${office.map((x) => `<option value="${esc(x.id)}"${x.id === sc.owner ? ' selected' : ''}>${esc(x.nickname || x.full_name)}</option>`).join('')}</select></label>`).join('')}
+    <p class="error" data-msg hidden></p>
+    <div class="dlg-actions"><button type="submit" class="primary">${icon('check')} Save</button><button type="button" data-close>Cancel</button></div></form>`);
   d.querySelector('[data-close]').addEventListener('click', closeDlg);
+  d.querySelector('form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const owners = Object.fromEntries([...d.querySelectorAll('[data-owner]')].map((x) => [x.dataset.owner, x.value]));
+    try { await api.adminOwners(owners); await loadAdminForm(); closeDlg(); drawYearly(); } catch (err) { const m = d.querySelector('[data-msg]'); m.textContent = err.message; m.hidden = false; }
+  });
 }
