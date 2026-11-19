@@ -117,7 +117,7 @@ function stepStatus(key, items, online) {
     case 'roleplay': return `${n('roleplay')} of 9 signed off`;
     case 'written_exam': { const i = one(items, 'written_exam'); return i?.passed ? 'Passed' : i?.status === 'done' ? 'Not passed yet' : i?.held_on ? when(i) : 'Date to be set'; }
     case 'overlap': { const f = one(items, 'field_eval'); return `${n('overlap')} of 7 signed off · field evaluation ${f?.passed ? 'passed' : f?.status === 'done' ? 'not passed yet' : f?.held_on ? when(f) : 'to be set'}`; }
-    case 'probation': { const i = one(items, 'probation'); return i?.passed ? 'Passed 🎉' : i?.held_on ? `Review session ${when(i)}${i.trainer ? ` with ${i.trainer}` : ''}` : 'Waiting for the probation evaluation'; }
+    case 'probation': { const i = one(items, 'probation'); return i?.passed ? 'Passed 🎉' : i?.held_on ? `Review session ${when(i)}${i.trainer ? ` with ${i.trainer}` : ''}${i.case_code ? ` · case ${i.case_code}` : ''}` : 'Waiting for the probation evaluation'; }
     default: return '';
   }
 }
@@ -200,7 +200,7 @@ export function pathCard(person, items, online, { team = false, admin = false, r
         </tbody></table></div>
       <p class="muted small">Sessions 1–7: your trainer signs off each one (the checklist is on paper). Session 8: the supervisor’s field evaluation, pass with an average of 3 or more.</p>`,
     probation: () => `<p class="onb-line">${person.probation_end_date ? `${icon('calendar')} Probation evaluation ${esc(fmtDate(person.probation_end_date))}` : '<span class="muted">Evaluation date not set yet.</span>'}
-      ${one(items, 'probation') ? `${itemState(one(items, 'probation'))}${one(items, 'probation').trainer ? ` <span class="muted small">· ${esc(one(items, 'probation').trainer)}</span>` : ''}` : '<span class="muted">Waiting for the probation evaluation</span>'}${plan('probation', 0, one(items, 'probation') ? 'Edit' : 'Set dates & evaluator')}${act(one(items, 'probation'))}</p>`,
+      ${one(items, 'probation') ? `${itemState(one(items, 'probation'))}${one(items, 'probation').trainer ? ` <span class="muted small">· ${esc(one(items, 'probation').trainer)}</span>` : ''}${one(items, 'probation').case_code ? ` <span class="muted small">· case ${esc(one(items, 'probation').case_code)}</span>` : ''}` : '<span class="muted">Waiting for the probation evaluation</span>'}${plan('probation', 0, one(items, 'probation') ? 'Edit' : 'Set dates & evaluator')}${act(one(items, 'probation'))}</p>`,
   };
   const done = states.filter((s) => s === 'done').length;
   return `<section class="card onb" data-onb-person="${esc(person.id)}">
@@ -339,7 +339,7 @@ function planDialog(p, step, seq) {
     ${['orientation', 'written_exam', 'interview'].includes(step) ? `<label>Place <span class="muted small">(optional)</span><input name="place" maxlength="120" value="${esc(i?.place || '')}"></label>` : ''}
     <label>${esc(whoLabel)}<select name="trainer_id"><option value="">Not chosen yet</option>
       ${fit.map((s) => `<option value="${esc(s.id)}" ${i?.trainer_id === s.id ? 'selected' : ''}>${esc(s.nickname || s.full_name)}${step === 'overlap' && s.roles.includes('senior') ? ' (Senior)' : ''}</option>`).join('')}</select></label>
-    ${['overlap', 'field_eval'].includes(step) ? `<label>Case code <span class="muted small">(3 letters, never a name)</span><input name="case_code" maxlength="3" pattern="[A-Za-z]{3}" value="${esc(i?.case_code || '')}" placeholder="ABC" style="text-transform:uppercase"></label>` : ''}
+    ${['overlap', 'field_eval', 'probation'].includes(step) ? `<label>${step === 'probation' ? 'Case for the evaluation' : 'Case code'} <span class="muted small">(3 letters, never a name)</span><input name="case_code" maxlength="3" pattern="[A-Za-z]{3}" value="${esc(i?.case_code || '')}" placeholder="ABC" style="text-transform:uppercase"></label>` : ''}
     <p class="error" data-msg hidden></p>
     <div class="dlg-actions"><button type="submit" class="primary">${icon('check')} Save</button><button type="button" data-back>Back</button>
       ${i && !i.recorded_at ? '<span class="spacer"></span><button type="button" class="small-btn" data-del>Remove</button>' : ''}</div>
