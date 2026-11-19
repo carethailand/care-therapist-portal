@@ -14,6 +14,9 @@ export const directory = () => supa.rpc('team_directory').then(must).then(sortBy
 
 // Chosen badges + "completed before the Portal" ticks, for everyone's card.
 export const badges = () => supa.rpc('team_badges').then(must);
+// Hand-given badges (Portal 055)
+export const giveBadge = (who, key) => supa.rpc('badge_give', { p_who: who, p_key: key }).then(must);
+export const takeBackBadge = (who, key) => supa.rpc('badge_take_back', { p_who: who, p_key: key }).then(must);
 export const setShowcase = (keys) => supa.rpc('team_set_showcase', { p_keys: keys }).then(must);
 
 export const setProfile = (about, photoPath) =>

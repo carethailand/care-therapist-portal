@@ -2,7 +2,8 @@
 // about them and their Learning Hub tree. Each person edits their own card
 // (photo, about me, badges) in one place: My Journey → My team card.
 // Children never appear here: the photo must be of the staff member only.
-import { directory, photoUrls, badges as loadBadges } from '../team-data.js';
+import { directory, photoUrls, badges as loadBadges, giveBadge, takeBackBadge } from '../team-data.js';
+import { GIVEN, givenImg } from '../milestones.js';
 import { esc } from '../ui.js';
 import { rankOf } from '../labels.js';
 import { ART_CREDIT } from '../stickers.js';
@@ -39,11 +40,15 @@ export async function render(panel, ctx) {
     return;
   }
   const groupOf = (p) => rankOf(p.roles) || 'office';
+  // Supervisors, QCD and admin can give hand-given badges (Portal 055); admin can take one back.
+  const has = (...r) => (ctx.roles || []).some((x) => r.includes(x));
+  const canGive = has('admin', 'manager', 'supervisor', 'qcd');
   const card = (p) => {
     const isMe = p.id === ctx.me.id;
+    const give = !isMe && canGive && badgeOf[p.id] ? `<p class="tm-edit-link"><button type="button" class="small-btn" data-give="${esc(p.id)}">🎖️ Give a badge</button></p>` : '';
     return cardHtml(p, {
       url: p.photo_path && urls[p.photo_path], badge: badgeOf[p.id], tree: treeOf[p.id], isMe,
-      edit: isMe ? '<p class="tm-edit-link"><a class="link" href="#/journey">Edit my card</a></p>' : '',
+      edit: isMe ? '<p class="tm-edit-link"><a class="link" href="#/journey">Edit my card</a></p>' : give,
     });
   };
   box.innerHTML = GROUPS.map((g) => {
@@ -55,4 +60,39 @@ export async function render(panel, ctx) {
     </section>`;
   }).join('') || '<p class="muted">Nobody to show yet.</p>';
   wireAbout(box);
+  box.querySelectorAll('[data-give]').forEach((b) => b.addEventListener('click', () => giveDialog(people.find((p) => p.id === b.dataset.give))));
+
+  function giveDialog(p) {
+    const held = badgeOf[p.id]?.gifts || {};
+    const name = p.nickname || p.full_name;
+    let dlg = panel.querySelector('#tm-give');
+    if (!dlg) { dlg = document.createElement('dialog'); dlg.id = 'tm-give'; dlg.className = 'dlg'; panel.append(dlg); }
+    dlg.innerHTML = `<div class="lh-form">
+      <h2>Give ${esc(name)} a badge</h2>
+      <p class="muted small">Pick one. ${esc(name)} sees it on their card and in My Journey straight away. Each badge can be given once.</p>
+      <ul class="tm-give">${GIVEN.map((g) => {
+        const got = Number(held[g.key]) > 0;
+        return `<li><img src="${givenImg(g.key)}" alt="" width="64" height="64">
+          <span><strong>${esc(g.label)}</strong><br><span class="muted small">${esc(g.about)}</span></span>
+          ${got ? `<span class="tm-give-side"><span class="chip ok">Has it</span>${has('admin', 'manager') ? `<button type="button" class="small-btn" data-take="${g.key}">Take back</button>` : ''}</span>`
+            : `<button type="button" class="small-btn primary" data-pick="${g.key}">Give</button>`}</li>`;
+      }).join('')}</ul>
+      <p class="error small" data-err hidden></p>
+      <div class="dlg-actions"><button type="button" data-close>Close</button></div></div>`;
+    const err = dlg.querySelector('[data-err]');
+    const done = async () => { badgeOf[p.id] = (await loadBadges()).find((x) => x.id === p.id) || badgeOf[p.id]; dlg.close(); render(panel, ctx); };
+    dlg.querySelector('[data-close]').addEventListener('click', () => dlg.close());
+    dlg.querySelectorAll('[data-pick]').forEach((b) => b.addEventListener('click', async () => {
+      const g = GIVEN.find((x) => x.key === b.dataset.pick);
+      if (!confirm(`Give ${name} the ${g.label} badge?`)) return;
+      b.disabled = true;
+      try { await giveBadge(p.id, g.key); await done(); } catch (e) { err.textContent = e.message; err.hidden = false; b.disabled = false; }
+    }));
+    dlg.querySelectorAll('[data-take]').forEach((b) => b.addEventListener('click', async () => {
+      const g = GIVEN.find((x) => x.key === b.dataset.take);
+      if (!confirm(`Take the ${g.label} badge back from ${name}?`)) return;
+      try { await takeBackBadge(p.id, g.key); await done(); } catch (e) { err.textContent = e.message; err.hidden = false; }
+    }));
+    if (!dlg.open) dlg.showModal();
+  }
 }

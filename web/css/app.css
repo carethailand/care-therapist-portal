@@ -1759,3 +1759,9 @@ a.lh-tool:hover { border-color: var(--line-strong); background: var(--surface-ra
 .sv-total .sv-of, .yr-sum .sv-of, p .sv-of, b .sv-of { font-size: .8em; }
 .qr-v .sv-of, .yr-num b .sv-of, .yr-final b .sv-of, .sv-final b .sv-of { font-size: .45em; }
 @media print { #print-area .yr .sv-of { color: #555 !important; } }
+/* Give a badge (Portal 055) */
+.tm-give { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.tm-give li { display: flex; align-items: center; gap: 12px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-raised); }
+.tm-give li > span:nth-child(2) { flex: 1; min-width: 0; }
+.tm-give img { flex: none; }
+.tm-give-side { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: flex-end; }

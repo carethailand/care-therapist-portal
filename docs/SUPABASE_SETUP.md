@@ -602,3 +602,11 @@ Run `supabase/migrations/20261118005400_year_report_close.sql` after Step 53.
   - **All reports (PDF)** in Yearly review makes one PDF with everyone.
 - **Close the year** (Admin or Portal manager, from 1 December): keeps one summary line per person (QCD average, clinical, HR performance, final, lead/second, signed date) and deletes that year's details (QCD sessions, clinical and admin scores, comments, reflections, assignments, old drafts). Type `CLOSE 2026` to confirm. **Save the PDFs first: it can't be undone.** Keep the PDFs in the CARE drive, never in GitHub.
 - A closed year shows the summary table in Yearly review; each person sees their own summary line.
+
+## Step 55 — Hand-given badges + Kudos received (added 2026-11-19)
+
+Run `supabase/migrations/20261118005500_badge_gifts.sql` after Step 54, then publish the app (Q11).
+
+- **Our Team → a person's card → 🎖️ Give a badge** (Supervisor, QCD, admin, Portal manager): School shadow, Supporter, Stimuli Master, Unshakable. Not to yourself; each badge once per person. Admin / Portal manager can **Take back**.
+- Hand-given badges never show as locked; the person sees them once given (card + My Journey), and can pick them for their team card.
+- **Kudos received** (THANKS badges, 1–30): thank-yous sent to you with the sender's name. Anonymous ones never count.

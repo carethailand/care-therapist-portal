@@ -54,3 +54,15 @@ Art chosen by Songg (files in `Portal stickers/New badges – drop art here/`). 
 | `../milestones/logs-*.svg` | Drawn for CARE (no outside art): a thin-line clipboard in the same style as the training certificate badges, after Songg's pick "Contact form icons" (Vecteezy 58136510) | Silver / gold / holographic board; stars fill 1 / 2 / 3; ribbon with the count |
 | `../milestones/kudos-*.svg` (kudos given) | Hand holding a heart (Illustrator file "envio-10" by "Evota"; Vecteezy ID: add) | Placed in a round silver / gold / holographic frame; ribbon and stars added |
 | `../milestones/newest.svg` | Baby feet with a star (Illustrator file by "Administrator", 2020; Vecteezy ID: add) | Feet and star cut out of a 6-tile sheet; placed on our Longest-serving rosette recoloured blue; star gold; crown removed; NEWEST ribbon |
+
+## Achievement badges, third set (added 2026-11-19)
+
+Hand-given badges (Supervisor / QCD / admin give them in Our Team) and Kudos received. Built with `tools/build3.py` in the badge folder.
+
+| Files | Source | Changes |
+|---|---|---|
+| `../milestones/school-shadow.svg` | "Mysterious spy character with fedora hat and sunglasses", Vecteezy ID 87539935 | Background removed; on cream in a slate-blue round frame; SHADOW ribbon |
+| `../milestones/supporter.svg` | Retro sunset logo with two cheering figures (Illustrator file; Vecteezy ID: add) | Only the round logo used (no poster or T-shirt); grunge specks removed; gold frame; SUPPORTER ribbon |
+| `../milestones/stimuli-master.svg` | Hand-drawn light bulb "IDEAS" (Illustrator file; Vecteezy ID: add) | Only the bulb and rays (no word, no yellow card); soft yellow round frame; STIMULI ribbon |
+| `../milestones/unshakable.svg` | Cowboy silhouette tipping his hat (Illustrator file; Vecteezy ID: add) | Cut at the waist; sunset background and clay frame added; UNSHAKABLE ribbon |
+| `../milestones/thanked-*.svg` (kudos received) | Heart with small hearts, bottom-left of an 8-heart sheet (Illustrator file; Vecteezy ID: add) | Silver / gold / holographic round frame; stars 1 / 2 / 3; THANKS ribbon |

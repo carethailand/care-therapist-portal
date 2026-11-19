@@ -25,7 +25,19 @@ const FAMILY = [
   { key: 'resources', label: (n) => `${plural(n, 'resource', 'resources')} done`, lock: (n) => `Finish ${plural(n, 'Learning Hub resource', 'Learning Hub resources')}` },
   { key: 'logs', label: (n) => plural(n, 'reviewed study log', 'reviewed study logs'), lock: (n) => `Get ${plural(n, 'study log', 'study logs')} reviewed` },
   { key: 'kudos', label: (n) => (n === 1 ? 'Gave a kudos' : `Gave ${n} kudos`), lock: (n) => `Send ${plural(n, 'thank-you', 'thank-yous')} in CARE Connect (with your name)` },
+  // Kudos received (Portal 055): thank-yous sent TO you with the sender's name
+  { key: 'thanked', label: (n) => (n === 1 ? 'Received a kudos' : `Received ${n} kudos`), lock: (n) => `Receive ${plural(n, 'thank-you', 'thank-yous')} in CARE Connect (with the sender's name)` },
 ];
+// Hand-given badges (Portal 055): Supervisor / QCD / admin give them in Our Team.
+// They only appear once given — never as locked badges. (Art still to come: growth-seeker,
+// shining-ray, bip-master, helping-hand.)
+export const GIVEN = [
+  { key: 'school-shadow', label: 'School shadow', about: 'Shadowed at school' },
+  { key: 'supporter', label: 'Supporter', about: 'Always cheering people up' },
+  { key: 'stimuli-master', label: 'Stimuli Master', about: 'Brings great stimuli ideas to the cases' },
+  { key: 'unshakable', label: 'Unshakable', about: 'Great spirit in hard sessions; calm with big behaviour' },
+];
+export const givenImg = (key) => file(key);
 // Every achievement for the collection: for the 1/5/10 families, the highest
 // level reached plus the next one (locked). { key, label, img, earned, lockText }
 function achievements(a = {}, clinical = true) {
@@ -36,6 +48,9 @@ function achievements(a = {}, clinical = true) {
   if (clinical) {
     out.push({ key: 'abat', label: 'ABAT passed', img: file('abat'), earned: !!a.abat, on: null, lockText: 'Unlocks when you pass ABAT' });
     out.push({ key: 'safmeds', label: 'SAFMEDS master', img: file('safmeds'), earned: !!a.safmeds, on: null, lockText: 'Master a SAFMEDS set' });
+  }
+  for (const g of GIVEN) {
+    if (Number(a.gifts?.[g.key]) > 0) out.push({ key: g.key, label: g.label, img: file(g.key), earned: true, on: null, lockText: 'Given' });
   }
   for (const f of FAMILY) {
     const have = Number(a[f.key]) || 0;
@@ -135,7 +150,7 @@ export async function isLongest(me) {
 // 5 to show; badges not earned are never shown, even if chosen.
 // ---------------------------------------------------------------------------
 export const SHOW_MAX = 5;
-const ACH_KEY = /^(abat|safmeds|(resources|logs|kudos)-\d+)$/;   // newest is shown with longest
+const ACH_KEY = /^(abat|safmeds|(resources|logs|kudos|thanked)-\d+|school-shadow|supporter|stimuli-master|unshakable)$/;   // newest is shown with longest
 const TRAINING = [
   { key: 'supervisor', label: 'Supervisor Training' },
   { key: 'qcd-training', label: 'QCD Training' },
