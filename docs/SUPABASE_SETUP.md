@@ -547,3 +547,12 @@ My supervision (and a person's window for QCD / supervisors) now shows: 4 number
 2. **Publish** the app (Q2).
 
 While scoring a live QCD, the draft is saved on the device **and** in the Portal (a moment after each tap), so you can start on one device and finish on another. The header shows 🔒 "Draft saved · only you can see it until you tap Save QCD". A draft is private to the person scoring (one per scorer per therapist) and is deleted when the QCD is saved; drafts older than 30 days are cleared. With no connection it says "Draft kept on this device only" (yellow) and sends it up when the connection is back.
+
+## Step 50 — Yearly review, step 1: year-end self-reflection (added 2026-11-19)
+
+1. **Run** `supabase/migrations/20261118005000_yearly_self_reflection.sql` (after 049).
+2. **Publish** the app (Q3).
+
+- **Everyone** (office staff too; HR can now open the Supervision tab) sees **Yearly review {year}** in My supervision → **Year-end reflection**: the CARE Year-End Reflection & Growth Review, 22 questions in 6 parts (Thai or English), one part at a time with a side list showing progress. It saves as they type (🔒 draft only they can see), then **Submit**. They can still change it after submitting.
+- **Supervisors + admin / Portal manager** → Team → **Yearly review**: everyone grouped (Supervisors, QCD, Senior, Junior, Office team) A–Z with "submitted / draft / not started"; open a submitted one to read it. Drafts can't be opened. QCD don't see this list.
+- The questions are a versioned form ('self') kept in the database; answers keep the version they were written with.

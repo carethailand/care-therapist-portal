@@ -20,6 +20,9 @@ const api = {
     p_level: r.level, p_scores: r.scores, p_notes: r.notes, p_tallies: r.tallies || null,
   }).then(must),
   remove: (id) => supa.rpc('sv_record_delete', { p_id: id }).then(must),
+  reflection: (who, yr) => supa.rpc('sv_reflection_get', { p_who: who, p_year: yr }).then(must),
+  saveReflection: (yr, answers, submit) => supa.rpc('sv_reflection_save', { p_year: yr, p_answers: answers, p_submit: submit }).then(must),
+  yearlyPeople: (yr) => supa.rpc('sv_yearly_people', { p_year: yr }).then(must),
   draftGet: (who) => supa.rpc('sv_draft_get', { p_who: who }).then(must),
   draftPut: (who, version, state) => supa.rpc('sv_draft_put', { p_who: who, p_version: version, p_state: state }).then(must),
   draftDelete: (who) => supa.rpc('sv_draft_delete', { p_who: who }).then(must),
@@ -42,6 +45,9 @@ const has = (...r) => ctx.roles.some((x) => r.includes(x));
 const isTeam = () => has('admin', 'supervisor', 'qcd');
 const canRecord = () => has('qcd', 'supervisor');
 const canEdit = () => has('admin', 'supervisor');
+// Yearly review: supervisors + admin / Portal manager read everyone's (not QCD).
+const yearlyTeam = () => has('admin', 'supervisor');
+let teamView = 'qcd';
 // Supervisors don't get QCD sessions, so they have no "My supervision" (yet).
 const myLevel = () => ({ therapist: 'junior', senior: 'senior', qcd: 'senior' })[rankOf(ctx.roles)] || null;
 const RANK_GROUPS = [['qcd', 'QCD'], ['senior', 'Senior'], ['therapist', 'Junior']];
@@ -78,8 +84,8 @@ export async function render(panel, context) {
 }
 
 function draw() {
-  const mine = !!myLevel();
-  const team = isTeam();
+  const mine = true;                       // everyone writes a year-end reflection
+  const team = isTeam() || yearlyTeam();
   const thisYear = Number(todayLocal().slice(0, 4));
   panelEl.innerHTML = `
     <div class="page-head">
@@ -91,7 +97,12 @@ function draw() {
       <button type="button" role="tab" data-tab="mine">${icon('user-check')} My supervision</button>
       <button type="button" role="tab" data-tab="team">${icon('users')} Team</button></div>` : ''}
     <div data-pane="mine"${mine ? '' : ' hidden'}><div id="sv-mine"><p class="muted">Loading…</p></div></div>
-    <div data-pane="team"${team ? '' : ' hidden'}><div id="sv-team"><p class="muted">Loading…</p></div></div>
+    <div data-pane="team"${team ? '' : ' hidden'}>
+      ${isTeam() && yearlyTeam() ? `<div class="seg sv-teamview" role="tablist" id="sv-teamview">
+        <button type="button" role="tab" data-tv="qcd">QCD sessions</button><button type="button" role="tab" data-tv="yearly">Yearly review</button></div>` : ''}
+      <div id="sv-team"${isTeam() ? '' : ' hidden'}><p class="muted">Loading…</p></div>
+      <div id="sv-yearly" hidden></div>
+    </div>
     <dialog id="sv-dlg" class="dlg"></dialog>`;
   panelEl.querySelector('#sv-year').addEventListener('change', (e) => { year = Number(e.target.value); draw(); });
   const tabs = panelEl.querySelector('#sv-tabs');
@@ -105,8 +116,21 @@ function draw() {
     set(lastTab() === 'mine' ? 'mine' : 'team');
   }
   if (mine) drawMine();
-  if (team) drawTeam();
-  if (!mine && !team) panelEl.querySelector('[data-pane="mine"]').hidden = false;
+  if (team) {
+    if (!isTeam()) teamView = 'yearly';
+    if (!yearlyTeam()) teamView = 'qcd';
+    const tv = panelEl.querySelector('#sv-teamview');
+    const setTv = (v) => {
+      teamView = v;
+      tv?.querySelectorAll('[data-tv]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tv === v)));
+      panelEl.querySelector('#sv-team').hidden = v !== 'qcd';
+      panelEl.querySelector('#sv-yearly').hidden = v !== 'yearly';
+      if (v === 'yearly') drawYearly();
+    };
+    tv?.addEventListener('click', (e) => { const b = e.target.closest('[data-tv]'); if (b) setTv(b.dataset.tv); });
+    if (isTeam()) drawTeam();
+    setTv(teamView);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -114,15 +138,19 @@ function draw() {
 // ---------------------------------------------------------------------------
 async function drawMine() {
   const box = panelEl.querySelector('#sv-mine');
+  box.innerHTML = '<div id="sv-myyear"></div><div id="sv-myqcd"></div>';
+  drawMyYear();
+  if (!myLevel()) return;                  // supervisors / office staff: no QCD sessions
+  const qbox = box.querySelector('#sv-myqcd');
   let list = [];
-  try { list = await api.records(ctx.me.id, year); } catch (e) { box.innerHTML = `<p class="error">${esc(e.message)}</p>`; return; }
-  box.innerHTML = `<section class="card">
+  try { list = await api.records(ctx.me.id, year); } catch (e) { qbox.innerHTML = `<p class="error">${esc(e.message)}</p>`; return; }
+  qbox.innerHTML = `<section class="card">
       <h2>My QCD sessions <span class="chip">${list.length}</span></h2>
       <p class="muted small">Scored 0–3 by a QCD or supervisor during a session (the schedule is in the timesheet). Tap a session to see every item and the notes.</p>
       ${list.length ? `${await resultsHtml(list)}<h3 class="sv-listhead">Sessions</h3>${sessionList(list)}` : `<p class="muted">No QCD sessions in ${year} yet.</p>`}
     </section>`;
-  wireResults(box);
-  wireSessions(box, list, { who: ctx.me, readOnly: true });
+  wireResults(qbox);
+  wireSessions(qbox, list, { who: ctx.me, readOnly: true });
 }
 
 // ---------------------------------------------------------------------------
@@ -675,4 +703,164 @@ function formEditor() {
     });
   };
   paint();
+}
+
+// ---------------------------------------------------------------------------
+// Yearly review, step 1: the year-end self-reflection (Portal 050).
+// Everyone writes one. Saved as you go (only you see a draft); Submit sends it
+// to supervisors + admin. You can still improve it after submitting.
+// ---------------------------------------------------------------------------
+let selfForm = null;
+const selfBodies = new Map();
+async function selfBody(version = null) {
+  if (version && selfBodies.has(version)) return selfBodies.get(version);
+  const f = await api.form('self', version);
+  if (!f) throw new Error('The year-end reflection isn’t set up yet (Portal 050).');
+  selfBodies.set(f.version, f.body);
+  if (!version) selfForm = f;
+  return f.body;
+}
+const answered = (body, ans) => (body.parts || []).flatMap((pt) => pt.questions).filter((q) => String(ans?.[q.key] || '').trim()).length;
+const totalQs = (body) => (body.parts || []).reduce((n, pt) => n + pt.questions.length, 0);
+const whenText = (iso) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+async function drawMyYear() {
+  const box = panelEl.querySelector('#sv-myyear');
+  let r = null; let body;
+  try { [r, body] = await Promise.all([api.reflection(ctx.me.id, year), selfBody()]); } catch (e) { box.innerHTML = `<section class="card"><p class="error">${esc(e.message)}</p></section>`; return; }
+  if (r) body = await selfBody(r.form_version);
+  const n = answered(body, r?.answers); const all = totalQs(body);
+  const thisYear = Number(todayLocal().slice(0, 4));
+  const canWrite = year === thisYear || year === thisYear - 1;
+  const state = !r ? ['Not started', ''] : r.status === 'submitted' ? [`Submitted ${whenText(r.submitted_at)}`, 'ok'] : [`Draft · ${n} of ${all} answered`, 'warn'];
+  box.innerHTML = `<section class="card sv-year">
+    <div class="page-head sv-head"><h2>Yearly review ${year}</h2></div>
+    <ol class="sv-steps">
+      <li class="${r?.status === 'submitted' ? 'done' : 'now'}">
+        <span class="sv-step-dot">${r?.status === 'submitted' ? icon('check') : '1'}</span>
+        <span><strong>Year-end reflection</strong><br><span class="muted small">Your own look back at the year: ${all} short questions in 6 parts, Thai or English. Supervisors and admin read it once you submit.</span></span>
+        <span class="sv-step-side"><span class="chip ${state[1]}">${esc(state[0])}</span>
+          ${canWrite ? `<button type="button" class="${r?.status === 'submitted' ? 'small-btn' : 'small-btn primary'}" data-self>${!r ? 'Start' : r.status === 'submitted' ? 'View or edit' : 'Continue'}</button>`
+            : r ? '<button type="button" class="small-btn" data-self>View</button>' : ''}</span>
+      </li>
+      <li class="later"><span class="sv-step-dot">2</span><span><strong>Evaluations and review meetings</strong><br><span class="muted small">Clinical checklist (year end) and admin evaluation (twice a year), discussed in review meetings with a supervisor and an admin. Coming soon in the Portal.</span></span></li>
+    </ol>
+  </section>`;
+  box.querySelector('[data-self]')?.addEventListener('click', () => reflectionEditor(r, body, !canWrite));
+}
+
+function reflectionEditor(rec, body, readOnly = false) {
+  const ans = { ...(rec?.answers || {}) };
+  let submitted = rec?.status === 'submitted';
+  let part = 0; let timer = null; let dirty = false;
+  const d = openDlg(`<div class="sv-live">
+    <div class="sv-live-head">
+      <h2>${esc(body.title || 'Year-end reflection')} · ${year}</h2>
+      <span class="spacer"></span>
+      <span class="sv-draft small" data-saved></span>
+      ${readOnly ? '' : `<button type="button" class="primary" data-submit>${submitted ? 'Save changes' : 'Submit'}</button>`}
+      <button type="button" data-close>Close</button>
+    </div>
+    <div class="sv-live-body">
+      <aside class="sv-live-side" data-side></aside>
+      <section class="sv-live-main" data-main></section>
+    </div></div>`, true);
+  d.classList.add('sv-full');
+  const side = d.querySelector('[data-side]'); const main = d.querySelector('[data-main]'); const st = d.querySelector('[data-saved]');
+  const status = (txt, warn = false) => { st.innerHTML = txt; st.classList.toggle('sv-draft-warn', warn); };
+  status(readOnly ? '' : submitted ? `${icon('check')} Submitted · supervisors and admin can read it` : `${icon('lock')} Draft · only you can see it until you submit`);
+  const paintSide = () => {
+    side.innerHTML = `${(body.parts || []).map((pt, i) => {
+      const done = pt.questions.filter((q) => String(ans[q.key] || '').trim()).length;
+      return `<button type="button" class="sv-secbtn${i === part ? ' on' : ''}" data-part="${i}"><span>${esc(pt.title)}</span><span>${done}/${pt.questions.length}</span></button>`;
+    }).join('')}<div class="sv-live-total"><span class="muted small">Answered</span><span class="qr-v">${answered(body, ans)} / ${totalQs(body)}</span></div>`;
+  };
+  const paintMain = () => {
+    const pt = body.parts[part];
+    main.innerHTML = `${part === 0 && body.intro ? `<p class="muted">${esc(body.intro)}</p>` : ''}
+      <h3>${esc(pt.title)}</h3>${pt.intro ? `<p class="muted small">${esc(pt.intro)}</p>` : ''}
+      ${pt.questions.map((q) => `<label class="sv-q"><span>${esc(q.text)}</span>${q.hint ? `<span class="muted small">${esc(q.hint)}</span>` : ''}
+        <textarea data-q="${esc(q.key)}" rows="4" maxlength="4000"${readOnly ? ' readonly' : ''}>${esc(ans[q.key] || '')}</textarea></label>`).join('')}
+      <div class="dlg-actions">${part > 0 ? '<button type="button" data-prev>← Previous part</button>' : ''}
+        ${part < body.parts.length - 1 ? '<button type="button" class="primary" data-next>Next part →</button>'
+          : `<span class="muted small">${esc(body.thanks || '')}</span>`}</div>`;
+  };
+  const push = async (submit = false) => {
+    if (readOnly) return;
+    clearTimeout(timer);
+    try {
+      await api.saveReflection(year, ans, submit);
+      dirty = false;
+      if (submit) submitted = true;
+      status(submitted ? `${icon('check')} ${submit ? 'Submitted' : 'Saved'} · supervisors and admin can read it` : `${icon('lock')} Draft saved · only you can see it until you submit`);
+      return true;
+    } catch (e) { status(`${icon('lock')} Not saved yet: ${esc(e.message)}`, true); return false; }
+  };
+  main.addEventListener('input', (e) => {
+    const t = e.target.closest('[data-q]'); if (!t) return;
+    ans[t.dataset.q] = t.value; dirty = true;
+    status(`${icon('lock')} Saving…`);
+    clearTimeout(timer); timer = setTimeout(() => push(false), 1500);
+    paintSide();
+  });
+  main.addEventListener('click', (e) => {
+    if (e.target.closest('[data-next]')) { part += 1; paintSide(); paintMain(); main.scrollTop = 0; }
+    if (e.target.closest('[data-prev]')) { part -= 1; paintSide(); paintMain(); main.scrollTop = 0; }
+  });
+  side.addEventListener('click', (e) => { const b = e.target.closest('[data-part]'); if (!b) return; part = +b.dataset.part; paintSide(); paintMain(); main.scrollTop = 0; });
+  d.querySelector('[data-submit]')?.addEventListener('click', async () => {
+    if (!submitted && answered(body, ans) < totalQs(body) && !confirm(`You've answered ${answered(body, ans)} of ${totalQs(body)} questions. Submit anyway? You can still add to it later.`)) return;
+    if (await push(true)) { d.classList.remove('sv-full'); closeDlg(); drawMyYear(); }
+  });
+  d.querySelector('[data-close]').addEventListener('click', async () => {
+    if (dirty) await push(false);
+    d.classList.remove('sv-full'); closeDlg(); drawMyYear();
+  });
+  paintSide(); paintMain();
+}
+
+// Team: who has written their reflection (supervisors + admin).
+let yearlyFilter = 'all';
+async function drawYearly() {
+  const box = panelEl.querySelector('#sv-yearly');
+  if (!box) return;
+  let list = [];
+  try { list = await api.yearlyPeople(year); } catch (e) { box.innerHTML = `<section class="card"><p class="error">${esc(e.message)}</p></section>`; return; }
+  const sub = list.filter((p) => p.reflection === 'submitted').length;
+  const groups = [['supervisor', 'Supervisors'], ['qcd', 'QCD'], ['senior', 'Senior'], ['therapist', 'Junior'], ['office', 'Office team']];
+  const shown = list.filter((p) => yearlyFilter === 'all' || (yearlyFilter === 'waiting' && p.reflection !== 'submitted'));
+  box.innerHTML = `<section class="card">
+    <div class="page-head sv-head"><h2>Yearly review · ${year}</h2></div>
+    <div class="sv-tools">
+      <span class="muted small">Year-end reflections: <strong>${sub}</strong> of ${list.length} submitted</span><span class="spacer"></span>
+      <div class="seg" role="tablist"><button type="button" role="tab" data-yf="all" aria-selected="${yearlyFilter === 'all'}">Everyone</button>
+        <button type="button" role="tab" data-yf="waiting" aria-selected="${yearlyFilter === 'waiting'}">Not submitted</button></div>
+    </div>
+    <ul class="sv-people">${groups.map(([k, label]) => {
+      const g = shown.filter((p) => p.rank === k).sort(byName);
+      return g.length ? `<li class="sv-grouphead">${esc(label)} <span class="muted small">${g.length}</span></li>${g.map((p) => `
+        <li><button type="button" class="sv-person" data-yp="${esc(p.id)}"${p.reflection === 'submitted' ? '' : ' disabled'}>
+          <span class="sv-name"><strong>${esc(nameOf(p))}</strong></span>
+          <span class="muted small">Reflection: ${p.reflection === 'submitted' ? `submitted ${esc(whenText(p.submitted_at))}` : p.reflection === 'started' ? 'started, not submitted' : 'not started'}</span>
+          <span class="chip ${p.reflection === 'submitted' ? 'ok' : p.reflection === 'started' ? 'warn' : ''}">${p.reflection === 'submitted' ? 'Read' : p.reflection === 'started' ? 'Draft' : '—'}</span>
+        </button></li>`).join('')}` : '';
+    }).join('') || '<li class="muted">Nobody here.</li>'}</ul>
+    <p class="muted small">Only submitted reflections can be opened; drafts stay private to the person.</p>
+  </section>`;
+  box.querySelectorAll('[data-yf]').forEach((b) => b.addEventListener('click', () => { yearlyFilter = b.dataset.yf; drawYearly(); }));
+  box.querySelectorAll('[data-yp]').forEach((b) => b.addEventListener('click', () => reflectionReader(list.find((p) => p.id === b.dataset.yp))));
+}
+
+async function reflectionReader(p) {
+  const d = openDlg(`<div class="lh-form"><h2>${esc(nameOf(p))}</h2><p class="muted">Loading…</p></div>`, true);
+  let r; let body;
+  try { r = await api.reflection(p.id, year); body = await selfBody(r?.form_version); } catch (e) { d.innerHTML = `<p class="error">${esc(e.message)}</p>`; return; }
+  if (!r) { d.innerHTML = '<p class="muted">Not submitted yet.</p><div class="dlg-actions"><button type="button" data-close>Close</button></div>'; d.querySelector('[data-close]').addEventListener('click', closeDlg); return; }
+  d.innerHTML = `<div class="lh-form sv-read">
+    <h2>${esc(nameOf(p))} · year-end reflection ${year}</h2>
+    <p class="muted small">Submitted ${esc(whenText(r.submitted_at))}${r.updated_at && r.updated_at !== r.submitted_at ? ` · last changed ${esc(whenText(r.updated_at))}` : ''}</p>
+    ${(body.parts || []).map((pt) => `<h3>${esc(pt.title)}</h3>${pt.questions.map((q) => `<div class="sv-ans"><p class="sv-ans-q">${esc(q.text)}</p>
+      <p class="sv-ans-a">${String(r.answers?.[q.key] || '').trim() ? esc(r.answers[q.key]).replace(/\n/g, '<br>') : '<span class="muted">No answer</span>'}</p></div>`).join('')}`).join('')}
+    <div class="dlg-actions"><button type="button" data-close>Close</button></div></div>`;
+  d.querySelector('[data-close]').addEventListener('click', closeDlg);
 }
