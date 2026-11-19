@@ -1754,3 +1754,8 @@ a.lh-tool:hover { border-color: var(--line-strong); background: var(--surface-ra
 /* Strengths → Focus items → Goals, one under the other (Q9) */
 .qr-two.qr-stack { grid-template-columns: minmax(0, 1fr) !important; }
 .qr-goal .qr-l:first-of-type { margin-top: 2px; }
+/* "/ 3" after a score: smaller and quieter than the number (Q10) */
+.sv-of { font-size: .55em; font-weight: 400; color: var(--muted); font-family: var(--font-sans); letter-spacing: 0; white-space: nowrap; }
+.sv-total .sv-of, .yr-sum .sv-of, p .sv-of, b .sv-of { font-size: .8em; }
+.qr-v .sv-of, .yr-num b .sv-of, .yr-final b .sv-of, .sv-final b .sv-of { font-size: .45em; }
+@media print { #print-area .yr .sv-of { color: #555 !important; } }

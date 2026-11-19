@@ -71,6 +71,8 @@ const RANK_GROUPS = [['qcd', 'QCD'], ['senior', 'Senior'], ['therapist', 'Junior
 const qcdLevels = (body) => (body.levels || []).filter((l) => l.key !== 'supervisor');
 const nameOf = (p) => p.nickname || p.full_name;
 const fmtScore = (n) => (n == null ? '—' : Number(n).toFixed(2));
+// A score with its full mark, so 2.95 reads as "2.95 / 3" (everything is scored 0–3).
+const outOf = (n) => (n == null ? '—' : `${Number(n).toFixed(2)}<span class="sv-of"> / 3</span>`);
 const dlg = () => panelEl.querySelector('#sv-dlg');
 const openDlg = (html, wide = false) => { const d = dlg(); d.classList.toggle('sv-wide', wide); d.classList.remove('sv-full', 'yr-dlg'); d.innerHTML = html; if (!d.open) d.showModal(); return d; };
 const closeDlg = () => { const d = dlg(); if (d.open) d.close(); };
@@ -200,9 +202,9 @@ async function resultsHtml(list) {
   const delta = last.total != null && prev?.total != null ? Number(last.total) - Number(prev.total) : null;
 
   const kpis = `<div class="qr-kpis">
-    <div class="qr-kpi"><p class="qr-l">Latest total</p><p class="qr-v">${fmtScore(last.total)}</p>
+    <div class="qr-kpi"><p class="qr-l">Latest total</p><p class="qr-v">${outOf(last.total)}</p>
       <p class="qr-s">${delta == null ? esc(shortDate(last.held_on)) : `<span class="${delta >= 0 ? 'qr-up' : 'qr-down'}">${delta >= 0 ? '↑ +' : '↓ −'}${Math.abs(delta).toFixed(2)}</span> since last`}</p></div>
-    <div class="qr-kpi"><p class="qr-l">Average ${year}</p><p class="qr-v">${fmtScore(avg)}</p><p class="qr-s">${recs.length} session${recs.length === 1 ? '' : 's'}</p></div>
+    <div class="qr-kpi"><p class="qr-l">Average ${year}</p><p class="qr-v">${outOf(avg)}</p><p class="qr-s">${recs.length} session${recs.length === 1 ? '' : 's'}</p></div>
     ${best && worst && best.k !== worst.k && best.v - worst.v >= 0.01 ? `
     <div class="qr-kpi"><p class="qr-l">Strongest area</p><p class="qr-w">${esc(title[best.k])}</p><p class="qr-s">average ${best.v.toFixed(2)}</p></div>
     <div class="qr-kpi"><p class="qr-l">To work on</p><p class="qr-w">${esc(title[worst.k])}</p><p class="qr-s">average ${worst.v.toFixed(2)}</p></div>` : ''}
@@ -224,7 +226,7 @@ async function resultsHtml(list) {
     <rect data-qr="${i}" x="${(x(i) - Math.max(14, (W - L - R) / Math.max(1, n - 1) / 2)).toFixed(1)}" y="0" width="${Math.max(28, (W - L - R) / Math.max(1, n - 1)).toFixed(1)}" height="${H - B}" fill="transparent"/>`).join('');
   const endY = y(Number(last.total)) - 11 < 12 ? y(Number(last.total)) + 20 : y(Number(last.total)) - 11;   // near the top: put the label under the point
   if (last.total != null) svg += `<text class="qr-end" x="${Math.min(x(n - 1), W - R).toFixed(1)}" y="${endY.toFixed(1)}" text-anchor="${n === 1 ? 'middle' : 'end'}">${fmtScore(last.total)}</text>`;
-  const tips = recs.map((r) => `${esc(fmtDate(r.held_on))}${r.case_code ? ` · case ${esc(r.case_code)}` : ''} · by ${esc(r.recorder || 'someone')}<br>Total <b>${fmtScore(r.total)}</b>${Number(r.total) < LOW ? ' · below 2.5' : ''}`);
+  const tips = recs.map((r) => `${esc(fmtDate(r.held_on))}${r.case_code ? ` · case ${esc(r.case_code)}` : ''} · by ${esc(r.recorder || 'someone')}<br>Total <b>${outOf(r.total)}</b>${Number(r.total) < LOW ? ' · below 2.5' : ''}`);
   const trend = `<div class="qr-box" data-qr-tips='${esc(JSON.stringify(tips))}'>
     <h3>Total score over time</h3>
     <p class="qr-note">Dotted line = ${LOW}. A hollow ring = a session below ${LOW}. Two in a row = “Needs attention”.</p>
@@ -302,7 +304,7 @@ function sessionList(list) {
     <li><button type="button" class="sv-row" data-rec="${esc(r.id)}">
       <span><strong>${esc(fmtDate(r.held_on))}</strong>${r.case_code ? ` · case ${esc(r.case_code)}` : ''}
         <span class="muted small"> · ${esc(LEVEL[r.level] || r.level)} · by ${esc(r.recorder || 'someone')}</span></span>
-      <span class="sv-total${Number(r.total) < LOW ? ' low' : ''}">${fmtScore(r.total)}</span>
+      <span class="sv-total${Number(r.total) < LOW ? ' low' : ''}">${outOf(r.total)}</span>
     </button></li>`).join('')}</ul>`;
 }
 
@@ -344,7 +346,7 @@ async function drawTeam() {
       <li><button type="button" class="sv-person${p.flag ? ' flag' : ''}" data-person="${esc(p.id)}">
         <span class="sv-name"><strong>${esc(nameOf(p))}</strong> </span>
         <span class="muted small">${p.sessions ? `${p.sessions} QCD${p.sessions === 1 ? '' : 's'} in ${year}` : `No QCD in ${year}`}${p.last_on ? ` · last ${esc(fmtDate(p.last_on))}` : ''}</span>
-        <span class="sv-total${p.last_total != null && Number(p.last_total) < LOW ? ' low' : ''}">${fmtScore(p.last_total)}</span>
+        <span class="sv-total${p.last_total != null && Number(p.last_total) < LOW ? ' low' : ''}">${outOf(p.last_total)}</span>
         ${p.flag ? `<span class="chip warn sv-flag">PIP suggested</span>` : ''}
       </button></li>`;
     box.querySelector('#sv-people').innerHTML = shown.length
@@ -403,7 +405,7 @@ async function viewDialog(r, { who, readOnly }) {
   const d = openDlg(`<div class="lh-form">
     <h2>${esc(nameOf(who))} · QCD ${esc(fmtDate(r.held_on))}</h2>
     <p class="muted small">${r.case_code ? `Case ${esc(r.case_code)} · ` : ''}${esc(LEVEL[r.level] || r.level)} level · by ${esc(r.recorder || 'someone')}</p>
-    <p class="sv-big">Total <span class="sv-total${Number(r.total) < LOW ? ' low' : ''}">${fmtScore(r.total)}</span></p>
+    <p class="sv-big">Total <span class="sv-total${Number(r.total) < LOW ? ' low' : ''}">${outOf(r.total)}</span></p>
     ${itemsFor(body, r.level).map((s) => `<details class="sv-sec"><summary><strong>${esc(s.title)}</strong>
         <span class="sv-total small">${fmtScore(r.sections?.[s.key])}</span></summary>
       <ul class="sv-items">${s.items.map((i) => `<li><span>${esc(i.text)}${r.tallies?.[i.key]?.n ? ` <span class="muted small">(${r.tallies[i.key].c}/${r.tallies[i.key].n})</span>` : ''}</span><b class="sv-score s${esc(String(r.scores?.[i.key] ?? ''))}">${esc(label(r.scores?.[i.key]))}</b></li>`).join('')}</ul></details>`).join('')}
@@ -544,7 +546,7 @@ async function recordDialog(p, rec) {
     side.innerHTML = `${[['all', 'All items', `${done(all)}/${all.length}`], ['recent', 'Recent', String(st.recent.length)], ['todo', 'Not scored yet', String(all.length - done(all))],
       ...secs.map((s) => [s.key, shortTitle(s.title), `${done(s.items)}/${s.items.length}`])]
       .map(([k, l, c]) => `<button type="button" class="sv-secbtn${view === k ? ' on' : ''}" data-view="${esc(k)}"><span>${esc(l)}</span><span>${esc(c)}</span></button>`).join('')}
-      <div class="sv-live-total"><span class="muted small">Total so far</span><span class="qr-v${total != null && total < LOW ? ' low' : ''}">${fmtScore(total)}</span></div>`;
+      <div class="sv-live-total"><span class="muted small">Total so far</span><span class="qr-v${total != null && total < LOW ? ' low' : ''}">${outOf(total)}</span></div>`;
   };
   const shown = () => {
     let list = flat();
@@ -580,7 +582,7 @@ async function recordDialog(p, rec) {
     const { sec, total } = liveScore(body, st.level, sc);
     const all = flat();
     const missing = all.filter((i) => sc[i.key] === undefined).length;
-    side.innerHTML = `<div class="sv-live-total"><span class="muted small">Total</span><span class="qr-v${total != null && total < LOW ? ' low' : ''}">${fmtScore(total)}</span></div>
+    side.innerHTML = `<div class="sv-live-total"><span class="muted small">Total</span><span class="qr-v${total != null && total < LOW ? ' low' : ''}">${outOf(total)}</span></div>
       ${items().map((s) => `<div class="sv-secbtn"><span>${esc(shortTitle(s.title))}</span><span>${fmtScore(sec[s.key])}</span></div>`).join('')}`;
     main.innerHTML = `<h3>Review</h3>
       ${missing ? `<p class="sv-alert">${missing} item${missing === 1 ? '' : 's'} not scored (not counted in the total).</p>` : ''}
@@ -765,8 +767,8 @@ async function drawMyYear() {
   const mineSum = closed.find((x) => x.therapist_id === ctx.me.id);
   if (mineSum) {                           // the year was closed: only the summary is left
     box.innerHTML = `<section class="card sv-year"><div class="page-head sv-head"><h2>Yearly review ${year} <span class="chip">Closed</span></h2></div>
-      <span class="sv-final"><span><span class="muted small">Clinical</span><b>${fmtScore(mineSum.clinical)}</b></span><span><span class="muted small">HR performance</span><b>${fmtScore(mineSum.hr_perf)}</b></span>
-        <span><span class="muted small">QCD average</span><b>${fmtScore(mineSum.qcd_avg)}</b></span><span class="sv-final-big"><span class="muted small">Final score</span><b>${fmtScore(mineSum.final)}</b></span></span>
+      <span class="sv-final"><span><span class="muted small">Clinical</span><b>${outOf(mineSum.clinical)}</b></span><span><span class="muted small">HR performance</span><b>${outOf(mineSum.hr_perf)}</b></span>
+        <span><span class="muted small">QCD average</span><b>${outOf(mineSum.qcd_avg)}</b></span><span class="sv-final-big"><span class="muted small">Final score</span><b>${outOf(mineSum.final)}</b></span></span>
       <p class="muted small">${mineSum.signed_at ? `Signed ${esc(whenText(mineSum.signed_at))}. ` : ''}Only this summary is kept in the Portal after the year is closed.</p></section>`;
     return;
   }
@@ -921,7 +923,7 @@ async function drawYearly() {
         <li><button type="button" class="sv-person" data-yp="${esc(p.id)}">
           <span class="sv-name"><strong>${esc(nameOf(p))}</strong></span>
           <span class="muted small">Reflection: ${p.reflection === 'submitted' ? `submitted ${esc(whenText(p.submitted_at))}` : p.reflection === 'started' ? 'draft' : 'not started'}${p.rank !== 'office' ? ` · admin half 1 ${p.admin_h1 || 0}/${nSec} · half 2 ${p.admin_h2 || 0}/${nSec}` : ''}
-            ${p.rank !== 'office' ? `<br>Clinical: ${p.final_total != null ? `final <b>${fmtScore(p.final_total)}</b>${p.ioa != null ? ` · IOA ${Number(p.ioa)}%` : ''}`
+            ${p.rank !== 'office' ? `<br>Clinical: ${p.final_total != null ? `final <b>${outOf(p.final_total)}</b>${p.ioa != null ? ` · IOA ${Number(p.ioa)}%` : ''}`
               : p.lead_id ? `lead ${esc(p.lead || '')} ${p.lead_done ? '✓' : '…'}${p.second_id ? ` · second ${esc(p.second || '')} ${p.second_done ? '✓' : '…'}` : ''}` : 'evaluators not assigned'}${myClin(p) ? ' · <b>waiting for you</b>' : ''}
               · shown: mid ${p.release_mid_at ? '✓' : '—'} · year-end ${p.release_end_at ? '✓' : '—'}${p.signed_at ? ` · <b>signed ${esc(whenText(p.signed_at))}</b>` : ''}` : ''}</span>
           ${p.rank !== 'office' ? chip(p[`admin_h${nowHalf()}`] || 0) : `<span class="chip ${p.reflection === 'submitted' ? 'ok' : ''}">${p.reflection === 'submitted' ? 'Reflection in' : '—'}</span>`}
@@ -996,7 +998,7 @@ async function yearlyPerson(p, tab = null) {
     const mineKeys = myAdminSections();
     d.innerHTML = `<div class="lh-form">${head}
       <div class="sv-tools"><div class="seg" role="tablist">${[1, 2].map((h) => `<button type="button" role="tab" data-half="${h}" aria-selected="${half === h}">Half ${h} <span class="muted small">${h === 1 ? 'Jan–Jun' : 'Jul–Dec'}</span></button>`).join('')}</div>
-        <span class="spacer"></span><span>HR performance <span class="sv-total${hrPerf != null && hrPerf < LOW ? ' low' : ''}">${fmtScore(hrPerf)}</span> <span class="muted small">(${avgs.length}/${body.sections.length} sections)</span></span></div>
+        <span class="spacer"></span><span>HR performance <span class="sv-total${hrPerf != null && hrPerf < LOW ? ' low' : ''}">${outOf(hrPerf)}</span> <span class="muted small">(${avgs.length}/${body.sections.length} sections)</span></span></div>
       <details class="sv-scale"><summary class="small">Scale 0–3: what each score means</summary><ul class="small">${scale.labels.map((l) => `<li><b>${l.v}</b> ${esc(l.label)}</li>`).join('')}</ul></details>
       ${body.sections.map((sc) => {
         const e = rows.find((x) => x.section === sc.key);
@@ -1182,7 +1184,7 @@ async function clinicalTab(d, p, head, wire) {
       ${!fin && role === 'lead' ? `<p class="muted small">Where you agree, the final is filled in. Talk through the items that <b>differ</b>, then tap the final score. ${vis(second) ? '' : 'The second supervisor hasn’t submitted; you can still set the final from your own scores.'}</p>` : ''}
       <table class="sv-compare"><thead><tr><th>Item</th><th>Lead${g.lead ? `<br><span class="muted small">${esc(g.lead)}</span>` : ''}</th><th>Second${g.second ? `<br><span class="muted small">${esc(g.second)}</span>` : ''}</th><th>Final</th></tr></thead>
         <tbody>${compareRows()}</tbody></table>
-      ${fin ? `<p>Clinical score <span class="sv-total${Number(fin.total) < LOW ? ' low' : ''}">${fmtScore(fin.total)}</span> <span class="muted small">· set ${esc(whenText(fin.submitted_at))} by ${esc(fin.scorer || '')}</span></p>
+      ${fin ? `<p>Clinical score <span class="sv-total${Number(fin.total) < LOW ? ' low' : ''}">${outOf(fin.total)}</span> <span class="muted small">· set ${esc(whenText(fin.submitted_at))} by ${esc(fin.scorer || '')}</span></p>
         ${(body.notes || []).map((n) => (fin.notes?.[n.key] ? `<p class="small"><strong>${esc(n.label)}:</strong> ${esc(fin.notes[n.key])}</p>` : '')).join('')}` : ''}
       ${!fin && role === 'lead' ? `${(body.notes || []).map((n) => `<label>${esc(n.label)} <span class="muted small">(final)</span><textarea data-fnote="${esc(n.key)}" rows="2" maxlength="1500">${esc(lead?.notes?.[n.key] || '')}</textarea></label>`).join('')}
         <p class="row-actions"><span class="muted small" data-fmsg></span><span class="spacer"></span><span>Final <span class="sv-total" data-ftotal>—</span></span>
@@ -1282,12 +1284,12 @@ async function reviewSteps(rv) {
   return `
     <li class="${midShown ? 'done' : 'later'}"><span class="sv-step-dot">${midShown ? icon('check') : '2'}</span>
       <span><strong>Mid-year review</strong><br><span class="muted small">${rv?.mid_review_at ? `Meeting ${esc(when(rv.mid_review_at))}${rv.lead ? ` with ${esc(rv.lead)} and an admin` : ''}` : 'A meeting with your lead supervisor and an admin; the date will appear here.'}
-        ${midShown ? `<br>Admin evaluation, half 1: <b>${fmtScore(n.h1)}</b>` : ''}</span></span>
+        ${midShown ? `<br>Admin evaluation, half 1: <b>${outOf(n.h1)}</b>` : ''}</span></span>
       <span class="sv-step-side">${midShown ? '<button type="button" class="small-btn" data-myrev="mid">See details</button>' : '<span class="chip">Not shown yet</span>'}</span></li>
     <li class="${rv?.signed_at ? 'done' : endShown ? 'now' : 'later'}"><span class="sv-step-dot">${rv?.signed_at ? icon('check') : '3'}</span>
       <span><strong>Year-end review</strong><br><span class="muted small">${rv?.end_review_at ? `Meeting ${esc(when(rv.end_review_at))}${rv.lead ? ` with ${esc(rv.lead)} and an admin` : ''}` : 'Your clinical checklist and admin evaluation, then you sign.'}</span>
-        ${endShown ? `<span class="sv-final"><span><span class="muted small">Clinical</span><b>${fmtScore(n.clin)}</b></span><span><span class="muted small">HR performance</span><b>${fmtScore(n.hr)}</b></span>
-          <span class="sv-final-big"><span class="muted small">Final score</span><b>${fmtScore(n.fin)}</b></span></span>
+        ${endShown ? `<span class="sv-final"><span><span class="muted small">Clinical</span><b>${outOf(n.clin)}</b></span><span><span class="muted small">HR performance</span><b>${outOf(n.hr)}</b></span>
+          <span class="sv-final-big"><span class="muted small">Final score</span><b>${outOf(n.fin)}</b></span></span>
           ${rv.signed_at ? `<span class="small">Signed ${esc(whenText(rv.signed_at))}${rv.sign_comment ? ` · “${esc(rv.sign_comment)}”` : ''}</span>`
             : `<label class="small">Comment <span class="muted">(optional)</span><textarea data-signnote rows="2" maxlength="1500"></textarea></label>`}` : ''}</span>
       <span class="sv-step-side">${endShown ? `<button type="button" class="small-btn" data-myrev="end">See details</button><button type="button" class="small-btn" data-myreport>${icon('file-text')} Year report</button>${rv.signed_at ? '' : `<button type="button" class="small-btn primary" data-sign>${icon('check')} I agree, sign</button>`}` : '<span class="chip">Not shown yet</span>'}</span></li>`;
@@ -1299,7 +1301,7 @@ async function myReviewDialog(rv, which) {
   const adminHalf = (h) => {
     const rows = (rv.admin || []).filter((e) => e.half === h);
     if (!rows.length || !n.af) return `<p class="muted small">Half ${h}: not scored.</p>`;
-    return `<h3>Admin evaluation · half ${h} <span class="sv-total small">${fmtScore(h === 1 ? n.h1 : n.h2)}</span></h3>${n.af.body.sections.map((sc) => {
+    return `<h3>Admin evaluation · half ${h} <span class="sv-total small">${outOf(h === 1 ? n.h1 : n.h2)}</span></h3>${n.af.body.sections.map((sc) => {
       const e = rows.find((x) => x.section === sc.key);
       return `<h4>${esc(sc.title)} <span class="sv-total small">${fmtScore(e?.average)}</span></h4><ul class="sv-items">${sc.items.map((it) => scoreRow(it.text, e?.scores?.[it.key])).join('')}</ul>${e?.note ? `<p class="small">${esc(e.note)}</p>` : ''}`;
     }).join('')}`;
@@ -1307,13 +1309,13 @@ async function myReviewDialog(rv, which) {
   let clin = '';
   if (which === 'end' && rv.clinical) {
     const yb = await yearlyBody(rv.clinical.form_version);
-    clin = `<h3>Clinical checklist <span class="sv-total small">${fmtScore(rv.clinical.total)}</span></h3>${itemsFor(yb, rv.clinical.level).map((sc) => `<h4>${esc(sc.title)} <span class="sv-total small">${fmtScore(rv.clinical.sections?.[sc.key])}</span></h4>
+    clin = `<h3>Clinical checklist <span class="sv-total small">${outOf(rv.clinical.total)}</span></h3>${itemsFor(yb, rv.clinical.level).map((sc) => `<h4>${esc(sc.title)} <span class="sv-total small">${fmtScore(rv.clinical.sections?.[sc.key])}</span></h4>
       <ul class="sv-items">${sc.items.map((it) => scoreRow(it.text, rv.clinical.scores?.[it.key])).join('')}</ul>`).join('')}
       ${(yb.notes || []).map((x) => (rv.clinical.notes?.[x.key] ? `<p class="small"><strong>${esc(x.label)}:</strong> ${esc(rv.clinical.notes[x.key])}</p>` : '')).join('')}`;
   }
   const d = openDlg(`<div class="lh-form sv-read">
     <h2>Your ${which === 'mid' ? 'mid-year' : 'year-end'} review ${year}</h2>
-    ${which === 'end' ? `<p>Final score <span class="sv-total">${fmtScore(n.fin)}</span> <span class="muted small">= average of Clinical (${fmtScore(n.clin)}) and HR performance (${fmtScore(n.hr)})</span></p>` : ''}
+    ${which === 'end' ? `<p>Final score <span class="sv-total">${outOf(n.fin)}</span> <span class="muted small">= average of Clinical (${fmtScore(n.clin)}) and HR performance (${fmtScore(n.hr)})</span></p>` : ''}
     <p class="muted small">Scores 0–3. ${which === 'mid' ? 'Your QCD sessions are in My supervision too.' : ''}</p>
     ${clin}${adminHalf(1)}${which === 'end' ? adminHalf(2) : ''}
     <div class="dlg-actions"><button type="button" data-close>Close</button></div></div>`, true);
@@ -1331,14 +1333,14 @@ const hasData = (rp) => rp && (rp.closed || rp.qcd?.length || rp.clinical || rp.
 
 async function yearReportHtml(rp) {
   const S = rp.summary;
-  const num = (label, v, sub = '') => `<div class="yr-num"><span>${esc(label)}</span><b>${fmtScore(v)}</b>${sub ? `<span class="yr-sub">${sub}</span>` : ''}</div>`;
+  const num = (label, v, sub = '') => `<div class="yr-num"><span>${esc(label)}</span><b>${outOf(v)}</b>${sub ? `<span class="yr-sub">${sub}</span>` : ''}</div>`;
   const head = (finalV) => `<header class="yr-head">
       <div><p class="yr-kicker">CARE · Yearly review ${year}</p>
         <h1>${esc(rp.name || S?.name || '')}</h1>
         <p class="yr-meta">${[rp.full_name && rp.full_name !== rp.name ? esc(rp.full_name) : '', esc(LEVEL[rp.level || S?.level] || ''),
           (rp.lead || S?.lead) ? `Lead ${esc(rp.lead || S.lead)}` : '', (rp.second || S?.second) ? `Second ${esc(rp.second || S.second)}` : '',
           rp.end_review_at ? `Review meeting ${esc(dayText(rp.end_review_at))}` : ''].filter(Boolean).join(' · ')}</p></div>
-      <div class="yr-final"><span>Final score</span><b>${fmtScore(finalV)}</b></div>
+      <div class="yr-final"><span>Final score</span><b>${outOf(finalV)}</b></div>
     </header>`;
   if (rp.closed && !rp.qcd?.length && !rp.clinical && !rp.admin?.length) {        // closed year: only the summary is left
     return `<article class="yr">${head(S.final)}
@@ -1387,8 +1389,8 @@ async function yearReportHtml(rp) {
       ${num('QCD average', mean(qT), `${rp.qcd.length} session${rp.qcd.length === 1 ? '' : 's'} · for reference`)}</div>
     <p class="yr-note">Scores 0–3. Final score = average of Clinical and HR performance. QCD sessions are shown for the discussion.</p>
     <section class="yr-part"><h2>QCD sessions ${year}</h2>${rp.qcd.length ? await resultsHtml(rp.qcd) : '<p class="muted">No QCD sessions this year.</p>'}</section>
-    <section class="yr-part yr-break"><h2>Clinical checklist <span class="sv-total">${fmtScore(clin)}</span></h2>${clinHtml}</section>
-    <section class="yr-part"><h2>Admin evaluation <span class="sv-total">${fmtScore(hr)}</span></h2>${admHtml}</section>
+    <section class="yr-part yr-break"><h2>Clinical checklist <span class="sv-total">${outOf(clin)}</span></h2>${clinHtml}</section>
+    <section class="yr-part"><h2>Admin evaluation <span class="sv-total">${outOf(hr)}</span></h2>${admHtml}</section>
     <footer class="yr-sign">
       ${rp.signed_at ? `<p><b>Signed in the Portal by ${esc(rp.name)}</b> on ${esc(dayText(rp.signed_at))}${rp.sign_comment ? `<br>Comment: “${esc(rp.sign_comment)}”` : ''}</p>`
         : `<p>${rp.release_end_at ? 'Shown to the person; not signed yet.' : 'Not yet shown to the person.'}</p>`}
