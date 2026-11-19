@@ -53,7 +53,7 @@ export async function loadLeaveRef() {
 
 export const staffPicklist = () => supa.rpc('staff_picklist').then(must);
 
-const REQ_COLS = 'id,therapist_id,type,kind,reason,start_date,end_date,half_day,days,status,submitted_at,decided_by,decided_at,decision_note,families_notified_on,notified_by,cancel_requested_at,cancel_reason,cancel_note';
+const REQ_COLS = 'id,therapist_id,type,kind,reason,start_date,end_date,half_day,days,status,submitted_at,decided_by,decided_at,decision_note,families_notified_on,notified_by,cancel_requested_at,cancel_reason,cancel_note,edited_at';
 const SES_COLS = 'id,request_id,case_code,session_date,session_time,cover_kind,covering_therapist_id,makeup_date,makeup_time,arranged_by,arranged_at';
 
 async function withSessions(requests) {
@@ -91,6 +91,11 @@ export async function submitLeave(request, sessions) {
   return data.id;
 }
 
+// Change a request while it's still pending (Portal 057): fields + the sessions list.
+export const editLeave = (id, r, sessions) => supa.rpc('leave_request_edit', {
+  p_id: id, p_type: r.type, p_kind: r.kind, p_reason: r.reason, p_start: r.start_date, p_end: r.end_date,
+  p_half: r.half_day, p_days: r.days, p_sessions: sessions,
+}).then(must);
 export const cancelLeave = (id) => supa.rpc('leave_cancel', { p_id: id }).then(must);
 // Approved leave: the therapist asks Admin / HR to cancel it (Portal 046).
 export const requestCancel = (id, reason) => supa.rpc('leave_request_cancel', { p_id: id, p_reason: reason }).then(must);

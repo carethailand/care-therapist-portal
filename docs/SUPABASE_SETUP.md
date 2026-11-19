@@ -618,3 +618,10 @@ Run `supabase/migrations/20261118005600_admin_badges.sql` after Step 55, then pu
 - Two more hand-given badges in Our Team → Give a badge, **only for Admin / the Portal manager**: Scheduler and Centre manager. Supervisors and QCD only see the 4 clinical ones.
 - Every hand-given badge now has a short meaning, shown when giving it, under it in My Journey, and when you point at it on a team card.
 - School shadow, Supporter, Stimuli Master and Unshakable no longer have a ribbon (the picture says it); Kudos received keeps its THANKS ribbon with the count.
+
+## Step 57 — Change a pending leave request (added 2026-11-20)
+
+Run `supabase/migrations/20261118005700_leave_request_edit.sql` after Step 56, then publish the app (Q13).
+
+- While a request is **waiting for HR**, the therapist sees **Edit** next to Cancel: they can change the type, dates, half day, days, reason and the sessions they'll miss. HR sees "✏️ Changed <date>" on it, and the admin-leave Slack channel gets a note (if Slack is set up).
+- Once approved, changes go through **Ask to cancel** (Step 46) as before.

@@ -2,7 +2,7 @@
 // the request inbox (approve / decline, families notified) and each person's
 // annual leave allowance. Children appear only as case codes (e.g. "ABC").
 import {
-  loadLeaveRef, loadMyLeave, submitLeave, cancelLeave, requestCancel, withdrawCancel, decideCancel, staffPicklist, countDays, daysUntil, FIVE_DAY_RANKS,
+  loadLeaveRef, loadMyLeave, submitLeave, editLeave, cancelLeave, requestCancel, withdrawCancel, decideCancel, staffPicklist, countDays, daysUntil, FIVE_DAY_RANKS,
   loadTeamLeave, decideLeave, markNotified, saveEntitlement, arrangeSession,
 } from '../leave-data.js';
 import { listStaff } from '../data.js';
@@ -153,6 +153,9 @@ async function drawMine() {
   box.querySelector('[data-act="new"]').addEventListener('click', () => requestDialog(bal));
   box.querySelector('[data-act="print-mine"]').addEventListener('click', () =>
     printForm({ ...ctx.me, roles: ctx.roles }, mine.entitlement, mine.requests, picklist));
+  for (const b of box.querySelectorAll('[data-editreq]')) {
+    b.addEventListener('click', () => requestDialog(bal, mine.requests.find((r) => r.id === b.dataset.editreq)));
+  }
   for (const b of box.querySelectorAll('[data-cancel]')) {
     b.addEventListener('click', async () => {
       if (!confirm('Cancel this leave request?')) return;
@@ -195,6 +198,7 @@ function requestRow(r, { mine = false, people = picklist, team = false } = {}) {
       <p class="lv-title">${who}<span class="chip">${esc(r.type)}</span> ${esc(r.type === 'OL' ? kindLabel(r.kind) : typeLabel(r.type))} · ${esc(fmtDays(r.days))}</p>
       <p class="muted small">${esc(range(r))}${r.reason ? ` · ${esc(r.reason)}` : ''}</p>
       ${sessionsText(r, people)}
+      ${r.status === 'pending' && r.edited_at ? `<p class="small muted">✏️ Changed ${esc(fmtDate(String(r.edited_at).slice(0, 10)))}</p>` : ''}
       ${r.decision_note ? `<p class="small">HR note: ${esc(r.decision_note)}</p>` : ''}
       ${r.status === 'approved' && r.cancel_requested_at ? `<p class="small lv-cancelreq">🙋 ${mine ? 'You asked' : 'Asked'} to cancel ${esc(fmtDate(String(r.cancel_requested_at).slice(0, 10)))}${r.cancel_reason ? `: “${esc(r.cancel_reason)}”` : ''}</p>` : ''}
       ${r.cancel_note ? `<p class="small">${r.status === 'cancelled' ? 'Cancel approved' : 'Leave kept'}: ${esc(r.cancel_note)}</p>` : ''}
@@ -204,7 +208,7 @@ function requestRow(r, { mine = false, people = picklist, team = false } = {}) {
       <span class="chip ${cls}">${esc(label)}</span>
       ${r.status === 'approved' && r.sessions?.length
         ? (r.families_notified_on ? '<span class="chip ok">Families notified ✓</span>' : '<span class="chip warn">Families: to notify</span>') : ''}
-      ${mine && r.status === 'pending' ? `<button type="button" class="small-btn" data-cancel="${esc(r.id)}">Cancel</button>` : ''}
+      ${mine && r.status === 'pending' ? `<button type="button" class="small-btn" data-editreq="${esc(r.id)}">Edit</button><button type="button" class="small-btn" data-cancel="${esc(r.id)}">Cancel</button>` : ''}
       ${mine && r.status === 'approved' && r.cancel_requested_at ? `<span class="chip warn">Cancel requested</span><button type="button" class="link small" data-withdraw="${esc(r.id)}">Keep my leave</button>` : ''}
       ${mine && r.status === 'approved' && !r.cancel_requested_at && r.end_date >= todayLocal() ? `<button type="button" class="small-btn" data-askcancel="${esc(r.id)}">Ask to cancel</button>` : ''}
       ${team ? teamActions(r) : ''}
@@ -215,13 +219,15 @@ function requestRow(r, { mine = false, people = picklist, team = false } = {}) {
 // ---------------------------------------------------------------------------
 // Request form
 // ---------------------------------------------------------------------------
-function requestDialog(bal) {
+// editing = a pending request to change (Portal 057), or nothing for a new one.
+function requestDialog(bal, editing = null) {
   const dlg = panelEl.querySelector('#lv-dlg');
   const fiveDay = FIVE_DAY_RANKS.includes(rankOf(ctx.roles));
   const today = todayLocal();
   dlg.innerHTML = `
     <form method="dialog" class="person-form">
-      <h2>Request leave</h2>
+      <h2>${editing ? 'Change my leave request' : 'Request leave'}</h2>
+      ${editing ? '<p class="muted small">You can change this until HR decides. HR will see that it was changed.</p>' : ''}
       <div class="grid2">
         <label>Type of leave
           <select name="type" required>${ref.types.map((t) => `<option value="${esc(t.code)}">${esc(t.code)} · ${esc(t.label)}</option>`).join('')}</select></label>
@@ -263,7 +269,7 @@ function requestDialog(bal) {
       <p class="msg" role="status" hidden></p>
       <div class="dlg-actions"><span class="spacer"></span>
         <button type="button" data-act="cancel">Cancel</button>
-        <button type="submit" class="primary">Send to HR</button></div>
+        <button type="submit" class="primary">${editing ? 'Save changes' : 'Send to HR'}</button></div>
     </form>`;
   const form = dlg.querySelector('form');
   const warn = form.querySelector('[data-warn]');
@@ -284,8 +290,9 @@ function requestDialog(bal) {
     if (t?.notice_days && lead < t.notice_days) notes.push(`⚠️ Leave should be requested at least ${t.notice_days} days before the first day (this is ${lead < 0 ? 'in the past' : `${lead} day${lead === 1 ? '' : 's'} away`}). You can still send it.`);
     const b = bal.find((x) => x.code === t?.code);
     const want = Number(form.days.value || 0);
-    if (b?.allowance != null && b.used + b.waiting + want > b.allowance) {
-      notes.push(`⚠️ This is more than your remaining ${t.code} (${Math.max(0, b.allowance - b.used - b.waiting)} left, counting requests waiting for HR).`);
+    const waiting = (b?.waiting || 0) - (editing && editing.type === t?.code ? Number(editing.days) : 0);   // don't count this request twice
+    if (b?.allowance != null && b.used + waiting + want > b.allowance) {
+      notes.push(`⚠️ This is more than your remaining ${t.code} (${Math.max(0, b.allowance - b.used - waiting)} left, counting requests waiting for HR).`);
     }
     if (t?.needs_kind) {
       const k = ref.kinds.find((x) => x.code === form.kind.value);
@@ -298,19 +305,26 @@ function requestDialog(bal) {
   form.days.addEventListener('input', () => { daysTouched = true; refresh(); });
 
   const box = form.querySelector('[data-sessions]');
-  const addSession = () => {
+  const addSession = (s = null) => {
     const row = document.createElement('div');
     row.className = 'session-row';
     row.innerHTML = `
-      <input name="case" placeholder="ABC" maxlength="3" minlength="3" pattern="[A-Z]{3}" required aria-label="Case code (3 letters)" title="3-letter case code, e.g. ABC" class="case-input">
-      <input name="sdate" type="date" required aria-label="Session date" value="${esc(form.start.value)}">
-      <input name="stime" placeholder="10:15–12:15" maxlength="20" aria-label="Session time">
+      <input name="case" placeholder="ABC" maxlength="3" minlength="3" pattern="[A-Z]{3}" required aria-label="Case code (3 letters)" title="3-letter case code, e.g. ABC" class="case-input" value="${esc(s?.case_code || '')}">
+      <input name="sdate" type="date" required aria-label="Session date" value="${esc(s?.session_date || form.start.value)}">
+      <input name="stime" placeholder="10:15–12:15" maxlength="20" aria-label="Session time" value="${esc(s?.session_time || '')}">
       <button type="button" class="small-btn" aria-label="Remove session">✕</button>`;
     row.querySelector('button').addEventListener('click', () => row.remove());
     row.querySelector('[name="case"]').addEventListener('input', (e) => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3); });
     box.append(row);
   };
-  form.querySelector('[data-addsession]').addEventListener('click', addSession);
+  form.querySelector('[data-addsession]').addEventListener('click', () => addSession());
+  if (editing) {                                         // fill the form with the request being changed
+    form.type.value = editing.type; if (editing.kind) form.kind.value = editing.kind;
+    form.reason.value = editing.reason || ''; form.start.value = editing.start_date; form.end.value = editing.end_date;
+    form.half.value = editing.half_day || ''; form.days.value = Number(editing.days);
+    daysTouched = Number(editing.days) !== countDays(editing.start_date, editing.end_date, editing.half_day || '', fiveDay);   // keep a number they typed
+    for (const s of editing.sessions || []) addSession(s);
+  }
   form.querySelector('[data-act="cancel"]').addEventListener('click', () => dlg.close());
 
   form.addEventListener('submit', async (ev) => {
@@ -325,11 +339,13 @@ function requestDialog(bal) {
     const btn = form.querySelector('[type="submit"]');
     btn.disabled = true;
     try {
-      await submitLeave({
+      const req = {
         therapist_id: ctx.me.id, type: t.code, kind: t.needs_kind ? form.kind.value : null,
         reason: form.reason.value.trim() || null, start_date: form.start.value, end_date: form.end.value,
         half_day: form.half.value || null, days: Number(form.days.value),
-      }, sessions);
+      };
+      if (editing) await editLeave(editing.id, req, sessions);
+      else await submitLeave(req, sessions);
       dlg.close();
       await drawMine();
       if (isLeaveTeam()) await drawTeam();
