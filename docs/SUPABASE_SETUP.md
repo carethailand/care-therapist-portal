@@ -457,3 +457,20 @@ staff-admin **v6** deployed 2026-11-19: the Portal manager can create logins, re
 - **Edit my wheel** (button above the wheel, and "Use your skill points"): − / + one point at a time, then Save. New points cost 10 leaves each; points can also be moved between skills. The total never goes down, so the tree never shrinks. Replaces "Use your leaves" (1 or 5 a tap) and "Move points".
 - Under the wheel: "You have N skill points left to use."
 - Stages now start at 0: Seedling / Bud is the first stage, then Sprout 20 · Sapling 30 · Tree 40 · Grove 60 · Forest Guardian 100 (same for the flower field). People already in the hub are unchanged.
+
+## Step 42 — New badges, first five (added 2026-11-19)
+
+1. **Run** `supabase/migrations/20261118004200_badges_round2.sql` (after 041).
+2. **Publish** the app (P9q).
+
+Five new badges unlock by themselves and appear in My Journey → badges (earned, plus the next level locked), and can be picked for the Our Team card (up to 5). If someone hasn't picked, they fill any free space on the card.
+
+| Badge | Unlocks when | Who |
+|---|---|---|
+| ABAT passed | an ABAT place is marked passed | therapist ranks |
+| SAFMEDS master | a SAFMEDS set is mastered | therapist ranks |
+| Resources (9 levels) | Learning Hub resources done | everyone on the staff badge path |
+| Reviewed logs (9 levels) | study logs reviewed | everyone on the staff badge path |
+| Kudos (9 levels) | kudos sent TO you posted on the Kudos board | everyone on the staff badge path |
+
+Levels: **silver 1 / 5 / 8 · gold 10 / 15 / 18 · holographic 20 / 25 / 30** (1, 2, 3 stars in each colour, plus the number; same silver / gold / holographic colours as the Senior, QCD and Supervisor Training badges; no colour words on screen). Other people only see the level reached (e.g. 10), never exact counts or what was studied. Still to come (waiting for art): Field evaluation passed, Helping hand, Newest therapist and the hand-given badges.

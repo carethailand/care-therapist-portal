@@ -41,3 +41,15 @@ From **Vecteezy.com** (free licence). The Learning Hub page shows "Tree, flower,
 | `../tree/grass-*.svg`, `../tree/bush-*.svg` (flower field, added 2026-11-18) | "Collection of grass plants and bush icons in flat green" (Vecteezy 69962547) | Two grass tufts and three bushes cut out, recoloured to the field greens |
 
 All Vecteezy art used in the Portal was chosen with Vecteezy's filter for non-AI (human-made) images. The on-screen credits say so.
+
+## Achievement badges, second set (added 2026-11-19)
+
+Art chosen by Songg (files in `Portal stickers/New badges – drop art here/`). Shapes taken from the vector files; backgrounds removed; words, ribbons (from our year badges), numbers and stars added. Source IDs to complete where unknown.
+
+| Files | Source | Changes |
+|---|---|---|
+| `../milestones/abat.svg` | Shield with ribbon and sparkles (Illustrator file by "Mobarok"; Vecteezy ID: add) | Dark background and shine dots removed; "ABAT" in the middle |
+| `../milestones/safmeds.svg` | Lightning bolt (Illustrator file by "Anwar Parves"; Vecteezy ID: add) | Small side bolts removed; "SAFMEDS" ribbon added |
+| `../milestones/resources-*.svg` | "Gold Award and Trophy Vector" (CorelDRAW file; Vecteezy ID: add): the shield with the open book | Recoloured silver / gold / holographic; count on the plate, stars above (1 / 2 / 3) |
+| `../milestones/logs-*.svg` | Drawn for CARE (no outside art): a thin-line clipboard in the same style as the training certificate badges, after Songg's pick "Contact form icons" (Vecteezy 58136510) | Silver / gold / holographic board; stars fill 1 / 2 / 3; ribbon with the count |
+| `../milestones/kudos-*.svg` | Hand holding a heart (Illustrator file "envio-10" by "Evota"; Vecteezy ID: add) | Placed in a round silver / gold / holographic frame; ribbon and stars added |

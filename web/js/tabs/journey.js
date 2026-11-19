@@ -13,6 +13,7 @@ import { cardHtml, wireAbout } from '../team-card.js';
 const ABOUT_MAX = 280;
 // My card's data while on this page: { row, url, badge, tree, picked, chosen }
 let mc = null;
+let ach = null;   // my achievement levels (team_badges row)
 
 // Each track has its own steps (see admin/staff.js).
 const TRACK_STAGES = {
@@ -118,6 +119,8 @@ async function loadMyCard(panel, me, roles) {
     panel.querySelector('#mc-card').hidden = false;
     drawPreview(panel);
   }
+  if (!mc) ach = await loadBadges().then((b) => b.find((x) => x.id === me.id) || null).catch(() => null);
+  else ach = mc.badge;
   drawMilestones(panel, me, roles, longest);
 }
 
@@ -205,7 +208,7 @@ function drawPreview(panel) {
 // (up to 5, in the order tapped); locked ones say how to unlock them.
 function drawMilestones(panel, me, roles, longest) {
   const el = panel.querySelector('#ms-card .ms-grid');
-  const list = milestones(me, roles, longest);
+  const list = milestones(me, roles, longest, ach);
   const today = todayLocal();
   const canPick = (m) => mc && m.earned && mc.allowed.includes(m.key);
   const info = panel.querySelector('#ms-pickinfo');
