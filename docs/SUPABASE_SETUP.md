@@ -488,3 +488,10 @@ Levels: **silver 1 / 5 / 8 · gold 10 / 15 / 18 · holographic 20 / 25 / 30** (1
 2. **Publish** the app (P9v).
 
 The hand-with-heart badge now counts thank-yous a person **sends** (with their name). Anonymous thank-yous never count, so a badge can't give an anonymous sender away. A separate **Kudos received** badge comes later (art folder 16).
+
+## Step 44 — Newest therapist badge (added 2026-11-19)
+
+1. **Run** `supabase/migrations/20261118004400_newest_therapist_badge.sql` (after 043).
+2. **Publish** the app (P9w).
+
+The current therapist (Junior, Senior, QCD or Supervisor) with the latest start date holds **Newest therapist** (blue rosette, baby feet with a gold star). It passes on by itself when someone newer becomes a therapist; trainees still in onboarding don't count. Shown on My Journey only while held, and on the team card (with Longest-serving) unless the person picked other badges.

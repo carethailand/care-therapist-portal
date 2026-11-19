@@ -215,7 +215,7 @@ function drawMilestones(panel, me, roles, longest) {
   if (info) info.textContent = mc ? `Tap an earned badge to show it on your team card · ${mc.picked.length}/${SHOW_MAX}` : '';
   el.innerHTML = `<ul class="ms-list">${list.map((m) => {
     const when = m.earned
-      ? (m.lockText ? 'Earned' : m.key === 'longest' ? 'Held now' : m.on && m.on <= today ? `Earned ${fmtDate(m.on)}` : 'Earned')
+      ? (m.key === 'longest' || m.key === 'newest' ? 'Held now' : m.lockText ? 'Earned' : m.on && m.on <= today ? `Earned ${fmtDate(m.on)}` : 'Earned')
       : m.lockText ? m.lockText
       : m.key === 'longest' ? 'Longest at CARE'
         : m.on ? `Unlocks ${fmtDate(m.on)}` : m.key === 'probation' ? 'Unlocks after probation' : 'Needs a start date';

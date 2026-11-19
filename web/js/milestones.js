@@ -30,6 +30,8 @@ const FAMILY = [
 // level reached plus the next one (locked). { key, label, img, earned, lockText }
 function achievements(a = {}, clinical = true) {
   const out = [];
+  // Newest therapist (Portal 044): shown only while held; it passes on to the next new therapist.
+  if (clinical && a.newest) out.push({ key: 'newest', label: 'Newest therapist', img: file('newest'), earned: true, on: null, lockText: 'Held now' });
   if (clinical) {
     out.push({ key: 'abat', label: 'ABAT passed', img: file('abat'), earned: !!a.abat, on: null, lockText: 'Unlocks when you pass ABAT' });
     out.push({ key: 'safmeds', label: 'SAFMEDS master', img: file('safmeds'), earned: !!a.safmeds, on: null, lockText: 'Master a SAFMEDS set' });
@@ -129,7 +131,7 @@ export async function isLongest(me) {
 // 5 to show; badges not earned are never shown, even if chosen.
 // ---------------------------------------------------------------------------
 export const SHOW_MAX = 5;
-const ACH_KEY = /^(abat|safmeds|(resources|logs|kudos)-\d+)$/;
+const ACH_KEY = /^(abat|safmeds|(resources|logs|kudos)-\d+)$/;   // newest is shown with longest
 const TRAINING = [
   { key: 'supervisor', label: 'Supervisor Training' },
   { key: 'qcd-training', label: 'QCD Training' },
@@ -164,7 +166,7 @@ export function cardBadges(p, extra = {}) {
   let shown = pick;
   if (!pick.length) {
     const latestYear = all.find((b) => b.years);
-    shown = [latestYear, ...all.filter((b) => b.key === 'probation' || b.key === 'longest'),
+    shown = [latestYear, ...all.filter((b) => ['probation', 'longest', 'newest'].includes(b.key)),
       ...all.filter((b) => TRAINING.some((t) => t.key === b.key)),
       ...all.filter((b) => ACH_KEY.test(b.key))].filter(Boolean).slice(0, SHOW_MAX);
   }
