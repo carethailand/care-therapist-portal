@@ -41,6 +41,8 @@ export async function render(panel, { me, roles = [] }) {
         ${staff ? `<div><dt>Probation ends</dt><dd>${esc(fmtDate(me.probation_end_date))}</dd></div>` : ''}
       </dl>
       ${rankOf(roles) ? stageTrack(me.stage, me.track) : ''}
+      ${me.track === 'care_hire' && ['interview', 'online_course', 'roleplay_orientation', 'field_overlap', 'probation'].includes(me.stage)
+        ? `<a class="text-link" href="#/training">See my onboarding steps ${icon('arrow-right')}</a>` : ''}
     </section>
     ${milestoneEligible(me, roles) ? `<section class="card" id="mc-card" hidden>
       <div class="mc-head"><h2>My team card</h2><span class="muted small">This is how everyone sees you on Our Team.</span></div>

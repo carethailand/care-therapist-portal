@@ -72,6 +72,7 @@ export async function render(panel, { me, roles, visible = [], canAdmin = false 
           <a class="text-link" href="#/journey">See my journey ${icon('arrow-right')}</a>
         </article>
 
+        <article class="card training-card" id="home-onb" hidden></article>
         <article class="card training-card" id="home-training" hidden></article>
         <article class="card kudos-home" id="home-kudos" hidden></article>
       </div>
@@ -88,7 +89,10 @@ export async function render(panel, { me, roles, visible = [], canAdmin = false 
     </section>`;
 
   // Training progress (only when the Training tab is open for this person).
-  if (visible.some((m) => m.key === 'training')) drawTraining(panel.querySelector('#home-training'), me);
+  if (visible.some((m) => m.key === 'training')) {
+    drawTraining(panel.querySelector('#home-training'), me);
+    drawOnboarding(panel.querySelector('#home-onb'), me);
+  }
   // Latest kudos (CARE staff, when CARE Connect is open).
   if (visible.some((m) => m.key === 'connect') && me.track !== 'abat' && rank !== 'applicant') drawKudos(panel.querySelector('#home-kudos'));
   // Milestone badges (CARE staff).
@@ -123,6 +127,24 @@ async function drawKudos(el) {
     <ul class="kudos-list compact">${list.map(card).join('')}</ul>
     <a class="text-link" href="#/connect">See the Kudos board ${icon('arrow-right')}</a>`;
   el.hidden = false;
+}
+
+// New therapists: the next onboarding step.
+async function drawOnboarding(el, me) {
+  try {
+    const o = await import('../onboarding.js');
+    if (!o.inOnboarding(me)) return;
+    const t = await import('../training-data.js');
+    const [content, mine, items] = await Promise.all([t.loadContent(), t.loadMyTraining(me.id), o.loadItems()]);
+    const st = (k) => { const r = mine.enrollments.filter((e) => e.program_key === k && e.status !== 'withdrawn'); return r.some((e) => e.status === 'passed') ? 'passed' : r.length ? 'active' : null; };
+    const online = { abat: st('abat'), careway: st(o.CAREWAY_KEY), carewayReady: content.programs.some((p) => p.key === o.CAREWAY_KEY && p.enabled && !p.coming_soon) };
+    const next = o.nextUp(me, items, online);
+    if (!next) return;
+    el.innerHTML = `<p class="level-kicker">Your onboarding</p><h2>Next: ${esc(next.label)}</h2>
+      <p>${esc(next.text)}</p>
+      <a class="btn-clay" href="#/training">See all my steps ${icon('arrow-right')}</a>`;
+    el.hidden = false;
+  } catch { /* Home still works without it */ }
 }
 
 async function drawTraining(el, me) {

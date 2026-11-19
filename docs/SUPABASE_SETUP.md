@@ -416,3 +416,23 @@ Learning Hub → **Move points** (next to "Self-reflection skill wheel"): take p
 2. **Publish** the app.
 
 Every full year at CARE (from the **start date** in People) = **5 skill points (50 leaves)**, for everyone at CARE including the admin team, on top of the rank bundle (Senior 10 · QCD 20 · Supervisor 30 points). All past years count, so a Supervisor with 10 years starts in Grove and one with 12+ at Forest Guardian. Each work anniversary adds 50 more, picked up when the person next opens the Learning Hub (a 🎉 note shows). Never taken back; correcting a start date upwards tops it up. Shown in Recent leaves as "N years at CARE". The "Use your leaves" window offers 1 or 5 points a tap.
+
+## Step 39 — New therapist onboarding path (added 2026-11-18)
+
+1. **Run** `supabase/migrations/20261118003900_new_tx_onboarding.sql` (after 038).
+2. **Publish** the app.
+
+Training & Exam → **Trainees → New therapist onboarding** (first in the list). New therapists appear while their stage in People is Interview → Probation (CARE staff / new hire). **Open** a person to plan and record:
+
+| Step | Admin / Portal manager plans | Recorded by | Rule |
+|---|---|---|---|
+| 1 Interview | date (+ interviewer) | — | — |
+| 2 Online course | — | from the Training tab | ABAT passed (+ CARE Way when it's switched on) |
+| 3 Orientation | date, place, who runs it | the person running it / sup / QCD / admin | Done |
+| 4 Role-play (9 topics) | date + trainer (supervisor / QCD) per topic | the trainer: attended, signed off, % Independent (optional) | 80% flag for tracking; sign-off = attended |
+| 5 Written exam (paper) | date, place, proctor | proctor / sup / QCD / admin: score of 130 | pass 80% (104) |
+| 6 Field overlap 1–7 | date, trainer (any therapist, seniors listed first), case code | the trainer: signed off + short note | — |
+| 6 Session 8 field evaluation | date, supervisor, case code | supervisor: average 0–4 + date reviewed | pass 3 or more |
+| 7 Probation | supervisor | supervisor: Passed / Not yet | → Thriving |
+
+When everything for a stage is done, the person's panel shows **Move to …** (admin confirms; it changes their stage in People as before). Trainers who aren't on the training team (e.g. seniors running overlaps) see **Onboarding sessions you lead** at the top of their Training tab. The trainee sees their path (dates, people, done / passed; never scores or notes) in Training & Exam, a "Next: …" card on Home and a link on My Journey. Checklists stay on paper. Case codes only (3 capital letters), never a name.

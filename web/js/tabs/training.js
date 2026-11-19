@@ -10,7 +10,8 @@ import {
 } from '../training-data.js';
 import { rankOf } from '../labels.js';
 import { docHtml } from '../doc-text.js';
-import { listStaff } from '../data.js';
+import { listStaff, updatePerson } from '../data.js';
+import { inOnboarding, drawMine as drawOnbMine, drawTeam as drawOnbTeam, drawLed as drawOnbLed, CAREWAY_KEY } from '../onboarding.js';
 import { esc, fmtDate, todayLocal } from '../ui.js';
 import { icon } from '../icons.js';
 
@@ -27,6 +28,7 @@ let ctx;      // { me, roles }
 let panelEl;
 let content;  // { programs, steps, items }
 let mine;     // { enrollments, done, attempts, certificates }
+let teamProg = '__onb';   // the team's programme picker (onboarding first)
 
 const isTeam = () => ctx.roles.some((r) => TEAM.includes(r));
 const isAdmin = () => ctx.roles.includes('admin');
@@ -109,12 +111,14 @@ function drawHome() {
   const previews = previewPrograms(current);
   const teamPrograms = content.programs.filter((p) => p.enabled && !p.coming_soon);
   panelEl.innerHTML = `
+    ${inOnboarding(ctx.me) ? '<div id="onb-mine"></div>' : ''}
+    <div id="onb-led" hidden></div>
     <div id="my-training">
     ${current.map(programCard).join('')}
     ${legacyPrograms(current).map((p) => completedCard(p, null, true)).join('')}
     ${previews.map(previewCard).join('')}
     </div>
-    ${!current.length && !previews.length && !legacyPrograms(current).length
+    ${!current.length && !previews.length && !legacyPrograms(current).length && !inOnboarding(ctx.me)
       ? `<section class="card"><h2>My training</h2>
            <p class="muted">You're not in a training programme right now. When you are, it will appear here.</p></section>` : ''}
     ${isTeam() ? `
@@ -127,7 +131,8 @@ function drawHome() {
             <button type="button" role="tab" data-view="groups" aria-selected="false">Groups & schedule</button>
           </div>
           <select id="team-prog" aria-label="Programme">
-            ${teamPrograms.map((p) => `<option value="${esc(p.key)}">${esc(p.title)}</option>`).join('')}
+            <option value="__onb" ${teamProg === '__onb' ? 'selected' : ''}>New therapist onboarding</option>
+            ${teamPrograms.map((p) => `<option value="${esc(p.key)}" ${teamProg === p.key ? 'selected' : ''}>${esc(p.title)}</option>`).join('')}
           </select>
         </div>
         <div id="team-body" aria-live="polite"><p class="muted">Loading…</p></div>
@@ -241,10 +246,25 @@ function drawHome() {
       }
     });
   }
+  // New therapist onboarding: my own path, and sessions I lead as a trainer.
+  const onbMine = panelEl.querySelector('#onb-mine');
+  if (onbMine) {
+    const st = (k) => { const r = mine.enrollments.filter((e) => e.program_key === k && e.status !== 'withdrawn'); return r.some((e) => e.status === 'passed') ? 'passed' : r.length ? 'active' : null; };
+    drawOnbMine(onbMine, ctx.me, { abat: st('abat'), careway: st(CAREWAY_KEY), carewayReady: content.programs.some((p) => p.key === CAREWAY_KEY && p.enabled && !p.coming_soon) });
+  }
+  drawOnbLed(panelEl.querySelector('#onb-led'));
   if (isTeam()) {
     const sel = panelEl.querySelector('#team-prog');
     const seg = panelEl.querySelector('#team-view');
-    const show = () => {
+    const show = async () => {
+      teamProg = sel.value;
+      if (sel.value === '__onb') {
+        seg.hidden = true;
+        const body = panelEl.querySelector('#team-body');
+        let staff = [];
+        try { staff = await listStaff(); } catch { /* names come from the plan itself */ }
+        return drawOnbTeam(body, ctx, { programs: content.programs, staff, updatePerson });
+      }
       const hasGroups = stepsOf(sel.value).some((x) => x.kind === 'session');
       seg.hidden = !hasGroups;
       if (!hasGroups) teamView = 'trainees';

@@ -1378,3 +1378,55 @@ a.lh-tool:hover { border-color: var(--line-strong); background: var(--surface-ra
 .lh-wheel-head .lh-h3 { margin: 0; }
 .lh-alloc b.lh-changed { color: var(--clay); }
 .lh-step { margin: 0 0 10px; }
+
+/* New therapist onboarding path (P9n) */
+.onb { display: grid; gap: 14px; }
+.onb-hero { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.onb-hero h2 { margin: 2px 0 0; }
+.onb-path { list-style: none; display: flex; flex-wrap: wrap; gap: 6px 0; padding: 0; margin: 0; }
+.onb-path li { display: flex; align-items: center; font-size: .82rem; color: var(--muted); }
+.onb-path li + li::before { content: ""; width: 18px; height: 1px; background: var(--line-strong); margin: 0 6px; }
+.onb-path button { display: flex; align-items: center; gap: 6px; padding: 2px 4px; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; border-radius: 8px; }
+.onb-path button:hover { background: var(--surface-raised); }
+.onb-path button > span { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line-strong); font-size: .72rem; }
+.onb-path button > span .ico { width: 13px; height: 13px; }
+.onb-path li.done button > span { background: var(--accent-fill); border-color: var(--accent-fill); color: #fff; }
+.onb-path li.current { color: var(--text); font-weight: 600; }
+.onb-path li.current button > span { border-color: var(--clay); color: var(--clay); box-shadow: 0 0 0 3px var(--clay-soft); }
+.onb .progress { margin: 0; }
+.onb-steps { display: grid; gap: 10px; }
+.onb-step { border: 1px solid var(--line); border-radius: 16px; background: var(--surface-raised); }
+.onb-step.current { border-color: var(--accent-fill); }
+.onb-step > summary { display: flex; align-items: center; gap: 10px; padding: 12px 14px; cursor: pointer; list-style: none; flex-wrap: wrap; }
+.onb-step > summary::-webkit-details-marker { display: none; }
+.onb-step > summary h3 { margin: 0; font-family: var(--font-serif); font-weight: 500; font-size: 1.08rem; }
+.onb-step.done .cstep-num { background: var(--accent-fill); border-color: var(--accent-fill); color: #fff; }
+.onb-step.current .cstep-num { border-color: var(--clay); color: var(--clay); }
+.onb-step[open] .cstep-chev { transform: rotate(180deg); }
+.onb-sum { flex: 1 1 160px; }
+.onb-body { padding: 0 14px 14px; display: grid; gap: 8px; }
+.onb-body p { margin: 0; }
+.onb-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.onb-line .ico { width: 16px; height: 16px; vertical-align: -3px; color: var(--accent); }
+.onb-online { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.onb-online > div { display: grid; gap: 2px; padding: 10px 12px; border-radius: 12px; background: var(--surface); }
+.onb-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.onb-table th { text-align: left; font-weight: 500; color: var(--muted); font-size: .8rem; padding: 4px 8px 6px 0; }
+.onb-table td { padding: 8px 8px 8px 0; border-top: 1px solid var(--line); vertical-align: top; }
+.onb-table td:first-child { color: var(--muted); width: 1.6em; }
+.onb-sub { display: block; margin-top: 2px; }
+.onb-low { color: var(--warn-ink); }
+.onb-ready { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 12px; background: var(--accent-soft); margin: 0 0 12px; }
+.onb-ready .ico { width: 18px; height: 18px; color: var(--accent); }
+.onb-dlg { width: min(860px, calc(100% - 24px)); }
+.onb-person .onb { border: 0; padding: 0; background: none; box-shadow: none; }
+.onb-led { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.onb-led li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-raised); }
+.onb-choices { border: 0; padding: 0; margin: 0; display: grid; gap: 6px; }
+.onb-choices legend { font-weight: 500; margin-bottom: 4px; }
+@media (max-width: 640px) {
+  .onb-table thead { display: none; }
+  .onb-table tr { display: grid; grid-template-columns: 1.6em 1fr; gap: 2px 8px; border-top: 1px solid var(--line); padding: 8px 0; }
+  .onb-table td { border: 0; padding: 0; }
+  .onb-table td:not(:first-child):not(:nth-child(2)) { grid-column: 2; }
+}
