@@ -1670,3 +1670,8 @@ a.lh-tool:hover { border-color: var(--line-strong); background: var(--surface-ra
 .sv-steps li textarea { width: 100%; margin-top: 4px; }
 .sv-read h4 { margin: 10px 0 2px; font-size: .92rem; display: flex; justify-content: space-between; }
 .sv-lvl { display: grid; font-size: .9rem; } .sv-lvl .muted { font-size: .78rem; }
+/* long notes / goals: keep their line breaks; the Goals and Focus boxes scroll instead of growing */
+.qr-goal p, .sv-note, .qr-goal .qr-l + p { white-space: pre-line; }
+.qr-two > .qr-box { max-height: 340px; overflow-y: auto; overscroll-behavior: contain; }
+.qr-two > .qr-box h3 { position: sticky; top: -12px; background: var(--surface-raised); padding: 2px 0 6px; margin-top: -2px; z-index: 1; }
+.qr-two > .qr-box.sv-more::after { content: "Scroll for more ↓"; position: sticky; bottom: -12px; display: block; margin: 0 -14px -12px; padding: 18px 14px 8px; text-align: center; font-size: .75rem; color: var(--muted); background: linear-gradient(to bottom, transparent, var(--surface-raised) 55%); pointer-events: none; }

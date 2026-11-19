@@ -266,6 +266,13 @@ async function resultsHtml(list) {
 
 // Hover / tap a point on the trend line for its details.
 function wireResults(root) {
+  // Goals / Focus boxes scroll when long: show "Scroll for more" until the end is reached.
+  requestAnimationFrame(() => {
+    for (const bx of root.querySelectorAll('.qr-two > .qr-box')) {
+      const upd = () => bx.classList.toggle('sv-more', bx.scrollHeight - bx.scrollTop - bx.clientHeight > 8);
+      upd(); bx.addEventListener('scroll', upd, { passive: true });
+    }
+  });
   for (const box of root.querySelectorAll('[data-qr-tips]')) {
     const tips = JSON.parse(box.dataset.qrTips);
     const tip = box.querySelector('.qr-tip');
@@ -393,7 +400,7 @@ async function viewDialog(r, { who, readOnly }) {
     ${itemsFor(body, r.level).map((s) => `<details class="sv-sec"><summary><strong>${esc(s.title)}</strong>
         <span class="sv-total small">${fmtScore(r.sections?.[s.key])}</span></summary>
       <ul class="sv-items">${s.items.map((i) => `<li><span>${esc(i.text)}${r.tallies?.[i.key]?.n ? ` <span class="muted small">(${r.tallies[i.key].c}/${r.tallies[i.key].n})</span>` : ''}</span><b class="sv-score s${esc(String(r.scores?.[i.key] ?? ''))}">${esc(label(r.scores?.[i.key]))}</b></li>`).join('')}</ul></details>`).join('')}
-    ${(body.notes || []).map((n) => (r.notes?.[n.key] ? `<p><strong>${esc(n.label)}</strong><br>${esc(r.notes[n.key])}</p>` : '')).join('')}
+    ${(body.notes || []).map((n) => (r.notes?.[n.key] ? `<p class="sv-note"><strong>${esc(n.label)}</strong><br>${esc(r.notes[n.key])}</p>` : '')).join('')}
     <div class="dlg-actions">
       ${mineToEdit ? '<button type="button" class="primary" data-edit>Edit</button>' : ''}
       <button type="button" data-back>${readOnly ? 'Close' : 'Back'}</button>
