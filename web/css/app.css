@@ -1679,7 +1679,7 @@ a.lh-tool:hover { border-color: var(--line-strong); background: var(--surface-ra
 /* ---------- Year report (Portal 054): one page per person; prints in light colours ---------- */
 .sv-ph { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; }
 .sv-ph h2 { margin: 0; }
-.dlg.yr-dlg { width: min(980px, calc(100vw - 16px)); max-height: calc(100vh - 16px); padding: 0; display: flex; flex-direction: column; overflow: hidden; }
+.dlg.yr-dlg { width: min(980px, calc(100vw - 16px)); max-height: calc(100vh - 16px); padding: 0; flex-direction: column; overflow: hidden; }
 .dlg.yr-dlg[open] { display: flex; }
 .yr-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 18px; border-bottom: 1px solid var(--line); }
 .yr-scroll { overflow-y: auto; padding: 18px; min-height: 0; }
@@ -1750,3 +1750,7 @@ a.lh-tool:hover { border-color: var(--line-strong); background: var(--surface-ra
   #print-area .yr .qr-tablewrap { overflow: visible; }
   #print-area .yr .qr-table { min-width: 0; }
 }
+
+/* Strengths → Focus items → Goals, one under the other (Q9) */
+.qr-two.qr-stack { grid-template-columns: minmax(0, 1fr) !important; }
+.qr-goal .qr-l:first-of-type { margin-top: 2px; }

@@ -72,7 +72,7 @@ const qcdLevels = (body) => (body.levels || []).filter((l) => l.key !== 'supervi
 const nameOf = (p) => p.nickname || p.full_name;
 const fmtScore = (n) => (n == null ? '—' : Number(n).toFixed(2));
 const dlg = () => panelEl.querySelector('#sv-dlg');
-const openDlg = (html, wide = false) => { const d = dlg(); d.classList.toggle('sv-wide', wide); d.classList.remove('sv-full'); d.innerHTML = html; if (!d.open) d.showModal(); return d; };
+const openDlg = (html, wide = false) => { const d = dlg(); d.classList.toggle('sv-wide', wide); d.classList.remove('sv-full', 'yr-dlg'); d.innerHTML = html; if (!d.open) d.showModal(); return d; };
 const closeDlg = () => { const d = dlg(); if (d.open) d.close(); };
 const lastTab = () => { try { return localStorage.getItem(TAB_KEY); } catch { return null; } };
 const keepTab = (t) => { try { localStorage.setItem(TAB_KEY, t); } catch { /* private mode */ } };
@@ -256,15 +256,19 @@ async function resultsHtml(list) {
       : '<p class="muted small">Every item was scored 3 (or N/A). 🎉</p>'}
   </div>`;
   const ng = last.notes?.new_goals; const pg = last.notes?.prev_goals; const st = last.notes?.strengths;
+  const strengths = st ? `<div class="qr-box qr-goal">
+    <h3>${icon('award')} Strengths <span class="muted small">(latest session)</span></h3>
+    <p>${esc(st)}</p>
+  </div>` : '';
   const goals = `<div class="qr-box qr-goal">
     <h3>${icon('check')} Goals</h3>
-    ${st ? `<p class="qr-l">Strengths</p><p>${esc(st)}</p>` : ''}
     ${pg ? `<p class="qr-l">Previous goals: accomplished?</p><p>${esc(pg)}</p>` : ''}
     ${ng ? `<p class="qr-l">New goals · ${esc(shortDate(last.held_on))}${last.recorder ? `, by ${esc(last.recorder)}` : ''}</p><p>${esc(ng)}</p>` : ''}
-    ${!st && !pg && !ng ? '<p class="muted small">No notes written for the latest session.</p>' : ''}
+    ${!pg && !ng ? '<p class="muted small">No goals written for the latest session.</p>' : ''}
   </div>`;
 
-  return `<div class="qr">${kpis}${trend}${grid}<div class="qr-two">${focusBox}${goals}</div></div>`;
+  // one under the other: Strengths → Focus items → Goals (goals are usually the longest)
+  return `<div class="qr">${kpis}${trend}${grid}<div class="qr-two qr-stack">${strengths}${focusBox}${goals}</div></div>`;
 }
 
 // Hover / tap a point on the trend line for its details.
