@@ -436,3 +436,14 @@ Training & Exam → **Trainees → New therapist onboarding** (first in the list
 | 7 Probation | supervisor | supervisor: Passed / Not yet | → Thriving |
 
 When everything for a stage is done, the person's panel shows **Move to …** (admin confirms; it changes their stage in People as before). Trainers who aren't on the training team (e.g. seniors running overlaps) see **Onboarding sessions you lead** at the top of their Training tab. The trainee sees their path (dates, people, done / passed; never scores or notes) in Training & Exam, a "Next: …" card on Home and a link on My Journey. Checklists stay on paper. Case codes only (3 capital letters), never a name.
+
+## Step 40 — Kudos "To everyone" + who it's for (added 2026-11-19)
+
+1. **Run** `supabase/migrations/20261118004000_kudos_to.sql` (after 039).
+2. **Publish** the app (P9p).
+
+When someone ticks **Ask Admin to post this on the Kudos board**, a new box asks **Who is this kudos for?** (optional, e.g. "Pao and Ploy"). Empty = the board says **To everyone at CARE** (a thank-you sent to one person still shows their name). The inbox it was sent to only decides who reviews it; it no longer shows on the board. In **Kudos waiting for the board**, the admin / supervisor can change "To …" as well as the wording. Kudos already posted to a team now say "To everyone at CARE".
+
+Also in P9p (no SQL): Learning Hub → **How to earn leaves** (link under the leaves count, and a section at the bottom): how each way earns leaves, the daily limits and the stages, plus a line about "surprise leaves" (gifts from supervisors / Portal manager are kept a secret). Therapists see only the therapist ways (tree); office-only staff see only the admin ways (flower field: helping, Portal manager review). It only explains; the database still decides the leaves.
+
+staff-admin **v6** deployed 2026-11-19: the Portal manager can create logins, reset passwords and make sign-in links, the same as an admin.

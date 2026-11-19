@@ -8,7 +8,7 @@ import {
   SKILLS, ADMIN_SKILLS, skillsFor, stagesFor, skillLabel, STAGES, FIELD_STAGES, GUARDIAN, LEAVES_PER_POINT, BGS, LOOKS, ANIMALS, FLOWERS,
   stageOf, progress, sceneSvg, wheelSvg, artImg,
 } from '../tree.js';
-import { rankOf, RANK_LABEL, OFFICE_ROLES } from '../labels.js';
+import { rankOf, OFFICE_ROLES } from '../labels.js';
 import { esc, fmtDate, todayLocal } from '../ui.js';
 import { loadSafmeds, myTimings, setProgress, practice, saveSet, hideSet } from '../safmeds.js';
 import { icon } from '../icons.js';
@@ -69,6 +69,33 @@ const yearsAtCare = () => {
 };
 const startBonus = () => expLeaves() + yearsAtCare() * 50;
 const reviewer = () => (field() ? 'the Portal manager' : 'your supervisors');
+
+// "How to earn leaves": the rates the database uses, in one place (it only explains them).
+function earnHtml(ST) {
+  const row = (what, leaves, note, mine = false) => `<tr${mine ? ' class="lh-earn-mine"' : ''}>
+    <td>${what}</td><td class="lh-earn-n">${leaves}</td><td class="muted small">${note}</td></tr>`;
+  const rows = [
+    row('Write a study log', '+1 a box', 'Up to 5 for one log (each box with at least 15 characters). Your first 2 logs each day.'),
+    row(`${field() ? 'The Portal manager' : 'A supervisor / QCD'} reviews your log`, '+5', 'Each log, once.'),
+    row('Finish a resource', '+1', 'Tap Done and write one line about it. Up to 3 a day.'),
+    ...(field() ? [
+      row('Help therapists', '+1', 'Reply to a CARE Connect message sent to Admin, or answer a leave request. Up to 3 a day.'),
+    ] : [
+      row('SAFMEDS timing', '+1', 'Your first timing each day.'),
+      row('Master a SAFMEDS set', '+5', 'Meet the set’s aim on 3 different days.'),
+    ]),
+    ...(field() ? [] : [
+      row('Each promotion', '+100', `Junior → Senior → QCD → Supervisor: +100 for each step up.${expLeaves() ? ` You: <strong>${expLeaves() / 100} step${expLeaves() === 100 ? '' : 's'}</strong> = ${expLeaves()} leaves.` : ''}`, !!expLeaves()),
+    ]),
+    row('Each full year at CARE', '+50', `On each anniversary of your start date.${yearsAtCare() ? ` You: <strong>${yearsAtCare()} year${yearsAtCare() === 1 ? '' : 's'}</strong> = ${yearsAtCare() * 50} leaves.` : ''}`, !!yearsAtCare()),
+  ];
+  return `<div class="lh-earn-wrap"><table class="lh-earn">
+      <thead><tr><th>How</th><th>Leaves</th><th>Good to know</th></tr></thead>
+      <tbody>${rows.join('')}</tbody></table></div>
+    <p class="small lh-earn-secret">🎁 <strong>Surprise leaves:</strong> sometimes leaves just appear. What for? That’s a secret 🤫</p>
+    <p class="small"><strong>${LEAVES_PER_POINT} leaves = 1 skill point.</strong> Your ${field() ? 'flower field' : 'tree'} grows as your points add up:</p>
+    <ol class="lh-earn-stages">${ST.map((x) => `<li${me.points >= x.at ? ' class="done"' : ''}><strong>${esc(x.name)}</strong> <span class="muted small">${x.at} points${field() ? ` · ${x.n} flowers` : ''}</span></li>`).join('')}</ol>`;
+}
 
 const areaOf = (k) => [...SKILLS, ...ADMIN_SKILLS].find((s) => s.key === k);
 const areaColor = (k) => areaOf(k)?.color || '#6F8A69';
@@ -158,7 +185,8 @@ async function drawMe(body) {
       <section class="card lh-side">
         <div class="lh-leaves">
           <span class="lh-leaf-ico">${icon('leaf')}</span>
-          <div><p class="lh-big">${me.balance}</p><p class="muted small">leaves to use · ${LEAVES_PER_POINT} leaves = 1 skill point</p></div>
+          <div><p class="lh-big">${me.balance}</p><p class="muted small">leaves to use · ${LEAVES_PER_POINT} leaves = 1 skill point</p>
+            <button type="button" class="link small lh-earn-link" data-act="earn">How to earn leaves?</button></div>
         </div>
         ${field() ? `<p class="muted small lh-helping">${icon('heart-handshake')} <span><strong>Helping earns leaves too:</strong> reply to a CARE Connect message sent to Admin, or answer a leave request (+1 each, up to 3 a day · ${me.helping_today ?? 0} today).</span></p>` : ''}
         <div class="lh-side-btns">
@@ -188,7 +216,9 @@ async function drawMe(body) {
       ${topicsHtml()}`)}
 
     ${leaves.length ? fold('leaves', 'Recent leaves', '', `<ul class="lh-ledger">${leaves.slice(0, 10).map((x) => `
-      <li><span class="lh-plus">+${x.amount} ${icon('leaf')}</span> ${esc(x.reason || x.source)} <span class="muted small">${fmtDate(x.created_at)}</span></li>`).join('')}</ul>`) : ''}`;
+      <li><span class="lh-plus">+${x.amount} ${icon('leaf')}</span> ${esc(x.reason || x.source)} <span class="muted small">${fmtDate(x.created_at)}</span></li>`).join('')}</ul>`) : ''}
+
+    ${fold('earn', 'How to earn leaves', '', earnHtml(ST))}`;
 
   // Remember which sections are open while on this tab.
   for (const d of body.querySelectorAll('[data-fold]')) {
@@ -201,6 +231,11 @@ async function drawMe(body) {
   body.querySelector('[data-act="invest"]').addEventListener('click', () => (canInvest ? investDialog() : null));
   body.querySelector('[data-act="log"]').addEventListener('click', () => logDialog());
   body.querySelector('[data-act="move"]').addEventListener('click', moveDialog);
+  body.querySelector('[data-act="earn"]').addEventListener('click', () => {
+    const d = body.querySelector('[data-fold="earn"]');
+    d.open = true; openFolds.add('earn');
+    d.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
   wireTopics(body);
   wireRefl(body);
 }
@@ -227,7 +262,7 @@ function drawStart(body) {
         </div>
         <p class="small"><span id="lh-left">10</span> points left · up to 4 in one skill</p>
         ${startBonus() ? `<p class="lh-exp">${icon('sparkles')} <span>You've already learned a lot at CARE. After planting you also get
-          ${[expLeaves() ? `<strong>${expLeaves()} leaves</strong> as a ${esc(RANK_LABEL[rankOf(ctx.roles)])}` : '',
+          ${[expLeaves() ? `<strong>${expLeaves()} leaves</strong> for ${expLeaves() / 100} promotion${expLeaves() === 100 ? '' : 's'} (100 each)` : '',
              yearsAtCare() ? `<strong>${yearsAtCare() * 50} leaves</strong> for ${yearsAtCare()} year${yearsAtCare() === 1 ? '' : 's'} at CARE` : ''].filter(Boolean).join(' and ')}
           (${startBonus() / LEAVES_PER_POINT} skill points) to place where you like.</span></p>` : ''}
         <p id="lh-start-msg" class="error" hidden></p>

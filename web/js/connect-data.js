@@ -13,6 +13,7 @@ const COLS = 'id,kind,topic,send_to,recipient_id,body,anonymous,sender_id,status
 export const sendMessage = (m) => supa.rpc('connect_send', {
   p_kind: m.kind, p_topic: m.topic, p_send_to: m.sendTo, p_body: m.body, p_anonymous: m.anonymous,
   p_recipient: m.recipient || null, p_kudos: !!m.kudos, p_sticker: m.sticker || null,
+  p_kudos_to: m.kudos ? (m.kudosTo || null) : null,
 }).then(must);
 
 export const people = () => supa.rpc('connect_people').then(must);
@@ -30,5 +31,5 @@ export const update = (id, { status = null, assigned = null, unassign = false })
 export const forward = (id) => supa.rpc('connect_forward', { p_message: id }).then(must);
 
 export const kudosRequests = () => supa.rpc('connect_kudos_requests').then(must);
-export const kudosDecide = (id, post, text) => supa.rpc('connect_kudos_decide', { p_message: id, p_post: post, p_text: text }).then(must);
+export const kudosDecide = (id, post, text, to = null) => supa.rpc('connect_kudos_decide', { p_message: id, p_post: post, p_text: text, p_to: to }).then(must);
 export const kudosBoard = (limit = 50) => supa.rpc('connect_kudos_board', { p_limit: limit }).then(must);

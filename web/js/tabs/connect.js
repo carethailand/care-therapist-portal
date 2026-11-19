@@ -141,6 +141,8 @@ function drawWrite() {
       <label class="check kudos-box" data-kudos hidden><input type="checkbox" name="kudos">
         <span><strong>Ask Admin to post this on the Kudos board</strong><br>
         <span class="muted small">An admin reads it first and may tidy the wording. Everyone at CARE can then see it.</span></span></label>
+      <label class="kudos-to-field" data-kudosto hidden>Who is this kudos for? <span class="muted small">(optional)</span>
+        <input name="kudosTo" maxlength="80" placeholder="e.g. Pao and Ploy, the Monday team. Leave empty for everyone at CARE"></label>
       <fieldset class="sticker-pick" data-stickers hidden><legend>Add a sticker <span class="muted small">(optional)</span></legend>
         <label class="stk none"><input type="radio" name="sticker" value="" checked><span>No sticker</span></label>
         ${STICKERS.map((st) => `<label class="stk" title="${esc(st.label)}"><input type="radio" name="sticker" value="${esc(st.key)}"><img src="${stickerSrc(st.key)}" alt="${esc(st.label)}" width="256" height="256" loading="lazy"></label>`).join('')}
@@ -167,6 +169,10 @@ function drawWrite() {
       : to === 'person' ? 'Only this person will see it. If it\'s a concern about someone, please send it to the Admin team instead.'
         : to === 'senior' ? 'Goes to all senior therapists.' : '';
     form.querySelector('[data-kudos]').hidden = kind !== 'thanks';
+    form.querySelector('[data-kudosto]').hidden = kind !== 'thanks' || !form.kudos.checked;
+    form.kudosTo.placeholder = to === 'person'
+      ? 'e.g. Pao and Ploy. Leave empty to use the name of the person you chose'
+      : 'e.g. Pao and Ploy, the Monday team. Leave empty for everyone at CARE';
     form.querySelector('[data-stickers]').hidden = kind !== 'thanks';
     if (kind !== 'thanks') {
       form.kudos.checked = false;
@@ -194,7 +200,7 @@ function drawWrite() {
     try {
       const res = await sendMessage({
         kind: form.kind.value, topic: form.topic.value, sendTo: form.to.value, body,
-        anonymous: form.anon.checked, recipient: form.recipient.value, kudos: form.kudos.checked,
+        anonymous: form.anon.checked, recipient: form.recipient.value, kudos: form.kudos.checked, kudosTo: form.kudosTo.value.trim(),
         sticker: form.kind.value === 'thanks' ? (form.sticker.value || null) : null,
       });
       form.reset();
@@ -381,17 +387,19 @@ async function drawKudosQueue() {
   box.hidden = !list.length;
   if (!list.length) return;
   box.innerHTML = `<h2>Kudos waiting for the board <span class="chip warn">${list.length}</span></h2>
-    <p class="muted small">Tidy the wording if needed, then post it. Everyone at CARE will see it.</p>
+    <p class="muted small">Check who it’s for and tidy the wording if needed, then post it. Everyone at CARE will see it. Leave “To” empty for everyone at CARE.</p>
     ${list.map((k) => `
       <div class="kudos-q" data-k="${esc(k.id)}">
-        <p class="muted small">From ${esc(k.sender || 'a teammate (anonymous)')} · to ${esc(k.recipient || TO[k.send_to] || 'the team')} · ${esc(fmtDate(bkkDate(k.created_at)))}</p>
+        <p class="muted small">From ${esc(k.sender || 'a teammate (anonymous)')} · sent to ${esc(k.recipient || TO[k.send_to] || 'the team')} · ${esc(fmtDate(bkkDate(k.created_at)))}</p>
+        <label class="kudos-q-to">On the board it says “To …”
+          <input data-to maxlength="80" value="${esc(k.kudos_to || '')}" placeholder="${esc(k.recipient || 'everyone at CARE')}"></label>
         <div class="kudos-q-body">${stickerImg(k.sticker, 'sticker md')}<textarea rows="3" maxlength="600">${esc(k.body)}</textarea></div>
         <p class="row-actions"><button type="button" class="small-btn" data-no>Not for the board</button>
           <button type="button" class="small-btn primary" data-post>Post on the board</button></p>
       </div>`).join('')}`;
   for (const el of box.querySelectorAll('.kudos-q')) {
     const go = async (post) => {
-      try { await kudosDecide(el.dataset.k, post, el.querySelector('textarea').value); await refreshAll(); } catch (e) { alert(e.message); }
+      try { await kudosDecide(el.dataset.k, post, el.querySelector('textarea').value, el.querySelector('[data-to]').value.trim()); await refreshAll(); } catch (e) { alert(e.message); }
     };
     el.querySelector('[data-post]').addEventListener('click', () => go(true));
     el.querySelector('[data-no]').addEventListener('click', () => go(false));
@@ -401,7 +409,7 @@ async function drawKudosQueue() {
 export function kudosCardHtml(k) {
   return `<li class="kudos-card${k.sticker ? ' has-sticker' : ''}">
     ${stickerImg(k.sticker, 'sticker kudos-stk')}
-    <p class="kudos-to">To ${esc(k.to_name || k.to_team || 'the team')}</p>
+    <p class="kudos-to">To ${esc(k.to_name || k.to_team || 'everyone at CARE')}</p>
     <p class="kudos-text">“${esc(k.kudos)}”</p>
     <p class="muted small">From ${esc(k.from_name || 'a teammate')} · ${esc(fmtDate(bkkDate(k.posted_at)))}</p>
   </li>`;

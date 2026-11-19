@@ -623,6 +623,8 @@ fieldset { min-width: 0; }
 .kudos-text { font-family: var(--font-serif); font-size: 1.05rem; line-height: 1.45; }
 .kudos-q { border: 1px solid var(--line); border-radius: 14px; padding: 12px; margin-bottom: 10px; background: var(--surface-raised); }
 .kudos-q textarea { width: 100%; }
+.kudos-to-field input, .kudos-q-to input { width: 100%; }
+.kudos-q-to { display: block; font-size: 0.9rem; margin: 4px 0 8px; }
 #od-board h2 .ico { color: var(--care-pink); }
 /* New badge art (2026-11-16): a coloured disc with a cream icon. Thin ring, little padding. */
 .badge, .badge.rim-applicant, .badge.rim-therapist, .badge.rim-senior, .badge.rim-qcd,
@@ -1022,6 +1024,25 @@ span.pill.next .ico { color: var(--clay); }
 .lh-note { background: var(--accent-soft); border-radius: 10px; padding: 8px 10px; }
 .lh-ledger li { display: flex; gap: 10px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); }
 .lh-ledger li:first-child { border-top: 0; }
+.lh-earn-link { padding: 0; font-size: 0.85rem; }
+.lh-earn-secret { background: var(--clay-soft); border-radius: 12px; padding: 10px 12px; margin: 10px 0; }
+.lh-earn-wrap { overflow-x: auto; }
+.lh-earn { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+.lh-earn th { text-align: left; font-weight: 600; font-size: 0.8rem; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.lh-earn td { padding: 8px; border-top: 1px solid var(--line); vertical-align: top; }
+.lh-earn tr:first-child td { border-top: 0; }
+.lh-earn-n { white-space: nowrap; font-weight: 600; color: var(--accent); }
+.lh-earn-mine, .lh-earn-mine td { background: var(--clay-soft); }
+.lh-earn-stages { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; padding: 0; margin: 6px 0 0; }
+.lh-earn-stages li { border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; font-size: 0.9rem; }
+.lh-earn-stages li.done { background: var(--clay-soft); border-color: transparent; }
+@media (max-width: 560px) {
+  .lh-earn thead { display: none; }
+  .lh-earn tr { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 8px 0; border-top: 1px solid var(--line); }
+  .lh-earn tr:first-child { border-top: 0; }
+  .lh-earn td, .lh-earn-mine td { border: 0; padding: 0 6px; background: none; }
+  .lh-earn td:nth-child(3) { grid-column: 1 / -1; }
+}
 .lh-skill + .lh-skill { margin-top: 6px; }
 .lh-topic { border-top: 1px solid var(--line); }
 .lh-topic summary { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; padding: 9px 0; cursor: pointer; }
