@@ -524,3 +524,19 @@ The current therapist (Junior, Senior, QCD or Supervisor) with the latest start 
 
 - Supervision → Team: supervisors are no longer listed (they don't get QCD sessions); the list is grouped **QCD → Senior → Junior**, names A–Z in each group. Supervisors have no "My supervision" view for now, and the QCD form's level choice is Junior or Senior / QCD.
 - Names are sorted A–Z (by the name people see, ignoring capitals) on every page: People, Our Team, Leave, Training, onboarding, CARE Connect, Learning Hub team, Supervision.
+
+## QCD results view (Q1, 2026-11-19, no SQL)
+
+My supervision (and a person's window for QCD / supervisors) now shows: 4 numbers (latest total + change, year average, strongest area, area to work on), **total score over time** (dotted 2.5 line; sessions below 2.5 are hollow rings; tap a point for date / case / who), **score by section, each session** (stronger colour = higher, number always shown), **focus items** (items scored 0–1 in the latest session) and **goals** (strengths, previous goals, new goals), then the session list. Light and dark colours are set separately (text contrast ≥ 4.5).
+
+## Step 48 — Live QCD observation + raw tallies (added 2026-11-19)
+
+1. **Run** `supabase/migrations/20261118004800_qcd_live_tallies.sql` (after 047).
+2. **Publish** the app (Q1).
+
+**Record a QCD session** now opens a full-screen live screen (made for tablet / laptop): sections on the left (All items · Recent · Not scored yet · each section with progress, total so far), items on the right in any order, with a search box.
+- **Counted** items: tap ✓ correct / ✕ missed. The score works itself out from % correct (Junior 70% = 3, 50% = 2, 30% = 1; Senior / QCD 90 / 70 / 50%) once there are at least 3 chances ("too few yet" before). **Rated** items (Professionalism): tap 0–3 / N/A.
+- Tap any score to set it **by hand** (dashed outline), or go back to the tally. **Undo** the last tap.
+- Saved **on this device** as you go; if you leave, you can continue next time. **Review and save** shows every score, then strengths / goals.
+- The raw tallies (correct / chances per item) are saved with the session for the year-end summary; recorded sessions keep their scores.
+- Checklist editor: each item is **Counted ✓ / ✕** or **Rated 0–3**, and the score rule (minimum chances and the % for 1 / 2 / 3, per level) can be changed.
