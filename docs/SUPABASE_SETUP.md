@@ -494,4 +494,4 @@ The hand-with-heart badge now counts thank-yous a person **sends** (with their n
 1. **Run** `supabase/migrations/20261118004400_newest_therapist_badge.sql` (after 043).
 2. **Publish** the app (P9w).
 
-The current therapist (Junior, Senior, QCD or Supervisor) with the latest start date holds **Newest therapist** (blue rosette, baby feet with a gold star). It passes on by itself when someone newer becomes a therapist; trainees still in onboarding don't count. Shown on My Journey only while held, and on the team card (with Longest-serving) unless the person picked other badges.
+The current therapist (Junior, Senior, QCD or Supervisor) with the latest start date holds **Newest therapist** (blue rosette, baby feet with a gold star). It passes on by itself when someone newer becomes a therapist; trainees still in onboarding don't count. Shown on My Journey like Longest-serving (locked "Newest at CARE" when someone else holds it), and on the team card (with Longest-serving) unless the person picked other badges.

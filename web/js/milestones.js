@@ -30,8 +30,9 @@ const FAMILY = [
 // level reached plus the next one (locked). { key, label, img, earned, lockText }
 function achievements(a = {}, clinical = true) {
   const out = [];
-  // Newest therapist (Portal 044): shown only while held; it passes on to the next new therapist.
-  if (clinical && a.newest) out.push({ key: 'newest', label: 'Newest therapist', img: file('newest'), earned: true, on: null, lockText: 'Held now' });
+  // Newest therapist (Portal 044): like Longest-serving, always in the collection;
+  // held by the therapist with the latest start date, then passed on.
+  if (clinical) out.push({ key: 'newest', label: 'Newest therapist', img: file('newest'), earned: !!a.newest, on: null, lockText: 'Newest at CARE' });
   if (clinical) {
     out.push({ key: 'abat', label: 'ABAT passed', img: file('abat'), earned: !!a.abat, on: null, lockText: 'Unlocks when you pass ABAT' });
     out.push({ key: 'safmeds', label: 'SAFMEDS master', img: file('safmeds'), earned: !!a.safmeds, on: null, lockText: 'Master a SAFMEDS set' });
@@ -87,6 +88,9 @@ export function milestones(me, roles, longest = false, ach = null) {
     if (atLeast('qcd')) list.push({ key: 'supervisor', label: 'Supervisor Training', img: file('supervisor'), earned: atLeast('supervisor'), on: null, lockText: 'Unlocks with Supervisor Training' });
   }
   if (ach) list.push(...achievements(ach, THERAPIST_RANKS.includes(rankOf(roles))));
+  // Newest sits right after Longest-serving (a pair).
+  const ni = list.findIndex((m) => m.key === 'newest'); const li = list.findIndex((m) => m.key === 'longest');
+  if (ni > -1 && li > -1) list.splice(li + 1, 0, ...list.splice(ni, 1));
   return list;
 }
 
