@@ -117,7 +117,7 @@ function stepStatus(key, items, online) {
     case 'roleplay': return `${n('roleplay')} of 9 signed off`;
     case 'written_exam': { const i = one(items, 'written_exam'); return i?.passed ? 'Passed' : i?.status === 'done' ? 'Not passed yet' : i?.held_on ? when(i) : 'Date to be set'; }
     case 'overlap': { const f = one(items, 'field_eval'); return `${n('overlap')} of 7 signed off · field evaluation ${f?.passed ? 'passed' : f?.status === 'done' ? 'not passed yet' : f?.held_on ? when(f) : 'to be set'}`; }
-    case 'probation': { const i = one(items, 'probation'); return i?.passed ? 'Passed 🎉' : 'Waiting for the supervisor’s review'; }
+    case 'probation': { const i = one(items, 'probation'); return i?.passed ? 'Passed 🎉' : i?.held_on ? `Review ${when(i)}${i.trainer ? ` with ${i.trainer}` : ''}` : 'Waiting for the supervisor’s review'; }
     default: return '';
   }
 }
@@ -125,7 +125,8 @@ const when = (i) => `${fmtDate(i.held_on)}${i.start_time ? `, ${i.start_time.sli
 const itemState = (i) => {
   if (!i) return '<span class="muted">Not planned yet</span>';
   if (i.status === 'missed') return '<span class="chip warn">Missed</span>';
-  if (i.step === 'probation') return i.passed ? '<span class="chip ok">Passed</span>' : i.status === 'done' ? '<span class="chip warn">Not yet</span>' : '<span class="muted">Waiting</span>';
+  if (i.step === 'probation') return i.passed ? '<span class="chip ok">Passed</span>' : i.status === 'done' ? '<span class="chip warn">Not yet</span>'
+    : `<span class="muted">${i.held_on ? `Review ${esc(fmtDate(i.held_on))}${i.start_time ? ` ${esc(i.start_time.slice(0, 5))}` : ''}` : 'Waiting'}</span>`;
   if (['written_exam', 'field_eval'].includes(i.step)) {
     if (i.status === 'done') return i.passed ? '<span class="chip ok">Passed</span>' : '<span class="chip warn">Not passed yet</span>';
     return held(i) ? '<span class="chip">Attended</span>' : `<span class="muted">${i.held_on ? 'Planned' : 'Date to be set'}</span>`;
@@ -198,8 +199,8 @@ export function pathCard(person, items, online, { team = false, admin = false, r
           `${itemState(f)}${team && f?.score != null ? ` <span class="small">avg ${Number(f.score)}</span>` : ''}${plan('field_eval', 0, f ? 'Edit' : 'Plan')}${act(f)}`]); })()}
         </tbody></table></div>
       <p class="muted small">Sessions 1–7: your trainer signs off each one (the checklist is on paper). Session 8: the supervisor’s field evaluation, pass with an average of 3 or more.</p>`,
-    probation: () => `<p class="onb-line">${person.probation_end_date ? `${icon('calendar')} Probation ends ${esc(fmtDate(person.probation_end_date))}` : '<span class="muted">The end date is set in People.</span>'}
-      ${one(items, 'probation') ? itemState(one(items, 'probation')) : '<span class="muted">Waiting for the supervisor’s review</span>'}${plan('probation', 0, one(items, 'probation') ? 'Edit' : 'Choose supervisor')}${act(one(items, 'probation'))}</p>`,
+    probation: () => `<p class="onb-line">${person.probation_end_date ? `${icon('calendar')} Probation ends ${esc(fmtDate(person.probation_end_date))}` : '<span class="muted">End date not set yet.</span>'}
+      ${one(items, 'probation') ? `${itemState(one(items, 'probation'))}${one(items, 'probation').trainer ? ` <span class="muted small">· ${esc(one(items, 'probation').trainer)}</span>` : ''}` : '<span class="muted">Waiting for the supervisor’s review</span>'}${plan('probation', 0, one(items, 'probation') ? 'Edit' : 'Set dates & supervisor')}${act(one(items, 'probation'))}</p>`,
   };
   const done = states.filter((s) => s === 'done').length;
   return `<section class="card onb" data-onb-person="${esc(person.id)}">
@@ -330,8 +331,9 @@ function planDialog(p, step, seq) {
   const d = openDlg(`<form class="lh-form" method="dialog">
     <h2>${esc(p.nickname || p.full_name)} · ${esc(title)}</h2>
     ${step === 'overlap' ? `<p class="muted small">${esc(OVERLAP[seq])}</p>` : ''}
-    ${step === 'probation' ? '' : `<div class="lh-2col">
-      <label>Date<input type="date" name="held_on" value="${esc(i?.held_on || '')}"></label>
+    ${step === 'probation' ? `<label>Probation ends <span class="muted small">(also changes it in People)</span><input type="date" name="end_on" value="${esc(p.probation_end_date || '')}"></label>` : ''}
+    ${`<div class="lh-2col">
+      <label>${step === 'probation' ? 'Review date <span class="muted small">(with the supervisor)</span>' : 'Date'}<input type="date" name="held_on" value="${esc(i?.held_on || '')}"></label>
       <label>Start time <span class="muted small">(optional)</span><input type="time" name="start_time" value="${esc(i?.start_time?.slice(0, 5) || '')}"></label>
     </div>`}
     ${['orientation', 'written_exam', 'interview'].includes(step) ? `<label>Place <span class="muted small">(optional)</span><input name="place" maxlength="120" value="${esc(i?.place || '')}"></label>` : ''}
@@ -352,6 +354,9 @@ function planDialog(p, step, seq) {
   f.addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
+      if (step === 'probation' && (f.end_on.value || null) !== (p.probation_end_date || null)) {
+        await teamState.updatePerson(p.id, { probation_end_date: f.end_on.value || null });
+      }
       await planItem({ who: p.id, step, seq, held_on: f.held_on?.value, start_time: f.start_time?.value, place: f.place?.value,
         trainer_id: f.trainer_id.value, case_code: f.case_code?.value });
       await redraw();
