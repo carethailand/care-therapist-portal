@@ -5,6 +5,7 @@
 import { supa } from './supabase.js';
 import { esc, fmtDate, todayLocal } from './ui.js';
 import { icon } from './icons.js';
+import { assignPeople } from './training-data.js';
 
 const must = ({ data, error }) => { if (error) throw error; return data; };
 
@@ -173,7 +174,10 @@ export function pathCard(person, items, online, { team = false, admin = false, r
         <div><strong>CARE Way</strong><span class="muted small">CARE-style ABA: online content + exam</span>
           <span>${!online.carewayReady ? '<span class="chip">Coming soon</span>' : online.careway === 'passed' ? '<span class="chip ok">Passed</span>' : online.careway ? '<span class="chip">In progress</span>' : '<span class="muted">Not started</span>'}</span></div>
       </div>
-      ${team ? '' : '<p class="muted small">Both are on this page under your courses. Pass both before the role-plays.</p>'}`,
+      ${team
+        ? (!online.abat && admin ? `<p class="onb-line"><span class="muted small">No ABAT place yet.</span> <button type="button" class="small-btn primary" data-onb-abat>Give ABAT place</button></p>` : '')
+        : online.abat ? '<p class="muted small">Your courses are further down this page. Pass both before the role-plays.</p>'
+          : '<p class="muted small">Your ABAT course will appear on this page once an admin gives you a place. Ask an admin if it hasn’t appeared.</p>'}`,
     orientation: () => single('orientation', 'with'),
     roleplay: () => `<div class="table-wrap"><table class="onb-table">
         <thead><tr><th>#</th><th>Topic</th><th>Date</th><th>Trainer</th><th>Result</th></tr></thead>
@@ -288,6 +292,12 @@ function personDialog() {
   </div>`);
   wirePath(d);
   d.querySelector('[data-close]').addEventListener('click', closeDlg);
+  d.querySelector('[data-onb-abat]')?.addEventListener('click', async (e) => {
+    e.currentTarget.disabled = true;
+    const due = new Date(`${todayLocal()}T00:00:00`); due.setDate(due.getDate() + 14);   // new hires: 2 weeks
+    const dueOn = `${due.getFullYear()}-${String(due.getMonth() + 1).padStart(2, '0')}-${String(due.getDate()).padStart(2, '0')}`;
+    try { await assignPeople('abat', [p.id], dueOn, ctx.me.id, todayLocal()); await redraw(); } catch (err) { alert(err.message); e.currentTarget.disabled = false; }
+  });
   d.querySelector('[data-onb-move]')?.addEventListener('click', async (e) => {
     const next = e.currentTarget.dataset.onbMove;
     if (!confirm(`Move ${p.nickname || p.full_name} to ${STAGE_NAME[next]}?`)) return;
