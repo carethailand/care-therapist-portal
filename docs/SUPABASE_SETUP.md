@@ -581,3 +581,13 @@ While scoring a live QCD, the draft is saved on the device **and** in the Portal
 - For reference while scoring: the year's QCD sessions and the **QCD item summary** (all tallies added up, score from the data vs average of sessions).
 - **Edit yearly checklist** (supervisors / admin): Chandni adds the supervisor items there (tick Supervisor). Supervisors are evaluated by Chandni as lead, no second.
 - List: "Clinical: lead Boss ✓ · second Fon …" or "final 2.92 · IOA 80%"; filter **Clinical for me**.
+
+## Step 53 — Yearly review, step 4: release + sign (added 2026-11-19)
+
+1. **Run** `supabase/migrations/20261118005300_yearly_release_sign.sql` (after 052).
+2. **Publish** the app (Q6).
+
+- In the person's yearly review (Team → Yearly review → open a person), admin / Portal manager or the **lead supervisor** see "Shown to …" with **Show mid-year** and **Show year-end** (and Hide, until the person signs). Use them in the review meeting.
+- **Mid-year shown**: the person sees their admin evaluation for half 1 (My supervision → Yearly review → Mid-year review → See details).
+- **Year-end shown**: the person sees Clinical, HR performance (average of the halves) and the **Final score** (= average of the two), with every item in See details, then taps **I agree, sign** (optional comment). After signing it can't be hidden.
+- The list shows "shown: mid ✓ · year-end ✓ · signed 15 Dec" per person. Office staff only see the reflection step.

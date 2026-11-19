@@ -1662,3 +1662,11 @@ a.lh-tool:hover { border-color: var(--line-strong); background: var(--surface-ra
 .sv-compare tr.sv-dis td { background: var(--warn-bg); }
 .sv-compare .sv-pick button { min-width: 32px; padding: 4px 6px; }
 @media (max-width: 700px) { .sv-compare td:last-child .sv-pick { flex-wrap: wrap; } }
+.sv-release { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; background: var(--accent-soft); border-radius: 12px; padding: 8px 12px; margin: 6px 0; font-size: .88rem; }
+.sv-final { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 8px 0 6px; align-items: end; }
+.sv-final > span { display: grid; }
+.sv-final b { font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+.sv-final-big b { font-family: var(--font-serif); font-size: 1.9rem; line-height: 1.1; color: var(--accent); }
+.sv-steps li textarea { width: 100%; margin-top: 4px; }
+.sv-read h4 { margin: 10px 0 2px; font-size: .92rem; display: flex; justify-content: space-between; }
+.sv-lvl { display: grid; font-size: .9rem; } .sv-lvl .muted { font-size: .78rem; }
