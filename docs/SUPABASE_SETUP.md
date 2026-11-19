@@ -540,3 +540,10 @@ My supervision (and a person's window for QCD / supervisors) now shows: 4 number
 - Saved **on this device** as you go; if you leave, you can continue next time. **Review and save** shows every score, then strengths / goals.
 - The raw tallies (correct / chances per item) are saved with the session for the year-end summary; recorded sessions keep their scores.
 - Checklist editor: each item is **Counted ✓ / ✕** or **Rated 0–3**, and the score rule (minimum chances and the % for 1 / 2 / 3, per level) can be changed.
+
+## Step 49 — QCD drafts kept in the Portal (added 2026-11-19)
+
+1. **Run** `supabase/migrations/20261118004900_qcd_drafts.sql` (after 048).
+2. **Publish** the app (Q2).
+
+While scoring a live QCD, the draft is saved on the device **and** in the Portal (a moment after each tap), so you can start on one device and finish on another. The header shows 🔒 "Draft saved · only you can see it until you tap Save QCD". A draft is private to the person scoring (one per scorer per therapist) and is deleted when the QCD is saved; drafts older than 30 days are cleared. With no connection it says "Draft kept on this device only" (yellow) and sends it up when the connection is back.

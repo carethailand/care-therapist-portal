@@ -20,6 +20,9 @@ const api = {
     p_level: r.level, p_scores: r.scores, p_notes: r.notes, p_tallies: r.tallies || null,
   }).then(must),
   remove: (id) => supa.rpc('sv_record_delete', { p_id: id }).then(must),
+  draftGet: (who) => supa.rpc('sv_draft_get', { p_who: who }).then(must),
+  draftPut: (who, version, state) => supa.rpc('sv_draft_put', { p_who: who, p_version: version, p_state: state }).then(must),
+  draftDelete: (who) => supa.rpc('sv_draft_delete', { p_who: who }).then(must),
   saveForm: (key, title, body) => supa.rpc('sv_form_save', { p_key: key, p_title: title, p_body: body }).then(must),
 };
 
@@ -174,7 +177,8 @@ async function resultsHtml(list) {
   svg += recs.map((r, i) => `${r.total != null ? `<circle class="qr-dot${Number(r.total) < LOW ? ' low' : ''}" cx="${x(i).toFixed(1)}" cy="${y(Number(r.total)).toFixed(1)}" r="5"/>` : ''}
     ${i % every === 0 || i === n - 1 ? `<text x="${x(i).toFixed(1)}" y="${H - 9}" text-anchor="middle">${esc(shortDate(r.held_on))}</text>` : ''}
     <rect data-qr="${i}" x="${(x(i) - Math.max(14, (W - L - R) / Math.max(1, n - 1) / 2)).toFixed(1)}" y="0" width="${Math.max(28, (W - L - R) / Math.max(1, n - 1)).toFixed(1)}" height="${H - B}" fill="transparent"/>`).join('');
-  if (last.total != null) svg += `<text class="qr-end" x="${Math.min(x(n - 1), W - R).toFixed(1)}" y="${(y(Number(last.total)) - 11).toFixed(1)}" text-anchor="${n === 1 ? 'middle' : 'end'}">${fmtScore(last.total)}</text>`;
+  const endY = y(Number(last.total)) - 11 < 12 ? y(Number(last.total)) + 20 : y(Number(last.total)) - 11;   // near the top: put the label under the point
+  if (last.total != null) svg += `<text class="qr-end" x="${Math.min(x(n - 1), W - R).toFixed(1)}" y="${endY.toFixed(1)}" text-anchor="${n === 1 ? 'middle' : 'end'}">${fmtScore(last.total)}</text>`;
   const tips = recs.map((r) => `${esc(fmtDate(r.held_on))}${r.case_code ? ` · case ${esc(r.case_code)}` : ''} · by ${esc(r.recorder || 'someone')}<br>Total <b>${fmtScore(r.total)}</b>${Number(r.total) < LOW ? ' · below 2.5' : ''}`);
   const trend = `<div class="qr-box" data-qr-tips='${esc(JSON.stringify(tips))}'>
     <h3>Total score over time</h3>
@@ -396,9 +400,13 @@ async function recordDialog(p, rec) {
       if (modeOf(i) === 'count' && rec.scores?.[i.key] != null && autoScore(rec.tallies?.[i.key]) !== rec.scores[i.key]) st.manual.push(i.key);
     }
   } else {
-    const dr = readDraft(p.id);
-    if (dr && dr.v === body.version && confirm(`Continue the unsaved QCD for ${nameOf(p)} from ${new Date(dr.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}?\n\nCancel = start a new one.`)) Object.assign(st, dr.st);
-    else dropDraft(p.id);
+    // A draft may be on this device and / or in the Portal (only you can see it): use the newest.
+    const local = readDraft(p.id);
+    let remote = null;
+    try { const r = await api.draftGet(p.id); if (r) remote = { v: r.version, at: Date.parse(r.updated_at), st: r.state }; } catch { /* offline: device copy only */ }
+    const dr = [local, remote].filter((x) => x && x.v === body.version && x.st).sort((a, b) => b.at - a.at)[0];
+    if (dr && confirm(`Continue the unsaved QCD draft for ${nameOf(p)} from ${new Date(dr.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}?\n\nCancel = delete it and start a new one.`)) Object.assign(st, dr.st);
+    else if (local || remote) { dropDraft(p.id); api.draftDelete(p.id).catch(() => {}); }
   }
   const history = [];
   let view = 'all'; let query = ''; let reviewing = false;
@@ -410,7 +418,22 @@ async function recordDialog(p, rec) {
     return autoScore(st.tallies[i.key]);
   };
   const finalScores = () => Object.fromEntries(flat().map((i) => [i.key, effective(i)]).filter(([, v]) => v !== undefined));
-  const save = () => { if (!rec) writeDraft(p.id, { v: body.version, at: Date.now(), st }); };
+  // Draft: on this device at once, and in the Portal a moment later (private to the scorer).
+  let putTimer = null;
+  const status = (txt, warn = false) => { const el = d?.querySelector('[data-saved]'); if (el) { el.innerHTML = txt; el.classList.toggle('sv-draft-warn', warn); } };
+  const save = () => {
+    if (rec) return;
+    writeDraft(p.id, { v: body.version, at: Date.now(), st });
+    status(`${icon('lock')} Draft · saving…`);
+    clearTimeout(putTimer);
+    putTimer = setTimeout(async () => {
+      try { await api.draftPut(p.id, body.version, st); status(`${icon('lock')} Draft saved · only you can see it until you tap Save QCD`); }
+      catch {
+        status(`${icon('lock')} Draft kept on this device only (no connection). It goes up when you're back online.`, true);
+        window.addEventListener('online', () => { if (d.isConnected && d.open) save(); }, { once: true });
+      }
+    }, 1200);
+  };
   const snap = () => { history.push(JSON.stringify({ scores: st.scores, tallies: st.tallies, manual: st.manual })); if (history.length > 60) history.shift(); };
   const touch = (k) => { st.recent = [k, ...st.recent.filter((x) => x !== k)].slice(0, 8); };
 
@@ -421,7 +444,7 @@ async function recordDialog(p, rec) {
       <label>Date<input type="date" data-f="held_on" value="${esc(st.held_on)}" max="${todayLocal()}"></label>
       <label>Case<input data-f="case_code" maxlength="3" value="${esc(st.case_code)}" placeholder="ABC" style="text-transform:uppercase;width:5.5em"></label>
       <span class="spacer"></span>
-      <span class="muted small" data-saved>${rec ? '' : `${icon('check')} saved on this device`}</span>
+      <span class="sv-draft small" data-saved>${rec ? '' : `${icon('lock')} Draft · only you can see it until you tap Save QCD`}</span>
       <button type="button" class="primary" data-review>Review and save</button>
       <button type="button" data-back>Back</button>
     </div>
@@ -558,7 +581,9 @@ async function recordDialog(p, rec) {
       btn.disabled = true;
       try {
         await api.save({ id: rec?.id, who: p.id, held_on: st.held_on, case_code: st.case_code, level: st.level, scores: sc, notes, tallies });
+        clearTimeout(putTimer);
         dropDraft(p.id);
+        if (!rec) await api.draftDelete(p.id).catch(() => {});
         await drawTeam();
         personDialog(people.find((x) => x.id === p.id) || p);
       } catch (err) { msg.textContent = err.message; msg.hidden = false; btn.disabled = false; }
@@ -566,7 +591,7 @@ async function recordDialog(p, rec) {
   });
   d.querySelector('[data-review]').addEventListener('click', () => { reviewing = true; paintAll(); });
   d.querySelector('[data-back]').addEventListener('click', () => {
-    if (!rec && Object.keys(st.tallies).length + Object.keys(st.scores).length && !confirm('Leave this QCD? It stays saved on this device, and you can continue it next time.')) return;
+    if (!rec && Object.keys(st.tallies).length + Object.keys(st.scores).length && !confirm('Leave this QCD for now? It stays as a draft only you can see, and you can continue it next time on any device.')) return;
     d.classList.remove('sv-full');
     if (rec) viewDialog(rec, { who: p, readOnly: false }); else personDialog(p);
   });
