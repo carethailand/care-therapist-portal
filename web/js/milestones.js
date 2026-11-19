@@ -15,7 +15,7 @@ const WORD = { 3: 'Hat trick', 5: 'High five', 10: 'Legend' };
 const THERAPIST_RANKS = ['therapist', 'senior', 'qcd', 'supervisor'];
 const file = (name) => `assets/milestones/${name}.svg`;
 
-// Achievement badges (round 2). They unlock from team_badges():
+// Achievement badges (round 2). Kudos = thank-yous GIVEN (Portal 043). They unlock from team_badges():
 // { abat, safmeds, resources, logs, kudos } where the last three are the level
 // reached: silver 1 / 5 / 8, gold 10 / 15 / 18, holographic 20 / 25 / 30
 // (1, 2, 3 stars in each colour). ABAT and SAFMEDS are for the therapist ranks only.
@@ -24,7 +24,7 @@ const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const FAMILY = [
   { key: 'resources', label: (n) => `${plural(n, 'resource', 'resources')} done`, lock: (n) => `Finish ${plural(n, 'Learning Hub resource', 'Learning Hub resources')}` },
   { key: 'logs', label: (n) => plural(n, 'reviewed study log', 'reviewed study logs'), lock: (n) => `Get ${plural(n, 'study log', 'study logs')} reviewed` },
-  { key: 'kudos', label: (n) => (n === 1 ? 'Kudos on the board' : `Kudos ×${n}`), lock: (n) => `Receive ${plural(n, 'kudos', 'kudos')} on the Kudos board` },
+  { key: 'kudos', label: (n) => (n === 1 ? 'Gave a kudos' : `Gave ${n} kudos`), lock: (n) => `Send ${plural(n, 'thank-you', 'thank-yous')} in CARE Connect (with your name)` },
 ];
 // Every achievement for the collection: for the 1/5/10 families, the highest
 // level reached plus the next one (locked). { key, label, img, earned, lockText }

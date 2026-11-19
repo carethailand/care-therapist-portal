@@ -471,7 +471,7 @@ Five new badges unlock by themselves and appear in My Journey → badges (earned
 | SAFMEDS master | a SAFMEDS set is mastered | therapist ranks |
 | Resources (9 levels) | Learning Hub resources done | everyone on the staff badge path |
 | Reviewed logs (9 levels) | study logs reviewed | everyone on the staff badge path |
-| Kudos (9 levels) | kudos sent TO you posted on the Kudos board | everyone on the staff badge path |
+| Kudos given (9 levels) | thank-yous you SEND with your name, to a person or a team, on the board or not (Portal 043; history counts) | everyone on the staff badge path |
 
 Levels: **silver 1 / 5 / 8 · gold 10 / 15 / 18 · holographic 20 / 25 / 30** (1, 2, 3 stars in each colour, plus the number; same silver / gold / holographic colours as the Senior, QCD and Supervisor Training badges; no colour words on screen). Other people only see the level reached (e.g. 10), never exact counts or what was studied. Still to come (waiting for art): Field evaluation passed, Helping hand, Newest therapist and the hand-given badges.
 
@@ -481,3 +481,10 @@ Levels: **silver 1 / 5 / 8 · gold 10 / 15 / 18 · holographic 20 / 25 / 30** (1
 - **Office-only staff** (admin, HR, Portal manager with no clinical rank): no clinical programme cards; they see only the trainees side (plus any programme they are actually enrolled in).
 - **Therapists with no trainees**: one page, as before.
 - Supervisors / QCD still see every trainee in every programme (unchanged).
+
+## Step 43 — Kudos badge = kudos given (added 2026-11-19)
+
+1. **Run** `supabase/migrations/20261118004300_kudos_given_badge.sql` (after 042).
+2. **Publish** the app (P9v).
+
+The hand-with-heart badge now counts thank-yous a person **sends** (with their name). Anonymous thank-yous never count, so a badge can't give an anonymous sender away. A separate **Kudos received** badge comes later (art folder 16).
