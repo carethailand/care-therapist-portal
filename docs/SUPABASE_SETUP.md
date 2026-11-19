@@ -591,3 +591,14 @@ While scoring a live QCD, the draft is saved on the device **and** in the Portal
 - **Mid-year shown**: the person sees their admin evaluation for half 1 (My supervision → Yearly review → Mid-year review → See details).
 - **Year-end shown**: the person sees Clinical, HR performance (average of the halves) and the **Final score** (= average of the two), with every item in See details, then taps **I agree, sign** (optional comment). After signing it can't be hidden.
 - The list shows "shown: mid ✓ · year-end ✓ · signed 15 Dec" per person. Office staff only see the reflection step.
+
+## Step 54 — Year report + Close the year (added 2026-11-19)
+
+Run `supabase/migrations/20261118005400_year_report_close.sql` after Step 53.
+
+- **Year report:** one page per person: QCD charts, clinical checklist, admin evaluation, final score and signature. Open it from a person in Yearly review → **Year report**, then **Save as PDF** (the browser's print window → Save as PDF; it prints in light colours, one person per page).
+  - Admin, supervisors and the Portal manager can open anyone's. QCD can't.
+  - The person can open their own from **My supervision** once the year-end review is shown.
+  - **All reports (PDF)** in Yearly review makes one PDF with everyone.
+- **Close the year** (Admin or Portal manager, from 1 December): keeps one summary line per person (QCD average, clinical, HR performance, final, lead/second, signed date) and deletes that year's details (QCD sessions, clinical and admin scores, comments, reflections, assignments, old drafts). Type `CLOSE 2026` to confirm. **Save the PDFs first: it can't be undone.** Keep the PDFs in the CARE drive, never in GitHub.
+- A closed year shows the summary table in Yearly review; each person sees their own summary line.

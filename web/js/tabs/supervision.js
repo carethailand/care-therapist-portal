@@ -40,6 +40,9 @@ const api = {
   draftGet: (who) => supa.rpc('sv_draft_get', { p_who: who }).then(must),
   draftPut: (who, version, state) => supa.rpc('sv_draft_put', { p_who: who, p_version: version, p_state: state }).then(must),
   draftDelete: (who) => supa.rpc('sv_draft_delete', { p_who: who }).then(must),
+  yearReport: (who, yr) => supa.rpc('sv_year_report', { p_who: who, p_year: yr }).then(must),
+  summaryList: (yr) => supa.rpc('sv_year_summary_list', { p_year: yr }).then(must),
+  closeYear: (yr, confirmText) => supa.rpc('sv_close_year', { p_year: yr, p_confirm: confirmText }).then(must),
   saveForm: (key, title, body) => supa.rpc('sv_form_save', { p_key: key, p_title: title, p_body: body }).then(must),
 };
 
@@ -753,7 +756,16 @@ async function drawMyYear() {
   const box = panelEl.querySelector('#sv-myyear');
   let r = null; let body; let rv = null;
   const evaluated = !!myLevel() || has('supervisor');   // office staff: reflection only
-  try { [r, body, rv] = await Promise.all([api.reflection(ctx.me.id, year), selfBody(), evaluated ? api.myReview(year).catch(() => null) : null]); } catch (e) { box.innerHTML = `<section class="card"><p class="error">${esc(e.message)}</p></section>`; return; }
+  let closed = [];
+  try { [r, body, rv, closed] = await Promise.all([api.reflection(ctx.me.id, year), selfBody(), evaluated ? api.myReview(year).catch(() => null) : null, api.summaryList(year).catch(() => [])]); } catch (e) { box.innerHTML = `<section class="card"><p class="error">${esc(e.message)}</p></section>`; return; }
+  const mineSum = closed.find((x) => x.therapist_id === ctx.me.id);
+  if (mineSum) {                           // the year was closed: only the summary is left
+    box.innerHTML = `<section class="card sv-year"><div class="page-head sv-head"><h2>Yearly review ${year} <span class="chip">Closed</span></h2></div>
+      <span class="sv-final"><span><span class="muted small">Clinical</span><b>${fmtScore(mineSum.clinical)}</b></span><span><span class="muted small">HR performance</span><b>${fmtScore(mineSum.hr_perf)}</b></span>
+        <span><span class="muted small">QCD average</span><b>${fmtScore(mineSum.qcd_avg)}</b></span><span class="sv-final-big"><span class="muted small">Final score</span><b>${fmtScore(mineSum.final)}</b></span></span>
+      <p class="muted small">${mineSum.signed_at ? `Signed ${esc(whenText(mineSum.signed_at))}. ` : ''}Only this summary is kept in the Portal after the year is closed.</p></section>`;
+    return;
+  }
   if (r) body = await selfBody(r.form_version);
   const n = answered(body, r?.answers); const all = totalQs(body);
   const thisYear = Number(todayLocal().slice(0, 4));
@@ -774,6 +786,7 @@ async function drawMyYear() {
   </section>`;
   box.querySelector('[data-self]')?.addEventListener('click', () => reflectionEditor(r, body, !canWrite));
   box.querySelectorAll('[data-myrev]').forEach((b) => b.addEventListener('click', () => myReviewDialog(rv, b.dataset.myrev)));
+  box.querySelector('[data-myreport]')?.addEventListener('click', () => openYearReport(ctx.me.id));
   box.querySelector('[data-sign]')?.addEventListener('click', async () => {
     const c = box.querySelector('[data-signnote]')?.value || '';
     if (!confirm('Sign your yearly review? This says you’ve seen your scores and agree with them.')) return;
@@ -861,8 +874,13 @@ const nowHalf = () => (Number(todayLocal().slice(5, 7)) <= 6 ? 1 : 2);
 async function drawYearly() {
   const box = panelEl.querySelector('#sv-yearly');
   if (!box) return;
-  let list = [];
-  try { [list] = await Promise.all([api.yearlyPeople(year), adminForm ? null : loadAdminForm().catch(() => null)]); } catch (e) { box.innerHTML = `<section class="card"><p class="error">${esc(e.message)}</p></section>`; return; }
+  let list = []; let closed = [];
+  try { [list, , closed] = await Promise.all([api.yearlyPeople(year), adminForm ? null : loadAdminForm().catch(() => null), api.summaryList(year).catch(() => [])]); } catch (e) { box.innerHTML = `<section class="card"><p class="error">${esc(e.message)}</p></section>`; return; }
+  if (closed.length) {                     // a closed year: only the kept summary
+    box.innerHTML = closedYearHtml(closed);
+    box.querySelectorAll('[data-sum]').forEach((b) => b.addEventListener('click', () => openYearReport(b.dataset.sum)));
+    return;
+  }
   const secs = adminForm?.body.sections || [];
   const nSec = secs.length || 3;
   const mine = myAdminSections();
@@ -881,7 +899,10 @@ async function drawYearly() {
   box.innerHTML = `<section class="card">
     <div class="page-head sv-head"><h2>Yearly review · ${year}</h2><span class="spacer"></span>
       ${canEdit() ? '<button type="button" class="small-btn" data-edit-yearly>Edit yearly checklist</button>' : ''}
-      ${has('admin') ? `<button type="button" class="small-btn" data-owners>${icon('settings')} Admin sections</button>` : ''}</div>
+      ${has('admin') ? `<button type="button" class="small-btn" data-owners>${icon('settings')} Admin sections</button>` : ''}
+      <button type="button" class="small-btn" data-allrep>${icon('file-text')} All reports (PDF)</button>
+      ${has('admin', 'manager') ? '<button type="button" class="small-btn" data-closeyear>Close the year</button>' : ''}</div>
+    <p class="muted small" data-allmsg hidden></p>
     <div class="sv-tools">
       <span class="muted small">Reflections <strong>${sub}</strong>/${active.length} · admin half ${nowHalf()} done for <strong>${evaluated.filter((p) => (p[`admin_h${nowHalf()}`] || 0) >= nSec).length}</strong>/${evaluated.length}</span><span class="spacer"></span>
       <div class="seg" role="tablist"><button type="button" role="tab" data-yf="all" aria-selected="${yearlyFilter === 'all'}">Everyone</button>
@@ -910,6 +931,12 @@ async function drawYearly() {
   box.querySelectorAll('[data-yf]').forEach((b) => b.addEventListener('click', () => { yearlyFilter = b.dataset.yf; drawYearly(); }));
   box.querySelectorAll('[data-yp]').forEach((b) => b.addEventListener('click', () => yearlyPerson(list.find((p) => p.id === b.dataset.yp))));
   box.querySelector('[data-owners]')?.addEventListener('click', ownersDialog);
+  box.querySelector('[data-closeyear]')?.addEventListener('click', () => closeYearDialog(list));
+  box.querySelector('[data-allrep]')?.addEventListener('click', (e) => {
+    const msg = box.querySelector('[data-allmsg]'); msg.hidden = false; e.currentTarget.disabled = true;
+    const btn = e.currentTarget;
+    printAllReports(list.filter((p) => !p.no_yearly && p.rank !== 'office'), msg).finally(() => { btn.disabled = false; });
+  });
   box.querySelector('[data-edit-yearly]')?.addEventListener('click', () => formEditor('yearly_clinical'));
 }
 
@@ -917,7 +944,7 @@ async function drawYearly() {
 async function yearlyPerson(p, tab = null) {
   tab = tab || ((p.lead_id === ctx.me.id || p.second_id === ctx.me.id) ? 'clinical' : myAdminSections().length && p.rank !== 'office' ? 'admin' : 'reflection');
   const d = openDlg(`<div class="lh-form"><h2>${esc(nameOf(p))}</h2><p class="muted">Loading…</p></div>`, true);
-  const head = `<h2>${esc(nameOf(p))} · yearly review ${year}</h2>
+  const head = `<div class="sv-ph"><h2>${esc(nameOf(p))} · yearly review ${year}</h2>${p.rank !== 'office' ? `<button type="button" class="small-btn primary" data-report>${icon('file-text')} Year report</button>` : ''}</div>
     ${has('admin') ? `<label class="check small"><input type="checkbox" data-noyearly${p.no_yearly ? ' checked' : ''}> No yearly review for this person (e.g. not evaluated by anyone)</label>` : ''}
     ${p.rank !== 'office' && !p.no_yearly && (has('admin') || p.lead_id === ctx.me.id) ? `<div class="sv-release">
       <span><b>Shown to ${esc(nameOf(p))}:</b> mid-year ${p.release_mid_at ? `✓ ${esc(whenText(p.release_mid_at))}` : 'hidden'} · year-end ${p.release_end_at ? `✓ ${esc(whenText(p.release_end_at))}` : 'hidden'}${p.signed_at ? ` · <b>signed ${esc(whenText(p.signed_at))}</b>` : ''}</span>
@@ -929,6 +956,7 @@ async function yearlyPerson(p, tab = null) {
         <button type="button" role="tab" data-yt="clinical" aria-selected="${tab === 'clinical'}">Clinical</button>` : ''}</div>`;
   const wire = () => {
     d.querySelectorAll('[data-yt]').forEach((b) => b.addEventListener('click', () => yearlyPerson(p, b.dataset.yt)));
+    d.querySelector('[data-report]')?.addEventListener('click', () => openYearReport(p.id, () => yearlyPerson(p, tab)));
     d.querySelector('[data-noyearly]')?.addEventListener('change', async (e) => {
       try { await api.setNoYearly(p.id, e.target.checked); p.no_yearly = e.target.checked; drawYearly(); } catch (err) { alert(err.message); e.target.checked = !e.target.checked; }
     });
@@ -1258,7 +1286,7 @@ async function reviewSteps(rv) {
           <span class="sv-final-big"><span class="muted small">Final score</span><b>${fmtScore(n.fin)}</b></span></span>
           ${rv.signed_at ? `<span class="small">Signed ${esc(whenText(rv.signed_at))}${rv.sign_comment ? ` · “${esc(rv.sign_comment)}”` : ''}</span>`
             : `<label class="small">Comment <span class="muted">(optional)</span><textarea data-signnote rows="2" maxlength="1500"></textarea></label>`}` : ''}</span>
-      <span class="sv-step-side">${endShown ? `<button type="button" class="small-btn" data-myrev="end">See details</button>${rv.signed_at ? '' : `<button type="button" class="small-btn primary" data-sign>${icon('check')} I agree, sign</button>`}` : '<span class="chip">Not shown yet</span>'}</span></li>`;
+      <span class="sv-step-side">${endShown ? `<button type="button" class="small-btn" data-myrev="end">See details</button><button type="button" class="small-btn" data-myreport>${icon('file-text')} Year report</button>${rv.signed_at ? '' : `<button type="button" class="small-btn primary" data-sign>${icon('check')} I agree, sign</button>`}` : '<span class="chip">Not shown yet</span>'}</span></li>`;
 }
 
 async function myReviewDialog(rv, which) {
@@ -1286,4 +1314,178 @@ async function myReviewDialog(rv, which) {
     ${clin}${adminHalf(1)}${which === 'end' ? adminHalf(2) : ''}
     <div class="dlg-actions"><button type="button" data-close>Close</button></div></div>`, true);
   d.querySelector('[data-close]').addEventListener('click', closeDlg);
+}
+
+
+// ---------------------------------------------------------------------------
+// Year report (Portal 054): one page per person — QCD charts, clinical checklist,
+// admin evaluation, final score, signature. Shown in the review meeting and saved
+// as PDF. Team (admin, supervisors) any time; the person once year-end is shown.
+// ---------------------------------------------------------------------------
+const dayText = (iso) => (iso ? new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '');
+const hasData = (rp) => rp && (rp.closed || rp.qcd?.length || rp.clinical || rp.admin?.length);
+
+async function yearReportHtml(rp) {
+  const S = rp.summary;
+  const num = (label, v, sub = '') => `<div class="yr-num"><span>${esc(label)}</span><b>${fmtScore(v)}</b>${sub ? `<span class="yr-sub">${sub}</span>` : ''}</div>`;
+  const head = (finalV) => `<header class="yr-head">
+      <div><p class="yr-kicker">CARE · Yearly review ${year}</p>
+        <h1>${esc(rp.name || S?.name || '')}</h1>
+        <p class="yr-meta">${[rp.full_name && rp.full_name !== rp.name ? esc(rp.full_name) : '', esc(LEVEL[rp.level || S?.level] || ''),
+          (rp.lead || S?.lead) ? `Lead ${esc(rp.lead || S.lead)}` : '', (rp.second || S?.second) ? `Second ${esc(rp.second || S.second)}` : '',
+          rp.end_review_at ? `Review meeting ${esc(dayText(rp.end_review_at))}` : ''].filter(Boolean).join(' · ')}</p></div>
+      <div class="yr-final"><span>Final score</span><b>${fmtScore(finalV)}</b></div>
+    </header>`;
+  if (rp.closed && !rp.qcd?.length && !rp.clinical && !rp.admin?.length) {        // closed year: only the summary is left
+    return `<article class="yr">${head(S.final)}
+      <div class="yr-nums">${num('Clinical', S.clinical, S.ioa != null ? `IOA ${Number(S.ioa)}%` : '')}${num('HR performance', S.hr_perf, [S.hr_h1 != null ? `half 1 ${fmtScore(S.hr_h1)}` : '', S.hr_h2 != null ? `half 2 ${fmtScore(S.hr_h2)}` : ''].filter(Boolean).join(' · '))}
+        ${num('QCD average', S.qcd_avg, `${S.qcd_sessions} session${S.qcd_sessions === 1 ? '' : 's'}`)}</div>
+      <p class="yr-note">This year was closed on ${esc(dayText(S.closed_at))}. Only this summary was kept in the Portal; the full report was saved as PDF.</p>
+      <footer class="yr-sign">${S.signed_at ? `<p><b>Signed by ${esc(S.name)}</b> on ${esc(dayText(S.signed_at))}${S.sign_comment ? ` · “${esc(S.sign_comment)}”` : ''}</p>` : '<p>Not signed.</p>'}</footer>
+    </article>`;
+  }
+  // numbers (same rule as the review: final = average of clinical and HR performance)
+  const af = rp.admin?.length ? await api.form('admin_eval', rp.admin[0].form_version).catch(() => null) : null;
+  const halfAvg = (h) => { const xs = rp.admin.filter((e) => e.half === h && e.average != null).map((e) => Number(e.average)); return xs.length ? mean(xs) : null; };
+  const h1 = halfAvg(1); const h2 = halfAvg(2);
+  const hr = mean([h1, h2].filter((x) => x != null));
+  const clin = rp.clinical?.total != null ? Number(rp.clinical.total) : null;
+  const fin = mean([clin, hr].filter((x) => x != null));
+  const qT = (rp.qcd || []).map((r) => r.total).filter((x) => x != null).map(Number);
+
+  // clinical checklist
+  let clinHtml = '<p class="muted">The clinical checklist hasn’t been finalised yet.</p>';
+  if (rp.clinical) {
+    const yb = await yearlyBody(rp.clinical.form_version);
+    const notes = (yb.notes || []).map((x) => (rp.clinical.notes?.[x.key] ? `<div class="yr-notebox"><p class="yr-l">${esc(x.label)}</p><p class="yr-pre">${esc(rp.clinical.notes[x.key])}</p></div>` : '')).join('');
+    clinHtml = `<div class="yr-secs">${itemsFor(yb, rp.clinical.level).map((sc) => `<div class="yr-sec">
+        <h4><span>${esc(shortTitle(sc.title))}</span>${rp.clinical.sections?.[sc.key] != null ? `<b class="qr-c v${band(Number(rp.clinical.sections[sc.key]))}">${Number(rp.clinical.sections[sc.key]).toFixed(2)}</b>` : ''}</h4>
+        <ul class="yr-items">${sc.items.map((it) => `<li><span>${esc(it.text)}</span><b class="sv-score s${esc(String(rp.clinical.scores?.[it.key] ?? ''))}">${scoreTxt(rp.clinical.scores?.[it.key])}</b></li>`).join('')}</ul></div>`).join('')}</div>${notes}`;
+  }
+
+  // admin evaluation: one table, a column per half that was scored
+  let admHtml = '<p class="muted">No admin evaluation this year.</p>';
+  if (af && rp.admin.length) {
+    const halves = [1, 2].filter((h) => rp.admin.some((e) => e.half === h));
+    const cellOf = (h, sk, ik) => rp.admin.find((e) => e.half === h && e.section === sk)?.scores?.[ik];
+    admHtml = `<table class="yr-adm"><thead><tr><th></th>${halves.map((h) => `<th>Half ${h}</th>`).join('')}</tr></thead><tbody>
+      ${af.body.sections.map((sc) => `<tr class="yr-adm-sec"><td>${esc(sc.title)}${sc.owner_name ? ` <span class="muted small">· ${esc(sc.owner_name)}</span>` : ''}</td>
+          ${halves.map((h) => { const e = rp.admin.find((x) => x.half === h && x.section === sc.key); return `<td>${e?.average != null ? `<b class="qr-c v${band(Number(e.average))}">${Number(e.average).toFixed(2)}</b>` : '—'}</td>`; }).join('')}</tr>
+        ${sc.items.map((it) => `<tr><td>${esc(it.text)}</td>${halves.map((h) => `<td><b class="sv-score s${esc(String(cellOf(h, sc.key, it.key) ?? ''))}">${scoreTxt(cellOf(h, sc.key, it.key))}</b></td>`).join('')}</tr>`).join('')}`).join('')}
+      <tr class="yr-adm-tot"><td>HR performance (average of the sections)</td>${halves.map((h) => `<td><b>${fmtScore(halfAvg(h))}</b></td>`).join('')}</tr>
+    </tbody></table>
+    ${rp.admin.filter((e) => e.note).map((e) => `<div class="yr-notebox"><p class="yr-l">${esc(af.body.sections.find((x) => x.key === e.section)?.title || e.section)} · half ${e.half}</p><p class="yr-pre">${esc(e.note)}</p></div>`).join('')}`;
+  }
+
+  return `<article class="yr">${head(fin)}
+    <div class="yr-nums">${num('Clinical', clin, rp.clinical?.ioa != null ? `IOA ${Number(rp.clinical.ioa)}%` : '')}
+      ${num('HR performance', hr, [h1 != null ? `half 1 ${fmtScore(h1)}` : '', h2 != null ? `half 2 ${fmtScore(h2)}` : ''].filter(Boolean).join(' · '))}
+      ${num('QCD average', mean(qT), `${rp.qcd.length} session${rp.qcd.length === 1 ? '' : 's'} · for reference`)}</div>
+    <p class="yr-note">Scores 0–3. Final score = average of Clinical and HR performance. QCD sessions are shown for the discussion.</p>
+    <section class="yr-part"><h2>QCD sessions ${year}</h2>${rp.qcd.length ? await resultsHtml(rp.qcd) : '<p class="muted">No QCD sessions this year.</p>'}</section>
+    <section class="yr-part yr-break"><h2>Clinical checklist <span class="sv-total">${fmtScore(clin)}</span></h2>${clinHtml}</section>
+    <section class="yr-part"><h2>Admin evaluation <span class="sv-total">${fmtScore(hr)}</span></h2>${admHtml}</section>
+    <footer class="yr-sign">
+      ${rp.signed_at ? `<p><b>Signed in the Portal by ${esc(rp.name)}</b> on ${esc(dayText(rp.signed_at))}${rp.sign_comment ? `<br>Comment: “${esc(rp.sign_comment)}”` : ''}</p>`
+        : `<p>${rp.release_end_at ? 'Shown to the person; not signed yet.' : 'Not yet shown to the person.'}</p>`}
+      <p class="yr-printed">CARE Therapist Portal · printed ${esc(dayText(new Date().toISOString()))}</p>
+    </footer>
+  </article>`;
+}
+
+// Put report(s) into the print area and open the browser's Print → Save as PDF.
+function printReports(html, title) {
+  const area = document.getElementById('print-area');
+  area.innerHTML = html;
+  const page = document.createElement('style');
+  page.textContent = '@page { size: A4 portrait; margin: 12mm; }';
+  document.head.append(page);
+  const oldTitle = document.title;
+  document.title = title;                       // the PDF's suggested file name
+  const done = () => { area.innerHTML = ''; page.remove(); document.title = oldTitle; window.removeEventListener('afterprint', done); };
+  window.addEventListener('afterprint', done);
+  window.print();
+}
+
+async function openYearReport(who, back = null) {
+  const d = openDlg('<div class="lh-form"><h2>Year report</h2><p class="muted">Loading…</p></div>', true);
+  d.classList.add('yr-dlg');
+  let rp; let html;
+  try { rp = await api.yearReport(who, year); html = await yearReportHtml(rp); } catch (e) { d.innerHTML = `<div class="lh-form"><p class="error">${esc(e.message)}</p><div class="dlg-actions"><button type="button" data-close>Close</button></div></div>`; d.querySelector('[data-close]').addEventListener('click', closeDlg); return; }
+  d.innerHTML = `<div class="yr-bar"><strong>Year report ${year}</strong><span class="spacer"></span>
+      ${back ? '<button type="button" class="small-btn" data-back>← Back</button>' : ''}
+      <button type="button" class="small-btn primary" data-pdf>${icon('file-text')} Save as PDF</button>
+      <button type="button" class="small-btn" data-close>Close</button></div>
+    <div class="yr-scroll">${html}</div>`;
+  wireResults(d);
+  d.querySelector('[data-close]').addEventListener('click', closeDlg);
+  d.querySelector('[data-back]')?.addEventListener('click', back);
+  d.querySelector('[data-pdf]').addEventListener('click', () => printReports(html, `CARE yearly review ${year} - ${rp.name || rp.summary?.name || ''}`));
+}
+
+// Everyone's report in one PDF (one person per page).
+async function printAllReports(list, msg) {
+  const parts = [];
+  const people = [...list].sort(byName);
+  for (const [i, p] of people.entries()) {
+    if (msg) msg.textContent = `Preparing ${i + 1} of ${people.length}: ${nameOf(p)}…`;
+    try { const rp = await api.yearReport(p.id, year); if (hasData(rp)) parts.push(await yearReportHtml(rp)); } catch { /* skip */ }
+  }
+  if (msg) msg.textContent = parts.length ? `${parts.length} reports ready. Choose “Save as PDF” in the print window.` : 'No reports to save.';
+  if (parts.length) printReports(parts.join(''), `CARE yearly reviews ${year} - everyone`);
+}
+
+// Close the year (Admin or Portal manager): save the reports, then keep only a summary.
+async function closeYearDialog(list) {
+  const evaluated = list.filter((p) => !p.no_yearly && p.rank !== 'office');
+  const unsigned = evaluated.filter((p) => !p.signed_at && (p.final_total != null || p.admin_h1 || p.admin_h2));
+  const thisYear = Number(todayLocal().slice(0, 4)); const month = Number(todayLocal().slice(5, 7));
+  const tooEarly = year > thisYear || (year === thisYear && month < 12);
+  const d = openDlg(`<div class="lh-form">
+    <h2>Close ${year}</h2>
+    <p>This keeps <b>one summary line per person</b> (QCD average, clinical, HR performance, final score, lead and second, signed date) and <b>deletes the details of ${year}</b>: QCD sessions, clinical and admin scores, comments, reflections and assignments. It can’t be undone.</p>
+    <ol class="sv-close-steps">
+      <li><strong>Save the reports first.</strong> One PDF with everyone’s report, one person per page. Keep it in the CARE drive (not GitHub).
+        <p class="row-actions"><button type="button" class="small-btn primary" data-all>${icon('file-text')} Save all reports as one PDF</button><span class="muted small" data-allmsg></span></p></li>
+      <li><strong>Check who hasn’t signed.</strong> ${unsigned.length ? `<span class="chip warn">${unsigned.length}</span> ${unsigned.sort(byName).map((p) => esc(nameOf(p))).join(', ')}` : '<span class="chip ok">Everyone with scores has signed</span>'}</li>
+      <li><strong>Close the year.</strong> ${tooEarly ? `<span class="muted">Possible from 1 December ${year}.</span>` : `
+        <label class="check small"><input type="checkbox" data-saved> I’ve saved the reports as PDF</label>
+        <label class="small">Type <b>CLOSE ${year}</b> to confirm<input type="text" data-confirm autocomplete="off" placeholder="CLOSE ${year}"></label>`}</li>
+    </ol>
+    <p class="error small" data-err hidden></p>
+    <div class="dlg-actions"><button type="button" data-close>Cancel</button>${tooEarly ? '' : `<button type="button" class="primary" data-go disabled>Close ${year}</button>`}</div>
+  </div>`);
+  d.querySelector('[data-close]').addEventListener('click', closeDlg);
+  d.querySelector('[data-all]').addEventListener('click', (e) => { e.target.disabled = true; printAllReports(evaluated, d.querySelector('[data-allmsg]')).finally(() => { e.target.disabled = false; }); });
+  const go = d.querySelector('[data-go]');
+  if (!go) return;
+  const upd = () => { go.disabled = !(d.querySelector('[data-saved]').checked && d.querySelector('[data-confirm]').value.trim().toUpperCase() === `CLOSE ${year}`); };
+  d.querySelector('[data-saved]').addEventListener('change', upd);
+  d.querySelector('[data-confirm]').addEventListener('input', upd);
+  go.addEventListener('click', async () => {
+    if (!confirm(`Delete the details of ${year} and keep only the summary? This can’t be undone.`)) return;
+    go.disabled = true;
+    try {
+      const r = await api.closeYear(year, `CLOSE ${year}`);
+      d.innerHTML = `<div class="lh-form"><h2>${year} is closed</h2>
+        <p>Kept a summary for <b>${r.summaries}</b> ${r.summaries === 1 ? 'person' : 'people'}. Cleared ${r.qcd_sessions} QCD sessions, ${r.clinical} clinical and ${r.admin} admin scores, ${r.reflections} reflections, ${r.assignments} assignments and ${r.drafts} old drafts.</p>
+        <div class="dlg-actions"><button type="button" class="primary" data-close>Done</button></div></div>`;
+      d.querySelector('[data-close]').addEventListener('click', () => { closeDlg(); drawYearly(); });
+    } catch (e) { const er = d.querySelector('[data-err]'); er.textContent = e.message; er.hidden = false; go.disabled = false; }
+  });
+}
+
+// A closed year: the kept summary table (team) instead of the working list.
+function closedYearHtml(rows) {
+  return `<section class="card">
+    <div class="page-head sv-head"><h2>Yearly review · ${year} <span class="chip">Closed</span></h2></div>
+    <p class="muted small">Closed ${esc(dayText(rows[0].closed_at))}${rows[0].closed_by_name ? ` by ${esc(rows[0].closed_by_name)}` : ''}. Only this summary was kept; the full reports were saved as PDF.</p>
+    <div class="qr-tablewrap"><table class="yr-sum">
+      <thead><tr><th>Person</th><th>QCD avg</th><th>Clinical</th><th>HR perf.</th><th>Final</th><th>Lead · second</th><th>Signed</th></tr></thead>
+      <tbody>${[...rows].sort(byName).map((s) => `<tr><td><button type="button" class="linklike" data-sum="${esc(s.therapist_id)}">${esc(s.name)}</button><br><span class="muted small">${esc(LEVEL[s.level] || '')}</span></td>
+        <td>${fmtScore(s.qcd_avg)}<br><span class="muted small">${s.qcd_sessions} sessions</span></td><td>${fmtScore(s.clinical)}</td><td>${fmtScore(s.hr_perf)}</td>
+        <td><b>${fmtScore(s.final)}</b></td><td class="small">${esc([s.lead, s.second].filter(Boolean).join(' · ') || '—')}</td>
+        <td class="small">${s.signed_at ? esc(whenText(s.signed_at)) : '—'}</td></tr>`).join('')}</tbody>
+    </table></div>
+  </section>`;
 }
