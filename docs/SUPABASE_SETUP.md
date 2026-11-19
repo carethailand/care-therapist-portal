@@ -568,3 +568,16 @@ While scoring a live QCD, the draft is saved on the device **and** in the Portal
 - **Attendance** for the half (AL / PL / SL / LWP / other, approved leave from Leave & HR, plus the AL allowance) is shown to Admin and HR for the discussion; it isn't scored.
 - Team → Yearly review: each person shows reflection status + admin progress (half 1 x/3 · half 2 x/3); filter **Admin to score**. Open a person → **Reflection | Admin evaluation**.
 - Who reads: supervisors + admin / Portal manager. The person sees scores only when the review is released (step 4). Office staff write a reflection but aren't evaluated here.
+
+## Step 52 — Yearly review, step 3: clinical checklist with IOA (added 2026-11-19)
+
+1. **Run** `supabase/migrations/20261118005200_yearly_clinical_ioa.sql` (after 051).
+2. **Publish** the app (Q5).
+
+- Open a person (Team → Yearly review) → **Clinical**. **Admin (e.g. Ploy) / Portal manager → Assign / change**: lead supervisor, second supervisor, and the mid-year / year-end review meeting dates (can be added later; the lead runs the meetings with an admin).
+- **Lead and second** each score the yearly checklist on their own (17 items from the half-year supervisor sheet; Junior 10, Senior/QCD 17; 0–3 / N/A, plus strengths / areas to grow): Save draft, then **Submit my scores**. Neither sees the other's until they've submitted.
+- **Compare and set the final** (the lead): lead | second | final per item, items that **differ** highlighted, **IOA %** (items scored the same ÷ items both scored). Agreed items are filled in; the lead taps the final for the rest and saves. If the second never scores (e.g. no clinic with the person), the lead can set the final from their own scores.
+- Final = the clinical score (average of the section averages). Supervisors + admin see the final and IOA; the person sees it at release (step 4).
+- For reference while scoring: the year's QCD sessions and the **QCD item summary** (all tallies added up, score from the data vs average of sessions).
+- **Edit yearly checklist** (supervisors / admin): Chandni adds the supervisor items there (tick Supervisor). Supervisors are evaluated by Chandni as lead, no second.
+- List: "Clinical: lead Boss ✓ · second Fon …" or "final 2.92 · IOA 80%"; filter **Clinical for me**.

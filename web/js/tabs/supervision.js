@@ -29,6 +29,10 @@ const api = {
   leaveTaken: (who, from, to) => supa.from('leave_requests').select('type,days,start_date').eq('therapist_id', who).eq('status', 'approved')
     .gte('start_date', from).lte('start_date', to).then(must),
   alDays: (who, yr) => supa.from('leave_entitlements').select('al_days').eq('therapist_id', who).eq('year', yr).maybeSingle().then(must),
+  clinicalGet: (who, yr) => supa.rpc('sv_clinical_get', { p_who: who, p_year: yr }).then(must),
+  clinicalSave: (who, yr, level, scores, notes, submit) => supa.rpc('sv_clinical_save', { p_who: who, p_year: yr, p_level: level, p_scores: scores, p_notes: notes, p_submit: submit }).then(must),
+  clinicalFinal: (who, yr, scores, notes) => supa.rpc('sv_clinical_finalize', { p_who: who, p_year: yr, p_scores: scores, p_notes: notes }).then(must),
+  assign: (who, yr, lead, second, mid, end) => supa.rpc('sv_yearly_assign', { p_who: who, p_year: yr, p_lead: lead || null, p_second: second || null, p_mid: mid || null, p_end: end || null }).then(must),
   yearlyPeople: (yr) => supa.rpc('sv_yearly_people', { p_year: yr }).then(must),
   draftGet: (who) => supa.rpc('sv_draft_get', { p_who: who }).then(must),
   draftPut: (who, version, state) => supa.rpc('sv_draft_put', { p_who: who, p_version: version, p_state: state }).then(must),
@@ -637,15 +641,17 @@ async function recordDialog(p, rec) {
 // Checklist editor (supervisors + admin). Each save = a new version; old
 // sessions keep the wording they were scored with.
 // ---------------------------------------------------------------------------
-function formEditor() {
-  const body = JSON.parse(JSON.stringify(form.body));
-  const levels = qcdLevels(body);
+async function formEditor(key = 'qcd') {
+  let ef;
+  try { ef = key === 'qcd' ? form : await api.form(key); } catch (e) { alert(e.message); return; }
+  const body = JSON.parse(JSON.stringify(ef.body));
+  const levels = key === 'qcd' ? qcdLevels(body) : (body.levels || []);
   const newKey = (prefix) => `${prefix}${Date.now().toString(36).slice(-6)}${Math.floor(Math.random() * 36).toString(36)}`;
   const d = openDlg('<div class="lh-form"></div>', true);
   const paint = () => {
     d.innerHTML = `<form class="lh-form sv-editor">
-      <h2>Edit checklist: ${esc(form.title)}</h2>
-      <p class="muted small">Version ${form.version}${form.updated_by ? ` · last changed by ${esc(form.updated_by)}` : ''}. Saving makes version ${form.version + 1}; sessions already recorded keep the wording they were scored with.</p>
+      <h2>Edit checklist: ${esc(ef.title)}</h2>
+      <p class="muted small">Version ${ef.version}${ef.updated_by ? ` · last changed by ${esc(ef.updated_by)}` : ''}. Saving makes version ${ef.version + 1}; sessions already recorded keep the wording they were scored with.</p>
       ${body.rule ? `<fieldset class="sv-rule"><legend>Score rule for counted items (% correct)</legend>
         <label>At least <input type="number" min="1" max="20" data-rule="min" value="${esc(String(body.rule.min ?? 3))}"> chances before it scores</label>
         ${[['junior', 'Junior'], ['senior', 'Senior / QCD']].map(([lk, ll]) => `<div class="sv-rule-row"><b>${ll}</b>${[1, 2, 3].map((sc, n) => `<label>${sc} from <input type="number" min="0" max="100" data-rule="${lk}|${n}" value="${esc(String((body.rule[lk] || [])[n] ?? ''))}">%</label>`).join('')}</div>`).join('')}
@@ -701,7 +707,8 @@ function formEditor() {
       if (body.sections.flatMap((s) => s.items).some((i) => !i.levels.length)) { msg.textContent = 'Tick at least one level for every item.'; msg.hidden = false; return; }
       if (body.rule && ['junior', 'senior'].some((k) => { const r = body.rule[k] || []; return !(r[0] <= r[1] && r[1] <= r[2]); })) { msg.textContent = 'In the score rule, 1 ≤ 2 ≤ 3 (e.g. 30, 50, 70).'; msg.hidden = false; return; }
       try {
-        await api.saveForm('qcd', form.title, body);
+        await api.saveForm(key, ef.title, body);
+        if (key !== 'qcd') { yearlyBodies.clear(); closeDlg(); drawYearly(); return; }
         form = await api.form('qcd');
         versions.set(form.version, form.body);
         closeDlg();
@@ -846,18 +853,23 @@ async function drawYearly() {
   const evaluated = active.filter((p) => p.rank !== 'office');
   const sub = active.filter((p) => p.reflection === 'submitted').length;
   const groups = [['supervisor', 'Supervisors'], ['qcd', 'QCD'], ['senior', 'Senior'], ['therapist', 'Junior'], ['office', 'Office team']];
+  const myClin = (p) => (p.lead_id === ctx.me.id && (!p.lead_done || (p.final_total == null && (p.second_done || !p.second_id))))
+    || (p.second_id === ctx.me.id && !p.second_done && p.final_total == null);
   const keep = (p) => yearlyFilter === 'all' || (yearlyFilter === 'waiting' && p.reflection !== 'submitted')
+    || (yearlyFilter === 'clinical' && myClin(p))
     || (yearlyFilter === 'admin' && p.rank !== 'office' && (p[`admin_h${nowHalf()}`] || 0) < nSec);
   const shown = active.filter(keep);
   const chip = (n) => `<span class="chip ${n >= nSec ? 'ok' : n ? 'warn' : ''}">${n}/${nSec}</span>`;
   box.innerHTML = `<section class="card">
     <div class="page-head sv-head"><h2>Yearly review · ${year}</h2><span class="spacer"></span>
+      ${canEdit() ? '<button type="button" class="small-btn" data-edit-yearly>Edit yearly checklist</button>' : ''}
       ${has('admin') ? `<button type="button" class="small-btn" data-owners>${icon('settings')} Admin sections</button>` : ''}</div>
     <div class="sv-tools">
       <span class="muted small">Reflections <strong>${sub}</strong>/${active.length} · admin half ${nowHalf()} done for <strong>${evaluated.filter((p) => (p[`admin_h${nowHalf()}`] || 0) >= nSec).length}</strong>/${evaluated.length}</span><span class="spacer"></span>
       <div class="seg" role="tablist"><button type="button" role="tab" data-yf="all" aria-selected="${yearlyFilter === 'all'}">Everyone</button>
         <button type="button" role="tab" data-yf="waiting" aria-selected="${yearlyFilter === 'waiting'}">Reflection not in</button>
-        ${owner || has('admin') ? `<button type="button" role="tab" data-yf="admin" aria-selected="${yearlyFilter === 'admin'}">Admin to score</button>` : ''}</div>
+        ${owner || has('admin') ? `<button type="button" role="tab" data-yf="admin" aria-selected="${yearlyFilter === 'admin'}">Admin to score</button>` : ''}
+        ${has('supervisor') ? `<button type="button" role="tab" data-yf="clinical" aria-selected="${yearlyFilter === 'clinical'}">Clinical for me${active.filter(myClin).length ? ` <span class="chip warn">${active.filter(myClin).length}</span>` : ''}</button>` : ''}</div>
     </div>
     ${owner ? `<p class="muted small">You score: <strong>${esc(secs.filter((sc) => mine.includes(sc.key)).map((sc) => sc.title).join(', ') || '—')}</strong>. Open a person → Admin evaluation.</p>` : ''}
     <ul class="sv-people">${groups.map(([k, label]) => {
@@ -865,7 +877,9 @@ async function drawYearly() {
       return g.length ? `<li class="sv-grouphead">${esc(label)} <span class="muted small">${g.length}</span></li>${g.map((p) => `
         <li><button type="button" class="sv-person" data-yp="${esc(p.id)}">
           <span class="sv-name"><strong>${esc(nameOf(p))}</strong></span>
-          <span class="muted small">Reflection: ${p.reflection === 'submitted' ? `submitted ${esc(whenText(p.submitted_at))}` : p.reflection === 'started' ? 'draft' : 'not started'}${p.rank !== 'office' ? ` · admin half 1 ${p.admin_h1 || 0}/${nSec} · half 2 ${p.admin_h2 || 0}/${nSec}` : ''}</span>
+          <span class="muted small">Reflection: ${p.reflection === 'submitted' ? `submitted ${esc(whenText(p.submitted_at))}` : p.reflection === 'started' ? 'draft' : 'not started'}${p.rank !== 'office' ? ` · admin half 1 ${p.admin_h1 || 0}/${nSec} · half 2 ${p.admin_h2 || 0}/${nSec}` : ''}
+            ${p.rank !== 'office' ? `<br>Clinical: ${p.final_total != null ? `final <b>${fmtScore(p.final_total)}</b>${p.ioa != null ? ` · IOA ${Number(p.ioa)}%` : ''}`
+              : p.lead_id ? `lead ${esc(p.lead || '')} ${p.lead_done ? '✓' : '…'}${p.second_id ? ` · second ${esc(p.second || '')} ${p.second_done ? '✓' : '…'}` : ''}` : 'evaluators not assigned'}${myClin(p) ? ' · <b>waiting for you</b>' : ''}` : ''}</span>
           ${p.rank !== 'office' ? chip(p[`admin_h${nowHalf()}`] || 0) : `<span class="chip ${p.reflection === 'submitted' ? 'ok' : ''}">${p.reflection === 'submitted' ? 'Reflection in' : '—'}</span>`}
         </button></li>`).join('')}` : '';
     }).join('') || '<li class="muted">Nobody here.</li>'}
@@ -877,16 +891,18 @@ async function drawYearly() {
   box.querySelectorAll('[data-yf]').forEach((b) => b.addEventListener('click', () => { yearlyFilter = b.dataset.yf; drawYearly(); }));
   box.querySelectorAll('[data-yp]').forEach((b) => b.addEventListener('click', () => yearlyPerson(list.find((p) => p.id === b.dataset.yp))));
   box.querySelector('[data-owners]')?.addEventListener('click', ownersDialog);
+  box.querySelector('[data-edit-yearly]')?.addEventListener('click', () => formEditor('yearly_clinical'));
 }
 
 // One person's yearly review: Reflection | Admin evaluation.
 async function yearlyPerson(p, tab = null) {
-  tab = tab || (myAdminSections().length && p.rank !== 'office' ? 'admin' : 'reflection');
+  tab = tab || ((p.lead_id === ctx.me.id || p.second_id === ctx.me.id) ? 'clinical' : myAdminSections().length && p.rank !== 'office' ? 'admin' : 'reflection');
   const d = openDlg(`<div class="lh-form"><h2>${esc(nameOf(p))}</h2><p class="muted">Loading…</p></div>`, true);
   const head = `<h2>${esc(nameOf(p))} · yearly review ${year}</h2>
     ${has('admin') ? `<label class="check small"><input type="checkbox" data-noyearly${p.no_yearly ? ' checked' : ''}> No yearly review for this person (e.g. not evaluated by anyone)</label>` : ''}
     <div class="seg" role="tablist" style="margin:6px 0 10px"><button type="button" role="tab" data-yt="reflection" aria-selected="${tab === 'reflection'}">Reflection</button>
-      ${p.rank !== 'office' ? `<button type="button" role="tab" data-yt="admin" aria-selected="${tab === 'admin'}">Admin evaluation</button>` : ''}</div>`;
+      ${p.rank !== 'office' ? `<button type="button" role="tab" data-yt="admin" aria-selected="${tab === 'admin'}">Admin evaluation</button>
+        <button type="button" role="tab" data-yt="clinical" aria-selected="${tab === 'clinical'}">Clinical</button>` : ''}</div>`;
   const wire = () => {
     d.querySelectorAll('[data-yt]').forEach((b) => b.addEventListener('click', () => yearlyPerson(p, b.dataset.yt)));
     d.querySelector('[data-noyearly]')?.addEventListener('change', async (e) => {
@@ -905,6 +921,7 @@ async function yearlyPerson(p, tab = null) {
       <div class="dlg-actions"><button type="button" data-close>Close</button></div></div>`;
     wire(); return;
   }
+  if (tab === 'clinical') { await clinicalTab(d, p, head, wire); return; }
   // admin evaluation
   let evals = []; let form;
   try { [evals, form] = await Promise.all([api.adminGet(p.id, year), adminForm || loadAdminForm()]); } catch (e) { d.innerHTML = `<p class="error">${esc(e.message)}</p>`; return; }
@@ -992,5 +1009,193 @@ async function ownersDialog() {
     e.preventDefault();
     const owners = Object.fromEntries([...d.querySelectorAll('[data-owner]')].map((x) => [x.dataset.owner, x.value]));
     try { await api.adminOwners(owners); await loadAdminForm(); closeDlg(); drawYearly(); } catch (err) { const m = d.querySelector('[data-msg]'); m.textContent = err.message; m.hidden = false; }
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Yearly review, step 3: clinical checklist with IOA (Portal 052).
+// Admin assigns a lead + second supervisor (and review dates). Each scores on
+// their own; after submitting they can compare; the lead sets the final.
+// ---------------------------------------------------------------------------
+const yearlyBodies = new Map();
+async function yearlyBody(version = null) {
+  if (version && yearlyBodies.has(version)) return yearlyBodies.get(version);
+  const f = await api.form('yearly_clinical', version);
+  if (!f) throw new Error('The yearly clinical checklist isn’t set up yet (Portal 052).');
+  yearlyBodies.set(f.version, f.body);
+  return f.body;
+}
+const lvlOfRank = (r) => ({ therapist: 'junior', senior: 'senior', qcd: 'senior', supervisor: 'supervisor' })[r] || 'junior';
+const scoreTxt = (v) => (v === undefined || v === null ? '—' : v === 'na' ? 'N/A' : String(v));
+const dtLocal = (iso) => { if (!iso) return ''; const t = new Date(iso); const z = (n) => String(n).padStart(2, '0'); return `${t.getFullYear()}-${z(t.getMonth() + 1)}-${z(t.getDate())}T${z(t.getHours())}:${z(t.getMinutes())}`; };
+const dtText = (iso) => (iso ? new Date(iso).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'not set');
+
+// Item summary from the QCD tallies of the year: correct / chances per item.
+function tallySummaryHtml(list) {
+  const body = form?.body; if (!body) return '';
+  const rule = body.rule || DEFAULT_RULE;
+  const agg = {};
+  for (const r of list) {
+    for (const [k, t] of Object.entries(r.tallies || {})) { agg[k] = agg[k] || { c: 0, n: 0, sc: [] }; agg[k].c += t.c; agg[k].n += t.n; }
+    for (const [k, v] of Object.entries(r.scores || {})) if (typeof v === 'number') { agg[k] = agg[k] || { c: 0, n: 0, sc: [] }; agg[k].sc.push(v); }
+  }
+  const level = list[0]?.level || 'junior';
+  const th = rule[level] || rule.senior;
+  const items = (body.sections || []).flatMap((sc) => sc.items.map((i) => ({ ...i, sec: sc }))).filter((i) => agg[i.key]);
+  if (!items.length) return '<p class="muted small">No QCD scores this year yet.</p>';
+  return `<table class="sv-tsum"><thead><tr><th>Item</th><th>All tallies</th><th>Score from the data</th><th>Average of sessions</th></tr></thead><tbody>
+    ${items.map((i) => {
+      const a = agg[i.key]; const pct = a.n ? Math.round((a.c / a.n) * 100) : null;
+      const ds = a.n >= (rule.min ?? 3) ? (pct >= th[2] ? 3 : pct >= th[1] ? 2 : pct >= th[0] ? 1 : 0) : null;
+      const av = a.sc.length ? a.sc.reduce((x, y) => x + y, 0) / a.sc.length : null;
+      return `<tr><td>${esc(i.text)}</td><td>${a.n ? `${a.c}/${a.n} · ${pct}%` : '—'}</td>
+        <td>${ds == null ? '<span class="muted">—</span>' : `<span class="qr-c v${band(ds)}">${ds}</span>`}</td><td>${av == null ? '—' : av.toFixed(1)}</td></tr>`;
+    }).join('')}</tbody></table>`;
+}
+
+async function clinicalTab(d, p, head, wire) {
+  let g; let body; let qcdList = [];
+  try {
+    [g, body, qcdList] = await Promise.all([api.clinicalGet(p.id, year), yearlyBody(), p.rank !== 'supervisor' ? api.records(p.id, year).catch(() => []) : []]);
+  } catch (e) { d.innerHTML = `<p class="error">${esc(e.message)}</p>`; return; }
+  g = g || { entries: [] };
+  const entry = (r) => (g.entries || []).find((e) => e.role === r);
+  const role = g.my_role;
+  const mine = role ? entry(role) : null;
+  const lead = entry('lead'); const second = entry('second'); const fin = entry('final');
+  if (mine?.form_version) body = await yearlyBody(mine.form_version);
+  else if (lead?.form_version) body = await yearlyBody(lead.form_version);
+  let level = mine?.level || lead?.level || lvlOfRank(p.rank);
+  const secs = () => itemsFor(body, level);
+  const keys = () => secs().flatMap((sc) => sc.items.map((i) => i.key));
+  const pick = (k, v, cur) => `<button type="button" data-k="${esc(k)}" data-v="${v}" aria-pressed="${cur === v}">${v === 'na' ? 'N/A' : v}</button>`;
+
+  // 1. who + when
+  const assignBox = `<div class="sv-assign">
+    <div><span class="muted small">Lead supervisor</span><b>${esc(g.lead || 'not assigned')}</b></div>
+    <div><span class="muted small">Second supervisor</span><b>${esc(g.second || (g.lead ? 'none' : 'not assigned'))}</b></div>
+    <div><span class="muted small">Mid-year review</span><b>${esc(dtText(g.mid_review_at))}</b></div>
+    <div><span class="muted small">Year-end review</span><b>${esc(dtText(g.end_review_at))}</b></div>
+    ${has('admin') ? '<button type="button" class="small-btn" data-assign>Assign / change</button>' : ''}</div>`;
+  // 2. reference: the year's QCD sessions + tally summary
+  const ref = p.rank === 'supervisor' ? '' : `<details class="sv-refbox"><summary>QCD sessions this year (${qcdList.length})</summary>${qcdList.length ? await resultsHtml(qcdList) : '<p class="muted small">None yet.</p>'}</details>
+    <details class="sv-refbox"><summary>QCD item summary: all tallies added up</summary>${tallySummaryHtml(qcdList)}</details>`;
+
+  // 3. scoring
+  let main = '';
+  const mySc = { ...(mine?.scores || {}) }; const myNotes = { ...(mine?.notes || {}) };
+  const canScore = role && !fin && secs().length;
+  if (!secs().length) main = `<p class="sv-alert">The yearly checklist has no items for the ${esc(LEVEL[level] || level)} level yet${level === 'supervisor' ? ' (Chandni’s supervisor checklist)' : ''}. A supervisor can add them in Edit checklist.</p>`;
+  else if (canScore) {
+    main = `<h3>Your scores <span class="muted small">(${role === 'lead' ? 'lead' : 'second'} supervisor${mine?.submitted_at ? ` · submitted ${esc(whenText(mine.submitted_at))}` : ' · only you can see them until you submit'})</span></h3>
+      <label class="small">Level <select data-level ${mine ? 'disabled' : ''}>${qcdLevels(body).concat((body.levels || []).filter((l) => l.key === 'supervisor')).map((l) => `<option value="${esc(l.key)}"${l.key === level ? ' selected' : ''}>${esc(l.label)}</option>`).join('')}</select></label>
+      <div data-mine>${secs().map((sc) => `<fieldset class="sv-sec-edit"><legend>${esc(sc.title)}</legend>${sc.items.map((i) => `<div class="sv-item"><span>${esc(i.text)}</span>
+        <span class="sv-pick">${[0, 1, 2, 3, 'na'].map((v) => pick(i.key, v, mySc[i.key])).join('')}</span></div>`).join('')}</fieldset>`).join('')}</div>
+      ${(body.notes || []).map((n) => `<label>${esc(n.label)}<textarea data-mynote="${esc(n.key)}" rows="2" maxlength="1500">${esc(myNotes[n.key] || '')}</textarea></label>`).join('')}
+      <p class="row-actions"><span class="muted small" data-mymsg></span><span class="spacer"></span>
+        <button type="button" class="small-btn" data-mysave>Save draft</button><button type="button" class="small-btn primary" data-mysubmit>${mine?.submitted_at ? 'Update my submitted scores' : 'Submit my scores'}</button></p>`;
+  }
+  // 4. compare + final (the lead), or the final
+  const vis = (e) => e && !e.hidden && e.scores;
+  const compareRows = () => secs().map((sc) => `<tr class="sv-csec"><td colspan="4">${esc(sc.title)}</td></tr>${sc.items.map((i) => {
+    const a = vis(lead) ? lead.scores[i.key] : undefined; const b = vis(second) ? second.scores[i.key] : undefined;
+    const dis = a !== undefined && b !== undefined && a !== b;
+    return `<tr class="${dis ? 'sv-dis' : ''}" data-row="${esc(i.key)}"><td>${esc(i.text)}${dis ? ' <span class="chip warn">differ</span>' : ''}</td><td>${scoreTxt(a)}</td><td>${scoreTxt(b)}</td><td data-fcell="${esc(i.key)}"></td></tr>`;
+  }).join('')}`).join('');
+  const ioaOf = () => {
+    if (!vis(lead) || !vis(second)) return null;
+    const both = keys().filter((k) => k in lead.scores && k in second.scores);
+    return both.length ? Math.round((both.filter((k) => lead.scores[k] === second.scores[k]).length / both.length) * 1000) / 10 : null;
+  };
+  const leadCanFinal = role === 'lead' && lead?.submitted_at;
+  const finScores = { ...(fin?.scores || {}) };
+  if (!fin && leadCanFinal) for (const k of keys()) {         // start from agreement / the one score there is
+    const a = lead.scores?.[k]; const b = vis(second) ? second.scores[k] : undefined;
+    if (a !== undefined && (b === undefined || a === b)) finScores[k] = a; else if (a === undefined && b !== undefined) finScores[k] = b;
+  }
+  let compare = '';
+  if (fin || leadCanFinal || (role === 'second' && vis(lead) && vis(second))) {
+    const ioa = fin?.ioa ?? ioaOf();
+    compare = `<h3>${fin ? 'Final clinical scores' : 'Compare and set the final'} ${ioa != null ? `<span class="chip">IOA ${ioa}%</span>` : '<span class="muted small">(IOA needs both scores)</span>'}</h3>
+      ${!fin && role === 'lead' ? `<p class="muted small">Where you agree, the final is filled in. Talk through the items that <b>differ</b>, then tap the final score. ${vis(second) ? '' : 'The second supervisor hasn’t submitted; you can still set the final from your own scores.'}</p>` : ''}
+      <table class="sv-compare"><thead><tr><th>Item</th><th>Lead${g.lead ? `<br><span class="muted small">${esc(g.lead)}</span>` : ''}</th><th>Second${g.second ? `<br><span class="muted small">${esc(g.second)}</span>` : ''}</th><th>Final</th></tr></thead>
+        <tbody>${compareRows()}</tbody></table>
+      ${fin ? `<p>Clinical score <span class="sv-total${Number(fin.total) < LOW ? ' low' : ''}">${fmtScore(fin.total)}</span> <span class="muted small">· set ${esc(whenText(fin.submitted_at))} by ${esc(fin.scorer || '')}</span></p>
+        ${(body.notes || []).map((n) => (fin.notes?.[n.key] ? `<p class="small"><strong>${esc(n.label)}:</strong> ${esc(fin.notes[n.key])}</p>` : '')).join('')}` : ''}
+      ${!fin && role === 'lead' ? `${(body.notes || []).map((n) => `<label>${esc(n.label)} <span class="muted small">(final)</span><textarea data-fnote="${esc(n.key)}" rows="2" maxlength="1500">${esc(lead?.notes?.[n.key] || '')}</textarea></label>`).join('')}
+        <p class="row-actions"><span class="muted small" data-fmsg></span><span class="spacer"></span><span>Final <span class="sv-total" data-ftotal>—</span></span>
+        <button type="button" class="small-btn primary" data-final>${icon('check')} Save final scores</button></p>` : ''}`;
+  } else if (!role && (lead || second)) {
+    compare = `<p class="muted">Lead ${lead?.submitted_at ? 'submitted ✓' : 'not yet'} · second ${second?.submitted_at ? 'submitted ✓' : g.second ? 'not yet' : '—'}. Scores show here once the lead sets the final.</p>`;
+  } else if (role === 'second' && mine?.submitted_at && !vis(lead)) {
+    compare = '<p class="muted small">You’ll see the lead’s scores side by side once they submit too.</p>';
+  }
+
+  d.innerHTML = `<div class="lh-form">${head}${assignBox}<div data-assignform></div>${ref}${main}${compare}
+    <div class="dlg-actions"><button type="button" data-close>Close</button></div></div>`;
+  wire();
+
+  // final cells (lead edits, others read)
+  const paintFinal = () => {
+    for (const td of d.querySelectorAll('[data-fcell]')) {
+      const k = td.dataset.fcell;
+      td.innerHTML = !fin && role === 'lead' ? `<span class="sv-pick">${[0, 1, 2, 3, 'na'].map((v) => `<button type="button" data-fk="${esc(k)}" data-fv="${v}" aria-pressed="${finScores[k] === v}">${v === 'na' ? 'N/A' : v}</button>`).join('')}</span>`
+        : `<b class="sv-score s${esc(String(finScores[k] ?? ''))}">${scoreTxt(finScores[k])}</b>`;
+    }
+    const t = d.querySelector('[data-ftotal]'); if (t) { const { total } = liveScore(body, level, finScores); t.textContent = fmtScore(total); }
+  };
+  paintFinal();
+  d.querySelector('.sv-compare')?.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-fk]'); if (!b) return;
+    const v = b.dataset.fv === 'na' ? 'na' : Number(b.dataset.fv);
+    if (finScores[b.dataset.fk] === v) delete finScores[b.dataset.fk]; else finScores[b.dataset.fk] = v;
+    paintFinal();
+  });
+  d.querySelector('[data-final]')?.addEventListener('click', async (e) => {
+    const unset = keys().filter((k) => finScores[k] === undefined).length;
+    if (unset && !confirm(`${unset} item(s) have no final score (they won't count). Save the final anyway?`)) return;
+    const notes = Object.fromEntries([...d.querySelectorAll('[data-fnote]')].map((t) => [t.dataset.fnote, t.value.trim()]).filter(([, v]) => v));
+    e.target.disabled = true;
+    try { await api.clinicalFinal(p.id, year, finScores, notes); drawYearly(); yearlyPerson(p, 'clinical'); }
+    catch (err) { d.querySelector('[data-fmsg]').textContent = err.message; e.target.disabled = false; }
+  });
+  // my scores
+  const mineBox = d.querySelector('[data-mine]');
+  mineBox?.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-k]'); if (!b) return;
+    const v = b.dataset.v === 'na' ? 'na' : Number(b.dataset.v);
+    if (mySc[b.dataset.k] === v) delete mySc[b.dataset.k]; else mySc[b.dataset.k] = v;
+    mineBox.querySelectorAll(`[data-k="${CSS.escape(b.dataset.k)}"]`).forEach((x) => x.setAttribute('aria-pressed', String(mySc[b.dataset.k] !== undefined && String(mySc[b.dataset.k]) === x.dataset.v)));
+  });
+  d.querySelector('[data-level]')?.addEventListener('change', (e) => { level = e.target.value; Object.keys(mySc).forEach((k) => delete mySc[k]); yearlyPerson({ ...p, rank: { junior: 'therapist', senior: 'senior', supervisor: 'supervisor' }[level] }, 'clinical'); });
+  const saveMine = async (submit) => {
+    const notes = Object.fromEntries([...d.querySelectorAll('[data-mynote]')].map((t) => [t.dataset.mynote, t.value.trim()]).filter(([, v]) => v));
+    const n = keys().filter((k) => mySc[k] !== undefined).length;
+    if (submit && n < keys().length && !confirm(`You've scored ${n} of ${keys().length} items (N/A counts as scored). Submit anyway?`)) return;
+    try { await api.clinicalSave(p.id, year, level, mySc, notes, submit); drawYearly(); yearlyPerson(p, 'clinical'); }
+    catch (err) { d.querySelector('[data-mymsg]').textContent = err.message; }
+  };
+  d.querySelector('[data-mysave]')?.addEventListener('click', () => saveMine(false));
+  d.querySelector('[data-mysubmit]')?.addEventListener('click', () => saveMine(true));
+  // assign (admin)
+  d.querySelector('[data-assign]')?.addEventListener('click', async () => {
+    const box = d.querySelector('[data-assignform]');
+    let staff = [];
+    try { staff = await import('../data.js').then((m) => m.listStaff()); } catch (e) { box.innerHTML = `<p class="error">${esc(e.message)}</p>`; return; }
+    const sups = staff.filter((x) => x.status !== 'exited' && (x.roles || []).includes('supervisor') && x.id !== p.id);
+    const opt = (sel) => `<option value="">${sel === undefined ? '—' : 'None'}</option>${sups.map((x) => `<option value="${esc(x.id)}"${x.id === sel ? ' selected' : ''}>${esc(x.nickname || x.full_name)}</option>`).join('')}`;
+    box.innerHTML = `<form class="sv-assignform">
+      <label>Lead supervisor<select name="lead">${opt(g.lead_id)}</select></label>
+      <label>Second supervisor<select name="second">${opt(g.second_id)}</select></label>
+      <label>Mid-year review<input type="datetime-local" name="mid" value="${esc(dtLocal(g.mid_review_at))}"></label>
+      <label>Year-end review<input type="datetime-local" name="end" value="${esc(dtLocal(g.end_review_at))}"></label>
+      <p class="muted small">The lead also runs the review meetings (with an admin). Dates can be added later.</p>
+      <p class="row-actions"><span class="error small" data-amsg></span><span class="spacer"></span><button type="submit" class="small-btn primary">${icon('check')} Save</button></p></form>`;
+    box.querySelector('form').addEventListener('submit', async (ev) => {
+      ev.preventDefault(); const f = ev.target;
+      const iso = (v) => (v ? new Date(v).toISOString() : null);
+      try { await api.assign(p.id, year, f.lead.value, f.second.value, iso(f.mid.value), iso(f.end.value)); drawYearly(); yearlyPerson(p, 'clinical'); }
+      catch (err) { box.querySelector('[data-amsg]').textContent = err.message; }
+    });
   });
 }

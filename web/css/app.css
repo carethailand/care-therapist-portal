@@ -1648,3 +1648,17 @@ a.lh-tool:hover { border-color: var(--line-strong); background: var(--surface-ra
 .sv-attgrid div { display: grid; }
 .sv-attgrid b { font-size: 1.2rem; font-variant-numeric: tabular-nums; }
 .sv-person.sv-off { opacity: .6; }
+.sv-assign { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px 14px; align-items: end; background: var(--surface-raised); border: 1px solid var(--line); border-radius: 14px; padding: 10px 14px; margin: 4px 0 10px; }
+.sv-assign div { display: grid; } .sv-assign b { font-weight: 600; }
+.sv-assignform { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px 12px; margin: 0 0 10px; }
+.sv-assignform .row-actions, .sv-assignform p { grid-column: 1 / -1; }
+.sv-refbox { background: var(--surface-raised); border: 1px solid var(--line); border-radius: 14px; padding: 8px 12px; margin: 0 0 8px; }
+.sv-refbox > summary { cursor: pointer; font-weight: 500; }
+.sv-tsum, .sv-compare { width: 100%; border-collapse: collapse; font-size: .85rem; margin: 6px 0; }
+.sv-tsum th, .sv-tsum td, .sv-compare th, .sv-compare td { padding: 6px 6px; border-top: 1px solid var(--line); text-align: center; vertical-align: middle; }
+.sv-tsum th:first-child, .sv-tsum td:first-child, .sv-compare th:first-child, .sv-compare td:first-child { text-align: left; }
+.sv-compare th { font-weight: 500; color: var(--muted); }
+.sv-compare .sv-csec td { font-weight: 600; background: var(--surface-raised); text-align: left; }
+.sv-compare tr.sv-dis td { background: var(--warn-bg); }
+.sv-compare .sv-pick button { min-width: 32px; padding: 4px 6px; }
+@media (max-width: 700px) { .sv-compare td:last-child .sv-pick { flex-wrap: wrap; } }
