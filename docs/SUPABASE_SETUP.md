@@ -495,3 +495,15 @@ The hand-with-heart badge now counts thank-yous a person **sends** (with their n
 2. **Publish** the app (P9w).
 
 The current therapist (Junior, Senior, QCD or Supervisor) with the latest start date holds **Newest therapist** (blue rosette, baby feet with a gold star). It passes on by itself when someone newer becomes a therapist; trainees still in onboarding don't count. Shown on My Journey like Longest-serving (locked "Newest at CARE" when someone else holds it), and on the team card (with Longest-serving) unless the person picked other badges.
+
+## Step 45 — Supervision tab, part 1: QCD sessions (added 2026-11-19)
+
+1. **Run** `supabase/migrations/20261118004500_supervision_qcd.sql` (after 044).
+2. **Publish** the app (P9y). The tab stays **hidden** (admins see it marked HIDDEN to try it first). To switch it on for everyone, run:
+   `update public.app_modules set enabled = true where key = 'supervision';`
+
+- **QCD / supervisors** → Team: everyone (current therapists) with this year's QCD count, last total, and **Needs attention** (last 2 QCDs, any case, both below 2.5 → "PIP suggested"; a supervisor decides). Open a person → **Record a QCD session**: date, case code (3 letters), level (Junior / Senior-QCD / Supervisor), tap 0 · 1 · 2 · 3 · N/A per item, notes (strengths, previous goals, new goals). Totals = average of the section averages, worked out again in the database. Not on yourself.
+- **Therapists** → My supervision: their own QCD sessions (read-only) with a small trend line.
+- **Supervisors + admin / Portal manager** → **Edit checklist**: change wording, groups, levels, add / remove / reorder items and sections. Each save is a new version; recorded sessions keep the wording they were scored with.
+- The checklist starts as the QCD master (Junior 22 items, Senior 43). The **Supervisor** level has no items yet (Chandni's list).
+- HR doesn't see this tab. Scores and short text only (no files): about 1 MB a year for QCD sessions.

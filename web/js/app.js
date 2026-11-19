@@ -19,6 +19,7 @@ const TABS = {
   connect: () => import(`./tabs/connect.js?v=${APP_VERSION}`),
   team: () => import(`./tabs/team.js?v=${APP_VERSION}`),
   learning: () => import(`./tabs/learning.js?v=${APP_VERSION}`),
+  supervision: () => import(`./tabs/supervision.js?v=${APP_VERSION}`),
 };
 const comingSoon = () => import(`./tabs/coming-soon.js?v=${APP_VERSION}`);
 
