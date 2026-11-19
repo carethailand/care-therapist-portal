@@ -76,7 +76,7 @@ function recordMarkup(p, events, people, me) {
         ${fact('Roles', rolesText(p.roles))}
         ${fact('Accepted on', fmtDate(p.accepted_on))}
         ${fact('Start date', fmtDate(p.start_date))}
-        ${fact('Probation ends', fmtDate(p.probation_end_date))}
+        ${fact('Probation evaluation date', fmtDate(p.probation_end_date))}
         ${fact('Left on', fmtDate(p.exited_on))}
         ${fact('Portal login', p.auth_user_id ? 'Yes' : 'No')}
         ${fact('Record created', fmtDate(bkkDate(p.created_at)))}
@@ -124,7 +124,7 @@ export async function exportEveryone(people, me) {
     Roles: rolesText(p.roles),
     'Accepted on': p.accepted_on ?? '',
     'Start date': p.start_date ?? '',
-    'Probation ends': p.probation_end_date ?? '',
+    'Probation evaluation date': p.probation_end_date ?? '',
     'Left on': p.exited_on ?? '',
     'Portal login': p.auth_user_id ? 'Yes' : 'No',
     'Record created': bkkDate(p.created_at),

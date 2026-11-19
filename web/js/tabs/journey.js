@@ -39,7 +39,7 @@ export async function render(panel, { me, roles = [] }) {
       <dl class="facts">
         <div><dt>Status</dt><dd>${esc(titleCase(me.status))}</dd></div>
         <div><dt>Started</dt><dd>${esc(fmtDate(me.start_date))}</dd></div>
-        ${staff ? `<div><dt>Probation ends</dt><dd>${esc(fmtDate(me.probation_end_date))}</dd></div>` : ''}
+        ${staff ? `<div><dt>Probation evaluation</dt><dd>${esc(fmtDate(me.probation_end_date))}</dd></div>` : ''}
       </dl>
       ${rankOf(roles) ? stageTrack(me.stage, me.track) : ''}
       ${me.track === 'care_hire' && ['interview', 'online_course', 'roleplay_orientation', 'field_overlap', 'probation'].includes(me.stage)

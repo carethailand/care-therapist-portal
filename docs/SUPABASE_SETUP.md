@@ -433,7 +433,7 @@ Training & Exam → **Trainees → New therapist onboarding** (first in the list
 | 5 Written exam (paper) | date, place, proctor | proctor / sup / QCD / admin: score of 130 | pass 80% (104) |
 | 6 Field overlap 1–7 | date, trainer (any therapist, seniors listed first), case code | the trainer: signed off + short note | — |
 | 6 Session 8 field evaluation | date, supervisor, case code | supervisor: average 0–4 + date reviewed | pass 3 or more |
-| 7 Probation | supervisor, probation end date (also saved in People), review date + time (P9r) | supervisor: Passed / Not yet | → Thriving |
+| 7 Probation | evaluator (a supervisor, who also runs the review session), probation evaluation date (= probation end date in People), review session date + time (P9r) | supervisor: Passed / Not yet | → Thriving |
 
 When everything for a stage is done, the person's panel shows **Move to …** (admin confirms; it changes their stage in People as before). Trainers who aren't on the training team (e.g. seniors running overlaps) see **Onboarding sessions you lead** at the top of their Training tab. The trainee sees their path (dates, people, done / passed; never scores or notes) in Training & Exam, a "Next: …" card on Home and a link on My Journey. Checklists stay on paper. Case codes only (3 capital letters), never a name.
 

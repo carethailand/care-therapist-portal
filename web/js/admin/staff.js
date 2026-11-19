@@ -200,7 +200,7 @@ function openPerson(p) {
       <div class="grid2">
         <label>Accepted on <input name="accepted_on" type="date" value="${isNew ? todayLocal() : v('accepted_on')}"></label>
         <label>Start date <input name="start_date" type="date" value="${v('start_date')}"></label>
-        <label>Probation ends <input name="probation_end_date" type="date" value="${v('probation_end_date')}"></label>
+        <label>Probation evaluation date <input name="probation_end_date" type="date" value="${v('probation_end_date')}"></label>
         <label>Left on <input name="exited_on" type="date" value="${v('exited_on')}"></label>
       </div>
 

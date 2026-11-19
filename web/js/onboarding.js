@@ -117,7 +117,7 @@ function stepStatus(key, items, online) {
     case 'roleplay': return `${n('roleplay')} of 9 signed off`;
     case 'written_exam': { const i = one(items, 'written_exam'); return i?.passed ? 'Passed' : i?.status === 'done' ? 'Not passed yet' : i?.held_on ? when(i) : 'Date to be set'; }
     case 'overlap': { const f = one(items, 'field_eval'); return `${n('overlap')} of 7 signed off · field evaluation ${f?.passed ? 'passed' : f?.status === 'done' ? 'not passed yet' : f?.held_on ? when(f) : 'to be set'}`; }
-    case 'probation': { const i = one(items, 'probation'); return i?.passed ? 'Passed 🎉' : i?.held_on ? `Review ${when(i)}${i.trainer ? ` with ${i.trainer}` : ''}` : 'Waiting for the supervisor’s review'; }
+    case 'probation': { const i = one(items, 'probation'); return i?.passed ? 'Passed 🎉' : i?.held_on ? `Review session ${when(i)}${i.trainer ? ` with ${i.trainer}` : ''}` : 'Waiting for the probation evaluation'; }
     default: return '';
   }
 }
@@ -126,7 +126,7 @@ const itemState = (i) => {
   if (!i) return '<span class="muted">Not planned yet</span>';
   if (i.status === 'missed') return '<span class="chip warn">Missed</span>';
   if (i.step === 'probation') return i.passed ? '<span class="chip ok">Passed</span>' : i.status === 'done' ? '<span class="chip warn">Not yet</span>'
-    : `<span class="muted">${i.held_on ? `Review ${esc(fmtDate(i.held_on))}${i.start_time ? ` ${esc(i.start_time.slice(0, 5))}` : ''}` : 'Waiting'}</span>`;
+    : `<span class="muted">${i.held_on ? `Review session ${esc(fmtDate(i.held_on))}${i.start_time ? ` ${esc(i.start_time.slice(0, 5))}` : ''}` : 'Waiting'}</span>`;
   if (['written_exam', 'field_eval'].includes(i.step)) {
     if (i.status === 'done') return i.passed ? '<span class="chip ok">Passed</span>' : '<span class="chip warn">Not passed yet</span>';
     return held(i) ? '<span class="chip">Attended</span>' : `<span class="muted">${i.held_on ? 'Planned' : 'Date to be set'}</span>`;
@@ -199,8 +199,8 @@ export function pathCard(person, items, online, { team = false, admin = false, r
           `${itemState(f)}${team && f?.score != null ? ` <span class="small">avg ${Number(f.score)}</span>` : ''}${plan('field_eval', 0, f ? 'Edit' : 'Plan')}${act(f)}`]); })()}
         </tbody></table></div>
       <p class="muted small">Sessions 1–7: your trainer signs off each one (the checklist is on paper). Session 8: the supervisor’s field evaluation, pass with an average of 3 or more.</p>`,
-    probation: () => `<p class="onb-line">${person.probation_end_date ? `${icon('calendar')} Probation ends ${esc(fmtDate(person.probation_end_date))}` : '<span class="muted">End date not set yet.</span>'}
-      ${one(items, 'probation') ? `${itemState(one(items, 'probation'))}${one(items, 'probation').trainer ? ` <span class="muted small">· ${esc(one(items, 'probation').trainer)}</span>` : ''}` : '<span class="muted">Waiting for the supervisor’s review</span>'}${plan('probation', 0, one(items, 'probation') ? 'Edit' : 'Set dates & supervisor')}${act(one(items, 'probation'))}</p>`,
+    probation: () => `<p class="onb-line">${person.probation_end_date ? `${icon('calendar')} Probation evaluation ${esc(fmtDate(person.probation_end_date))}` : '<span class="muted">Evaluation date not set yet.</span>'}
+      ${one(items, 'probation') ? `${itemState(one(items, 'probation'))}${one(items, 'probation').trainer ? ` <span class="muted small">· ${esc(one(items, 'probation').trainer)}</span>` : ''}` : '<span class="muted">Waiting for the probation evaluation</span>'}${plan('probation', 0, one(items, 'probation') ? 'Edit' : 'Set dates & evaluator')}${act(one(items, 'probation'))}</p>`,
   };
   const done = states.filter((s) => s === 'done').length;
   return `<section class="card onb" data-onb-person="${esc(person.id)}">
@@ -316,7 +316,7 @@ async function redraw() {
   if (teamState.open) personDialog();
 }
 
-const STEP_TITLE = { interview: 'Interview', orientation: 'Orientation', written_exam: 'Written exam', field_eval: 'Field evaluation (session 8)', probation: 'Probation review' };
+const STEP_TITLE = { interview: 'Interview', orientation: 'Orientation', written_exam: 'Written exam', field_eval: 'Field evaluation (session 8)', probation: 'Probation evaluation' };
 function planDialog(p, step, seq) {
   const i = one(p.items, step, seq);
   const staff = teamState.staff.filter((s) => s.status !== 'exited' && s.track === 'care_hire' && s.id !== p.id && s.roles?.some((r) => r !== 'applicant'));
@@ -327,13 +327,13 @@ function planDialog(p, step, seq) {
   if (step === 'overlap') fit.sort((a, b) => rank(a) - rank(b) || (a.nickname || a.full_name).localeCompare(b.nickname || b.full_name));
   const title = step === 'roleplay' ? `Role-play ${seq}: ${ROLEPLAY[seq - 1].title}` : step === 'overlap' ? `Overlap session ${seq}` : STEP_TITLE[step];
   const whoLabel = step === 'roleplay' ? 'Trainer (supervisor or QCD)' : step === 'overlap' ? 'Trainer (therapist they shadow; seniors first)'
-    : step === 'written_exam' ? 'Proctor' : ['field_eval', 'probation'].includes(step) ? 'Supervisor' : step === 'interview' ? 'Interviewer' : 'Run by';
+    : step === 'written_exam' ? 'Proctor' : step === 'field_eval' ? 'Supervisor' : step === 'probation' ? 'Evaluator (supervisor; also runs the review session)' : step === 'interview' ? 'Interviewer' : 'Run by';
   const d = openDlg(`<form class="lh-form" method="dialog">
     <h2>${esc(p.nickname || p.full_name)} · ${esc(title)}</h2>
     ${step === 'overlap' ? `<p class="muted small">${esc(OVERLAP[seq])}</p>` : ''}
-    ${step === 'probation' ? `<label>Probation ends <span class="muted small">(also changes it in People)</span><input type="date" name="end_on" value="${esc(p.probation_end_date || '')}"></label>` : ''}
+    ${step === 'probation' ? `<label>Probation evaluation date <span class="muted small">(saved as the probation end date in People)</span><input type="date" name="end_on" value="${esc(p.probation_end_date || '')}"></label>` : ''}
     ${`<div class="lh-2col">
-      <label>${step === 'probation' ? 'Review date <span class="muted small">(with the supervisor)</span>' : 'Date'}<input type="date" name="held_on" value="${esc(i?.held_on || '')}"></label>
+      <label>${step === 'probation' ? 'Review session <span class="muted small">(with the evaluator)</span>' : 'Date'}<input type="date" name="held_on" value="${esc(i?.held_on || '')}"></label>
       <label>Start time <span class="muted small">(optional)</span><input type="time" name="start_time" value="${esc(i?.start_time?.slice(0, 5) || '')}"></label>
     </div>`}
     ${['orientation', 'written_exam', 'interview'].includes(step) ? `<label>Place <span class="muted small">(optional)</span><input name="place" maxlength="120" value="${esc(i?.place || '')}"></label>` : ''}
@@ -378,7 +378,7 @@ function recordDialog(p, i, { onSaved = redraw, onBack = personDialog } = {}) {
     ${step === 'written_exam' ? `<label>Score (out of ${Number(i.full_score || 130)}) <span class="muted small">pass = ${Math.ceil(0.8 * (i.full_score || 130))}</span><input type="number" name="score" min="0" max="${Number(i.full_score || 130)}" step="0.5" value="${i.score ?? ''}"></label>` : ''}
     ${step === 'field_eval' ? `<div class="lh-2col"><label>Average score (0–4) <span class="muted small">pass = 3 or more</span><input type="number" name="score" min="0" max="4" step="0.01" value="${i.score ?? ''}"></label>
       <label>Reviewed with the trainee on<input type="date" name="reviewed_on" value="${esc(i.reviewed_on || '')}"></label></div>` : ''}
-    ${step === 'probation' ? `<fieldset class="onb-choices"><legend>Probation review</legend>
+    ${step === 'probation' ? `<fieldset class="onb-choices"><legend>Probation evaluation</legend>
       <label class="check"><input type="radio" name="passed" value="1" ${i.passed === true ? 'checked' : ''}> Passed</label>
       <label class="check"><input type="radio" name="passed" value="0" ${i.passed === false ? 'checked' : ''}> Not yet</label></fieldset>` : ''}
     <label>Short note <span class="muted small">(optional; the trainee doesn’t see it)</span><textarea name="note" rows="2" maxlength="500">${esc(i.note || '')}</textarea></label>
