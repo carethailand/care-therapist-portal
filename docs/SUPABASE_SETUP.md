@@ -474,3 +474,10 @@ Five new badges unlock by themselves and appear in My Journey → badges (earned
 | Kudos (9 levels) | kudos sent TO you posted on the Kudos board | everyone on the staff badge path |
 
 Levels: **silver 1 / 5 / 8 · gold 10 / 15 / 18 · holographic 20 / 25 / 30** (1, 2, 3 stars in each colour, plus the number; same silver / gold / holographic colours as the Senior, QCD and Supervisor Training badges; no colour words on screen). Other people only see the level reached (e.g. 10), never exact counts or what was studied. Still to come (waiting for art): Field evaluation passed, Helping hand, Newest therapist and the hand-given badges.
+
+## Training tab: My training / My trainees (P9u, 2026-11-19, no SQL)
+
+- **Supervisors, QCD, and seniors who lead onboarding sessions** get two tabs: **My training** (their own programmes, done-before-the-Portal and previews) and **My trainees** (sessions they lead + the Trainees panel for the training team). The page remembers the last tab on that device; the first time, it opens on My trainees if they have sessions to record.
+- **Office-only staff** (admin, HR, Portal manager with no clinical rank): no clinical programme cards; they see only the trainees side (plus any programme they are actually enrolled in).
+- **Therapists with no trainees**: one page, as before.
+- Supervisors / QCD still see every trainee in every programme (unchanged).

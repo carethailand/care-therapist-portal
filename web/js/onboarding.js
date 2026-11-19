@@ -410,9 +410,9 @@ function recordDialog(p, i, { onSaved = redraw, onBack = personDialog } = {}) {
 // ---------------------------------------------------------------------------
 export async function drawLed(el) {
   let led;
-  try { led = await loadLed(); } catch { return; }
+  try { led = await loadLed(); } catch { return false; }
   const open = led.filter((i) => i.status !== 'done' || (i.step === 'probation' && i.passed == null));
-  if (!open.length) { el.hidden = true; return; }
+  if (!open.length) { el.hidden = true; return false; }
   const label = (i) => (i.step === 'roleplay' ? `Role-play ${i.seq}: ${ROLEPLAY[i.seq - 1]?.title}` : i.step === 'overlap' ? `Overlap session ${i.seq}` : STEP_TITLE[i.step]);
   el.hidden = false;
   el.innerHTML = `<section class="card"><h2>Onboarding sessions you lead</h2>
@@ -427,4 +427,5 @@ export async function drawLed(el) {
       recordDialog({ nickname: i.trainee }, i, { onSaved: async () => { closeDlg(); await drawLed(el); }, onBack: closeDlg });
     });
   }
+  return true;
 }

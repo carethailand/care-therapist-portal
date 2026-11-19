@@ -8,7 +8,7 @@ import {
   loadGroups, saveGroup, deleteGroup, setGroupMembers, saveSession, deleteSession, takeAttendance,
   uploadAssignment, workUrl, reviewSubmission, WORK_ACCEPT, removeWorkFiles, closeGroup,
 } from '../training-data.js';
-import { rankOf } from '../labels.js';
+import { rankOf, OFFICE_ROLES } from '../labels.js';
 import { docHtml } from '../doc-text.js';
 import { listStaff, updatePerson } from '../data.js';
 import { inOnboarding, drawMine as drawOnbMine, drawTeam as drawOnbTeam, drawLed as drawOnbLed, CAREWAY_KEY } from '../onboarding.js';
@@ -32,6 +32,12 @@ let teamProg = '__onb';   // the team's programme picker (onboarding first)
 
 const isTeam = () => ctx.roles.some((r) => TEAM.includes(r));
 const isAdmin = () => ctx.roles.includes('admin');
+// Office staff with no clinical rank (admin, HR, Portal manager) only manage trainees.
+const officeOnly = () => !rankOf(ctx.roles) && ctx.roles.some((r) => OFFICE_ROLES.includes(r));
+// Which tab (My training / My trainees) was used last; this device only.
+const TAB_KEY = 'care-training-tab';
+const lastTab = () => { try { return localStorage.getItem(TAB_KEY); } catch { return null; } };
+const keepTab = (t) => { try { localStorage.setItem(TAB_KEY, t); } catch { /* private mode */ } };
 const canReview = () => ctx.roles.some((r) => ['admin', 'supervisor', 'qcd'].includes(r));
 const canRetake = () => ctx.roles.some((r) => r === 'admin' || r === 'supervisor');
 const safeUrl = (u) => (/^https?:\/\//i.test(u ?? '') ? u : null);
@@ -108,19 +114,30 @@ function previewPrograms(current) {
 
 function drawHome() {
   const current = myCurrent();
-  const previews = previewPrograms(current);
+  const office = officeOnly();
+  // Office-only staff don't see the clinical programmes (previews, coming soon, done before the Portal).
+  const previews = office ? [] : previewPrograms(current);
+  const legacy = office ? [] : legacyPrograms(current);
+  const showMine = !office || current.length > 0 || inOnboarding(ctx.me);
   const teamPrograms = content.programs.filter((p) => p.enabled && !p.coming_soon);
   panelEl.innerHTML = `
+    <div class="seg tr-tabs" role="tablist" id="tr-tabs" hidden>
+      <button type="button" role="tab" data-tab="mine" aria-selected="false">${icon('school')} My training</button>
+      <button type="button" role="tab" data-tab="trainees" aria-selected="false">${icon('users')} My trainees</button>
+    </div>
+    <div data-pane="mine"${showMine ? '' : ' hidden'}>
     ${inOnboarding(ctx.me) ? '<div id="onb-mine"></div>' : ''}
-    <div id="onb-led" hidden></div>
     <div id="my-training">
     ${current.map(programCard).join('')}
-    ${legacyPrograms(current).map((p) => completedCard(p, null, true)).join('')}
+    ${legacy.map((p) => completedCard(p, null, true)).join('')}
     ${previews.map(previewCard).join('')}
     </div>
-    ${!current.length && !previews.length && !legacyPrograms(current).length && !inOnboarding(ctx.me)
+    ${!current.length && !previews.length && !legacy.length && !inOnboarding(ctx.me)
       ? `<section class="card"><h2>My training</h2>
            <p class="muted">You're not in a training programme right now. When you are, it will appear here.</p></section>` : ''}
+    </div>
+    <div data-pane="trainees">
+    <div id="onb-led" hidden></div>
     ${isTeam() ? `
       <section class="card" id="team-card">
         <div class="page-head">
@@ -137,6 +154,7 @@ function drawHome() {
         </div>
         <div id="team-body" aria-live="polite"><p class="muted">Loading…</p></div>
       </section>` : ''}
+    </div>
     <dialog id="tr-dlg" class="dlg"></dialog>`;
 
   for (const box of panelEl.querySelectorAll('input[data-item]')) {
@@ -252,7 +270,30 @@ function drawHome() {
     const st = (k) => { const r = mine.enrollments.filter((e) => e.program_key === k && e.status !== 'withdrawn'); return r.some((e) => e.status === 'passed') ? 'passed' : r.length ? 'active' : null; };
     drawOnbMine(onbMine, ctx.me, { abat: st('abat'), careway: st(CAREWAY_KEY), carewayReady: content.programs.some((p) => p.key === CAREWAY_KEY && p.enabled && !p.coming_soon) });
   }
-  drawOnbLed(panelEl.querySelector('#onb-led'));
+  // Two tabs for people who have both their own training and trainees
+  // (supervisors, QCD, seniors who lead sessions). Office-only staff and
+  // therapists without trainees see one page, no tabs.
+  const tabs = panelEl.querySelector('#tr-tabs');
+  const setTab = (t) => {
+    for (const b of tabs.querySelectorAll('[data-tab]')) b.setAttribute('aria-selected', String(b.dataset.tab === t));
+    panelEl.querySelector('[data-pane="mine"]').hidden = t !== 'mine';
+    panelEl.querySelector('[data-pane="trainees"]').hidden = t !== 'trainees';
+  };
+  for (const b of tabs.querySelectorAll('[data-tab]')) b.addEventListener('click', () => { keepTab(b.dataset.tab); setTab(b.dataset.tab); });
+  const tabsFor = (hasLed) => {
+    const trainees = isTeam() || hasLed;
+    if (!(showMine && trainees)) {   // one page only
+      tabs.hidden = true;
+      panelEl.querySelector('[data-pane="mine"]').hidden = !showMine;
+      panelEl.querySelector('[data-pane="trainees"]').hidden = !trainees;
+      return;
+    }
+    tabs.hidden = false;
+    const last = lastTab();
+    setTab(last === 'mine' || last === 'trainees' ? last : hasLed ? 'trainees' : 'mine');
+  };
+  tabsFor(false);
+  drawOnbLed(panelEl.querySelector('#onb-led')).then((hasLed) => tabsFor(!!hasLed));
   if (isTeam()) {
     const sel = panelEl.querySelector('#team-prog');
     const seg = panelEl.querySelector('#team-view');
