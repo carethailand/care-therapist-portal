@@ -31,7 +31,7 @@ export const skillsFor = (hub) => (hub === 'admin' ? ADMIN_SKILLS : SKILLS);
 export const skillLabel = (k) => [...SKILLS, ...ADMIN_SKILLS].find((s) => s.key === k)?.label || k;
 
 export const STAGES = [
-  { name: 'Seedling', at: 10, h: 110 },
+  { name: 'Seedling', at: 0, h: 110 },
   { name: 'Sprout', at: 20, h: 165 },
   { name: 'Sapling', at: 30, h: 245 },
   { name: 'Tree', at: 40, h: 335 },
@@ -41,7 +41,7 @@ export const STAGES = [
 export const GUARDIAN = STAGES.length - 1;
 // Flower field: same points as the tree; more flowers, and more kinds to mix, as it grows.
 export const FIELD_STAGES = [
-  { name: 'Bud', at: 10, n: 2, kinds: 2 },
+  { name: 'Bud', at: 0, n: 2, kinds: 2 },
   { name: 'Bloom', at: 20, n: 5, kinds: 3 },
   { name: 'Flower patch', at: 30, n: 10, kinds: 4 },
   { name: 'Garden', at: 40, n: 15, kinds: 5 },

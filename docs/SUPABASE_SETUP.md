@@ -447,3 +447,13 @@ When someone ticks **Ask Admin to post this on the Kudos board**, a new box asks
 Also in P9p (no SQL): Learning Hub → **How to earn leaves** (link under the leaves count, and a section at the bottom): how each way earns leaves, the daily limits and the stages, plus a line about "surprise leaves" (gifts from supervisors / Portal manager are kept a secret). Therapists see only the therapist ways (tree); office-only staff see only the admin ways (flower field: helping, Portal manager review). It only explains; the database still decides the leaves.
 
 staff-admin **v6** deployed 2026-11-19: the Portal manager can create logins, reset passwords and make sign-in links, the same as an admin.
+
+## Step 41 — One-tap planting + edit the wheel with − / + (added 2026-11-19)
+
+1. **Run** `supabase/migrations/20261118004100_learning_wheel_edit.sql` (after 040).
+2. **Publish** the app (P9p).
+
+- **Planting is one tap.** The tree / flower field starts at its first stage (Seedling / Bud) for everyone, with an empty wheel. The 10 starter skill points come as 100 welcome leaves, on top of promotion and years leaves. The old "place 10 points, max 4 each" screen is gone.
+- **Edit my wheel** (button above the wheel, and "Use your skill points"): − / + one point at a time, then Save. New points cost 10 leaves each; points can also be moved between skills. The total never goes down, so the tree never shrinks. Replaces "Use your leaves" (1 or 5 a tap) and "Move points".
+- Under the wheel: "You have N skill points left to use."
+- Stages now start at 0: Seedling / Bud is the first stage, then Sprout 20 · Sapling 30 · Tree 40 · Grove 60 · Forest Guardian 100 (same for the flower field). People already in the hub are unchanged.

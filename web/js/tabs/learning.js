@@ -94,7 +94,7 @@ function earnHtml(ST) {
       <tbody>${rows.join('')}</tbody></table></div>
     <p class="small lh-earn-secret">🎁 <strong>Surprise leaves:</strong> sometimes leaves just appear. What for? That’s a secret 🤫</p>
     <p class="small"><strong>${LEAVES_PER_POINT} leaves = 1 skill point.</strong> Your ${field() ? 'flower field' : 'tree'} grows as your points add up:</p>
-    <ol class="lh-earn-stages">${ST.map((x) => `<li${me.points >= x.at ? ' class="done"' : ''}><strong>${esc(x.name)}</strong> <span class="muted small">${x.at} points${field() ? ` · ${x.n} flowers` : ''}</span></li>`).join('')}</ol>`;
+    <ol class="lh-earn-stages">${ST.map((x) => `<li${me.points >= x.at ? ' class="done"' : ''}><strong>${esc(x.name)}</strong> <span class="muted small">${x.at ? `${x.at} points` : 'to start'}${field() ? ` · ${x.n} flowers` : ''}</span></li>`).join('')}</ol>`;
 }
 
 const areaOf = (k) => [...SKILLS, ...ADMIN_SKILLS].find((s) => s.key === k);
@@ -163,6 +163,7 @@ async function drawMe(body) {
   const ST = stagesFor(hub);
   const st = ST[pr.stage];
   const canInvest = me.balance >= LEAVES_PER_POINT;
+  const toUse = Math.floor(me.balance / LEAVES_PER_POINT);
   const fold = (key, title, extra, inner) => `<details class="card lh-fold" data-fold="${key}" ${openFolds.has(key) ? 'open' : ''}>
       <summary><h2>${title}</h2>${extra}<span class="lh-fold-ico">${icon('chevron-down')}</span></summary>${inner}</details>`;
   const nDone = done.length;
@@ -191,10 +192,11 @@ async function drawMe(body) {
         ${field() ? `<p class="muted small lh-helping">${icon('heart-handshake')} <span><strong>Helping earns leaves too:</strong> reply to a CARE Connect message sent to Admin, or answer a leave request (+1 each, up to 3 a day · ${me.helping_today ?? 0} today).</span></p>` : ''}
         <div class="lh-side-btns">
           <button type="button" class="primary" data-act="log">${icon('book')} Log a study session</button>
-          <button type="button" class="${canInvest ? 'lh-ready' : ''}" data-act="invest">${icon('sparkles')} ${canInvest ? `Use your leaves · ${Math.floor(me.balance / LEAVES_PER_POINT)} skill point${me.balance >= 2 * LEAVES_PER_POINT ? 's' : ''} ready` : `${LEAVES_PER_POINT - (me.balance % LEAVES_PER_POINT)} more leaves for a skill point`}</button>
+          <button type="button" class="${canInvest ? 'lh-ready' : ''}" data-act="invest">${icon('sparkles')} ${canInvest ? `Use your skill points · ${toUse} ready` : `${LEAVES_PER_POINT - (me.balance % LEAVES_PER_POINT)} more leaves for a skill point`}</button>
         </div>
         <div class="lh-wheel-head"><h3 class="lh-h3">Self-reflection skill wheel</h3>
-          <button type="button" class="small-btn" data-act="move" title="Move points from one skill to another">Move points</button></div>
+          <button type="button" class="small-btn" data-act="wheel" title="Add points or move them between skills">Edit my wheel</button></div>
+        <p class="small lh-toUse">${toUse ? `You have <strong>${toUse}</strong> skill point${toUse === 1 ? '' : 's'} left to use.` : '<span class="muted">No skill points left to use. Earn 10 leaves for the next one.</span>'}</p>
         ${wheelSvg(me.skills, hub)}
       </section>
     </div>
@@ -228,9 +230,9 @@ async function drawMe(body) {
   }
   for (const b of body.querySelectorAll('[data-sf]')) b.addEventListener('click', () => openSafmeds(b.dataset.sf));
   body.querySelector('[data-act="look"]').addEventListener('click', () => (field() ? gardenDialog() : lookDialog()));
-  body.querySelector('[data-act="invest"]').addEventListener('click', () => (canInvest ? investDialog() : null));
+  body.querySelector('[data-act="invest"]').addEventListener('click', () => (canInvest ? editWheelDialog() : null));
   body.querySelector('[data-act="log"]').addEventListener('click', () => logDialog());
-  body.querySelector('[data-act="move"]').addEventListener('click', moveDialog);
+  body.querySelector('[data-act="wheel"]').addEventListener('click', () => editWheelDialog());
   body.querySelector('[data-act="earn"]').addEventListener('click', () => {
     const d = body.querySelector('[data-fold="earn"]');
     d.open = true; openFolds.add('earn');
@@ -241,53 +243,33 @@ async function drawMe(body) {
 }
 
 function drawStart(body) {
-  const SK = skillsFor(hub);
-  const pts = Object.fromEntries(SK.map((s) => [s.key, 0]));
   body.innerHTML = `
     ${field() ? '' : toolsHtml()}
     <section class="card lh-start">
-      <div class="lh-start-art">${sceneSvg({ points: 10, bg: 0, looks: [0, 0, 0, 0, 0, 0], hub, flowers: [0, 2] }, { label: field() ? 'Two flowers' : 'A seedling' })}</div>
+      <div class="lh-start-art">${sceneSvg({ points: 0, bg: 0, looks: [0, 0, 0, 0, 0, 0], hub, flowers: [0, 2] }, { label: field() ? 'Two flowers' : 'A seedling' })}</div>
       <div>
         <h2>${field() ? 'Plant your first flowers 🌷' : 'Plant your seed 🌱'}</h2>
-        <p>You already have skills from your ${field() ? 'work' : 'training'}. Place <strong>10 skill points</strong> across the 7 skills to show where you feel strongest today.
-          This starts your <strong>self-reflection skill wheel</strong>. It’s a self-check, not a test: be honest. It helps you see where to grow,
-          and helps ${reviewer()} plan training for what you need.</p>
-        <p class="muted small">After this, ${field() ? 'studying and helping therapists earn' : 'studying earns'} <strong>leaves</strong>. Every 10 leaves is 1 new skill point, and your ${field() ? 'flower field' : 'tree'} grows:
-          ${stagesFor(hub).map((s) => `${esc(s.name)} ${s.at}`).join(' · ')}.</p>
-        <div class="lh-alloc">${SK.map((s) => `
-          <div class="lh-alloc-row"><span>${esc(s.label)}</span>
-            <button type="button" class="small-btn" data-dec="${s.key}" aria-label="Less ${esc(s.label)}">−</button>
-            <b data-val="${s.key}">0</b>
-            <button type="button" class="small-btn" data-inc="${s.key}" aria-label="More ${esc(s.label)}">+</button></div>`).join('')}
-        </div>
-        <p class="small"><span id="lh-left">10</span> points left · up to 4 in one skill</p>
-        ${startBonus() ? `<p class="lh-exp">${icon('sparkles')} <span>You've already learned a lot at CARE. After planting you also get
-          ${[expLeaves() ? `<strong>${expLeaves()} leaves</strong> for ${expLeaves() / 100} promotion${expLeaves() === 100 ? '' : 's'} (100 each)` : '',
-             yearsAtCare() ? `<strong>${yearsAtCare() * 50} leaves</strong> for ${yearsAtCare()} year${yearsAtCare() === 1 ? '' : 's'} at CARE` : ''].filter(Boolean).join(' and ')}
-          (${startBonus() / LEAVES_PER_POINT} skill points) to place where you like.</span></p>` : ''}
+        <p>Your ${field() ? 'flower field starts as a little <strong>Bud</strong>' : 'tree starts as a little <strong>Seedling</strong>'}. It grows each time you place skill points on your
+          <strong>self-reflection skill wheel</strong>: your own check of where you feel strong and where you’d like to grow. It’s not a test, so be honest.
+          It helps you see where to grow, and helps ${reviewer()} plan training for what you need.</p>
+        <p class="lh-exp">${icon('sparkles')} <span>To start, you get <strong>10 skill points</strong> to place${startBonus()
+          ? `, plus ${[expLeaves() ? `<strong>${expLeaves() / LEAVES_PER_POINT}</strong> for ${expLeaves() / 100} promotion${expLeaves() === 100 ? '' : 's'}` : '',
+              yearsAtCare() ? `<strong>${yearsAtCare() * 50 / LEAVES_PER_POINT}</strong> for ${yearsAtCare()} year${yearsAtCare() === 1 ? '' : 's'} at CARE` : ''].filter(Boolean).join(' and ')}` : ''}.</span></p>
+        <p class="muted small">After that, ${field() ? 'studying and helping therapists earn' : 'studying earns'} <strong>leaves</strong>: every 10 leaves is 1 more skill point.
+          Stages: ${stagesFor(hub).map((s) => `${esc(s.name)}${s.at ? ` ${s.at}` : ''}`).join(' · ')}.</p>
         <p id="lh-start-msg" class="error" hidden></p>
-        <button type="button" class="primary" data-act="plant" disabled>${icon('plant-2')} ${field() ? 'Plant my flowers' : 'Plant my tree'}</button>
+        <button type="button" class="primary" data-act="plant">${icon('plant-2')} ${field() ? 'Plant my flowers' : 'Plant my tree'}</button>
       </div>
     </section>
     <section class="card"><h2>Topics</h2>${topicsHtml()}</section>`;
-  const used = () => Object.values(pts).reduce((a, b) => a + b, 0);
-  const sync = () => {
-    for (const s of SK) body.querySelector(`[data-val="${s.key}"]`).textContent = pts[s.key];
-    body.querySelector('#lh-left').textContent = 10 - used();
-    body.querySelector('[data-act="plant"]').disabled = used() !== 10;
-  };
-  body.addEventListener('click', async (e) => {
-    const inc = e.target.closest('[data-inc]'), dec = e.target.closest('[data-dec]');
-    if (inc && used() < 10 && pts[inc.dataset.inc] < 4) { pts[inc.dataset.inc]++; sync(); }
-    if (dec && pts[dec.dataset.dec] > 0) { pts[dec.dataset.dec]--; sync(); }
-    if (e.target.closest('[data-act="plant"]')) {
-      const b = e.target.closest('button'); b.disabled = true;
-      try {
-        await L.start(pts); await draw();
-        if (me.balance >= LEAVES_PER_POINT) { if (startBonus()) toast(`+${startBonus()} leaves for your experience 🍃`); investDialog(); }
-      } catch (err) {
-        const m = body.querySelector('#lh-start-msg'); m.textContent = err.message; m.hidden = false; b.disabled = false;
-      }
+  body.querySelector('[data-act="plant"]').addEventListener('click', async (e) => {
+    const b = e.currentTarget; b.disabled = true;
+    try {
+      await L.start({}); await draw();
+      toast(`${field() ? 'Planted 🌷' : 'Planted 🌱'} · ${Math.floor(me.balance / LEAVES_PER_POINT)} skill points to place`);
+      editWheelDialog({ first: true });
+    } catch (err) {
+      const m = body.querySelector('#lh-start-msg'); m.textContent = err.message; m.hidden = false; b.disabled = false;
     }
   });
   wireTopics(body);
@@ -484,90 +466,55 @@ function logDialog(preset = null) {
   });
 }
 
-// Spend leaves 10 at a time. The window stays open while there are enough
-// leaves, so someone with a big bundle (e.g. experience leaves) can place many points.
-function investDialog() {
-  const before = stageOf(me.points);
-  let placed = 0;
-  let step = me.balance >= 20 * LEAVES_PER_POINT ? 5 : 1;   // big bundles: 5 points a tap
-  const d = openDlg(`<div class="lh-form">
-    <h2>Use your leaves</h2>
-    <p data-left></p>
-    <div class="seg lh-step" role="group" aria-label="Points per tap" data-steps></div>
-    <div class="lh-invest" data-skills></div>
-    <p class="error" data-msg hidden></p>
-    <div class="dlg-actions"><button type="button" class="primary" data-cancel>Done</button></div>
-  </div>`);
-  const paint = () => {
-    const n = Math.floor(me.balance / LEAVES_PER_POINT);
-    const k = Math.min(step, n);
-    d.querySelector('[data-steps]').hidden = n < 2;
-    d.querySelector('[data-steps]').innerHTML = [1, 5].map((v) => `<button type="button" data-step="${v}" aria-pressed="${step === v}" aria-selected="${step === v}">${v} point${v === 1 ? '' : 's'} a tap</button>`).join('');
-    d.querySelector('[data-left]').innerHTML = n
-      ? `You have <strong>${me.balance}</strong> leaves: enough for <strong>${n}</strong> skill point${n === 1 ? '' : 's'}. Tap a skill to add ${k} point${k === 1 ? '' : 's'} (10 leaves each).`
-      : `All used${placed ? ` · you placed ${placed} point${placed === 1 ? '' : 's'}` : ''}. ${me.balance} leaves left.`;
-    d.querySelector('[data-skills]').innerHTML = skillsFor(hub).map((s) => `<button type="button" data-skill="${s.key}" ${n ? '' : 'disabled'}>
-      <span>${esc(s.label)}</span><b>${me.skills?.[s.key] ?? 0}</b></button>`).join('');
-  };
-  paint();
-  const finish = async () => {
-    closeDlg();
-    if (!placed) return;
-    await draw();
-    const after = stageOf(me.points);
-    toast(after > before ? `Your ${field() ? 'field' : 'tree'} grew into a ${stagesFor(hub)[after].name}! ${field() ? '🌸' : '🌳'}` : `+${placed} skill point${placed === 1 ? '' : 's'}`);
-    if (after > before) celebrate(after);
-  };
-  d.querySelector('[data-cancel]').addEventListener('click', finish);
-  d.querySelector('[data-steps]').addEventListener('click', (e) => { const b = e.target.closest('[data-step]'); if (b) { step = Number(b.dataset.step); paint(); } });
-  d.querySelector('[data-skills]').addEventListener('click', async (e) => {
-    const b = e.target.closest('[data-skill]'); if (!b || b.disabled) return;
-    for (const x of d.querySelectorAll('[data-skill]')) x.disabled = true;
-    try {
-      const k = Math.min(step, Math.floor(me.balance / LEAVES_PER_POINT));
-      for (let i = 0; i < k; i++) { await L.invest(b.dataset.skill); placed++; }
-      me = await L.summary();
-      paint();
-      if (me.balance < LEAVES_PER_POINT) setTimeout(finish, 900);
-    } catch (err) { const m = d.querySelector('[data-msg]'); m.textContent = err.message; m.hidden = false; paint(); }
-  });
-}
-
-// Re-balance your own wheel: take points from one skill, give them to another.
-// The total stays the same, so the tree / flower field never shrinks.
-function moveDialog() {
+// Edit my wheel: − / + one point at a time. New points come from leaves
+// (10 each); points can also move between skills. The total never goes down,
+// so the tree / flower field never shrinks. Saved all at once.
+function editWheelDialog({ first = false } = {}) {
   const SK = skillsFor(hub);
+  const before = stageOf(me.points);
   const was = Object.fromEntries(SK.map((s) => [s.key, me.skills?.[s.key] ?? 0]));
   const pts = { ...was };
-  let pool = 0;
+  const can = Math.floor(me.balance / LEAVES_PER_POINT);   // new points available
+  const total = (o) => Object.values(o).reduce((a, b) => a + b, 0);
   const d = openDlg(`<div class="lh-form">
-    <h2>Move points</h2>
-    <p class="muted small">Your wheel is your own view, so change it whenever your view changes. Take points from a skill with <strong>−</strong>, then give them to another with <strong>+</strong>. Your total stays the same.</p>
+    <h2>${first ? 'Place your skill points' : 'Edit my wheel'}</h2>
+    <p class="muted small">Tap <strong>+</strong> where you feel strong, <strong>−</strong> to take a point back. ${first ? 'Be honest: it’s your own self-check.' : 'You can also move points from one skill to another.'}</p>
+    <p class="lh-wheel-left" data-left></p>
     <div class="lh-alloc" data-rows></div>
-    <p class="small" data-pool></p>
     <p class="error" data-msg hidden></p>
-    <div class="dlg-actions"><button type="button" class="primary" data-save disabled>${icon('check')} Save</button><button type="button" data-cancel>Cancel</button></div>
+    <div class="dlg-actions"><button type="button" class="primary" data-save disabled>${icon('check')} Save</button><button type="button" data-cancel>${first ? 'Later' : 'Cancel'}</button></div>
   </div>`);
   const paint = () => {
+    const left = can - (total(pts) - total(was));   // can be more than "can" while moving points
+    const changed = SK.some((s) => pts[s.key] !== was[s.key]);
     d.querySelector('[data-rows]').innerHTML = SK.map((s) => `<div class="lh-alloc-row"><span>${esc(s.label)}</span>
       <button type="button" class="small-btn" data-dec="${s.key}" aria-label="Less ${esc(s.label)}" ${pts[s.key] ? '' : 'disabled'}>−</button>
       <b class="${pts[s.key] !== was[s.key] ? 'lh-changed' : ''}">${pts[s.key]}</b>
-      <button type="button" class="small-btn" data-inc="${s.key}" aria-label="More ${esc(s.label)}" ${pool ? '' : 'disabled'}>+</button></div>`).join('');
-    const changed = SK.some((s) => pts[s.key] !== was[s.key]);
-    d.querySelector('[data-pool]').innerHTML = pool
-      ? `<strong>${pool}</strong> point${pool === 1 ? '' : 's'} to place: tap <strong>+</strong> on a skill.`
-      : changed ? 'All placed. Save when you’re happy.' : 'Tap <strong>−</strong> on a skill to take a point from it.';
-    d.querySelector('[data-save]').disabled = pool > 0 || !changed;
+      <button type="button" class="small-btn" data-inc="${s.key}" aria-label="More ${esc(s.label)}" ${left > 0 && pts[s.key] < 99 ? '' : 'disabled'}>+</button></div>`).join('');
+    const over = left - can;   // points taken back that must be placed again
+    d.querySelector('[data-left]').innerHTML = over > 0
+      ? `<strong>${over}</strong> point${over === 1 ? '' : 's'} taken back: place ${over === 1 ? 'it' : 'them'} on another skill.${can ? ` (Plus ${can} new to use.)` : ''}`
+      : left > 0 ? `<strong>${left}</strong> skill point${left === 1 ? '' : 's'} left to use`
+        : can ? 'All your skill points are placed. Save when you’re happy.' : 'No new points to use. Tap − to move points between skills.';
+    d.querySelector('[data-save]').disabled = !changed || over > 0;
   };
   paint();
   d.addEventListener('click', async (e) => {
     const b = e.target.closest('button'); if (!b || b.disabled) return;
-    if (b.dataset.dec) { pts[b.dataset.dec]--; pool++; paint(); }
-    else if (b.dataset.inc) { pts[b.dataset.inc]++; pool--; paint(); }
+    if (b.dataset.dec) { pts[b.dataset.dec]--; paint(); }
+    else if (b.dataset.inc) { pts[b.dataset.inc]++; paint(); }
     else if (b.hasAttribute('data-cancel')) closeDlg();
     else if (b.hasAttribute('data-save')) {
-      try { await L.rebalance(pts); closeDlg(); await draw(); toast('Skill wheel updated'); } catch (err) {
-        const m = d.querySelector('[data-msg]'); m.textContent = err.message; m.hidden = false;
+      b.disabled = true;
+      try {
+        const added = await L.setWheel(pts);
+        closeDlg(); await draw();
+        const after = stageOf(me.points);
+        toast(after > before ? `Your ${field() ? 'field' : 'tree'} grew into a ${stagesFor(hub)[after].name}! ${field() ? '🌸' : '🌳'}`
+          : added ? `+${added} skill point${added === 1 ? '' : 's'}` : 'Skill wheel updated');
+        if (after > before) celebrate(after);
+      } catch (err) {
+        const m = d.querySelector('[data-msg]'); m.textContent = err.message; m.hidden = false; b.disabled = false;
       }
     }
   });

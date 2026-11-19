@@ -39,6 +39,7 @@ export const markDone = (resourceId, note) => supa.rpc('learning_done', { p_reso
 // Picks up a new work anniversary (50 leaves a year): { added, reason }
 export const refresh = () => supa.rpc('learning_refresh').then(must);
 export const rebalance = (points) => supa.rpc('learning_rebalance', { p_points: points }).then(must);
+export const setWheel = (points) => supa.rpc('learning_set_wheel', { p_points: points }).then(must);
 export const invest = (skill) => supa.rpc('learning_invest', { p_skill: skill }).then(must);
 
 export const setLook = (bg, looks, animal) =>
