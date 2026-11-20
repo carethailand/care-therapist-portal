@@ -42,10 +42,19 @@ export const GIVEN = [
   { key: 'centre-manager', label: 'Centre manager', about: 'Leads the CARE centre and the office team, keeping everything running well', by: 'admin' },
 ];
 export const givenImg = (key) => file(key);
+const NAMED_ABOUT = {
+  explorer: 'Opened every tab in the Portal',
+  'all-set': 'Team card complete: photo, “about me” and chosen badges',
+};
 // Every achievement for the collection: for the 1/5/10 families, the highest
 // level reached plus the next one (locked). { key, label, img, earned, lockText }
 function achievements(a = {}, clinical = true) {
   const out = [];
+  // Explorer + All set (Portal 060): for all CARE staff.
+  out.push({ key: 'explorer', label: 'Explorer', img: file('explorer'), earned: !!a.explorer, on: null, about: NAMED_ABOUT.explorer,
+    lockText: `Open every tab in your menu${a.tabsTotal ? ` (${a.tabsSeen} of ${a.tabsTotal} so far)` : ''}` });
+  out.push({ key: 'all-set', label: 'All set', img: file('all-set'), earned: !!a.all_set, on: null, about: NAMED_ABOUT['all-set'],
+    lockText: 'Add a photo and an “about me” line, and choose badges to show on your team card' });
   // Newest therapist (Portal 044): like Longest-serving, always in the collection;
   // held by the therapist with the latest start date, then passed on.
   if (clinical) out.push({ key: 'newest', label: 'Newest therapist', img: file('newest'), earned: !!a.newest, on: null, lockText: 'Newest at CARE' });
@@ -154,7 +163,7 @@ export async function isLongest(me) {
 // 5 to show; badges not earned are never shown, even if chosen.
 // ---------------------------------------------------------------------------
 export const SHOW_MAX = 5;
-const ACH_KEY = /^(abat|safmeds|(resources|logs|kudos|thanked)-\d+|school-shadow|supporter|stimuli-master|unshakable|scheduler|centre-manager)$/;   // newest is shown with longest
+const ACH_KEY = /^(explorer|all-set|abat|safmeds|(resources|logs|kudos|thanked)-\d+|school-shadow|supporter|stimuli-master|unshakable|scheduler|centre-manager)$/;   // newest is shown with longest
 const TRAINING = [
   { key: 'supervisor', label: 'Supervisor Training' },
   { key: 'qcd-training', label: 'QCD Training' },
@@ -202,12 +211,12 @@ export function cardBadges(p, extra = {}) {
 const NAMED = {
   probation: 'Passed probation', longest: 'Longest-serving therapist', newest: 'Newest therapist',
   'senior-training': 'Senior Therapist Training', 'qcd-training': 'QCD Training', supervisor: 'Supervisor Training',
-  abat: 'ABAT passed', safmeds: 'SAFMEDS master',
+  abat: 'ABAT passed', safmeds: 'SAFMEDS master', explorer: 'Explorer', 'all-set': 'All set',
 };
 export function badgeInfo(key) {
   const g = GIVEN.find((x) => x.key === key);
   if (g) return { label: g.label, img: file(key), about: g.about, given: true };
-  if (NAMED[key]) return { label: NAMED[key], img: file(key) };
+  if (NAMED[key]) return { label: NAMED[key], img: file(key), about: NAMED_ABOUT[key] };
   let m = /^year-(\d+)$/.exec(key);
   if (m) { const n = Number(m[1]); return { label: `${n} year${n > 1 ? 's' : ''} at CARE`, img: file(key), word: WORD[n] || '' }; }
   m = /^(resources|logs|kudos|thanked)-(\d+)$/.exec(key);

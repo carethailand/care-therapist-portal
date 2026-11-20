@@ -274,19 +274,36 @@ async function route() {
   $('#admin-btn').removeAttribute('aria-current');
 
   const module = want === 'home' || !want ? HOME : (state.visible.find((m) => m.key === want) || HOME);
+  markTab(module);
   for (const a of document.querySelectorAll('#tabs a')) {
     a.toggleAttribute('aria-current', a.dataset.key === module.key);
   }
   panel.innerHTML = '<p class="muted">Loading…</p>';
   try {
     const mod = await loadPage(TABS[module.key] || comingSoon);
-    await mod.render(panel, { me: state.me, roles: rolesFor(module.key), module, visible: state.visible, canAdmin: canAdmin() });
+    await mod.render(panel, { me: state.me, roles: rolesFor(module.key), module, visible: state.visible, canAdmin: canAdmin(), menuTabs: menuTabs() });
   } catch (e) {
     panel.innerHTML = `<section class="card"><p class="error">This page didn't load. Please refresh (Cmd+Shift+R).</p><p class="muted small">${esc(e.message)}</p></section>`;
   }
 }
 
 window.addEventListener('hashchange', route);
+
+// Explorer badge (Portal 060): tell the Portal the first time each tab opens
+// (once per tab per visit; stops once the badge is earned). Only real tabs in
+// my menu count, not admin previews of hidden tabs.
+const tabsSent = new Set();
+let explorerDone = false;
+const menuTabs = () => [HOME, ...state.visible].filter((m) => m.enabled).map((m) => m.key);
+async function markTab(module) {
+  if (explorerDone || !module.enabled || tabsSent.has(module.key)) return;
+  tabsSent.add(module.key);
+  try {
+    const { tabSeen } = await import('./team-data.js');
+    const r = await tabSeen(module.key, menuTabs());
+    if (r?.done) explorerDone = true;
+  } catch { tabsSent.delete(module.key); }   // e.g. SQL not run yet: try again next time
+}
 
 // ---------------------------------------------------------------------------
 // Forms

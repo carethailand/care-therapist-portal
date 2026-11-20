@@ -6,7 +6,7 @@ import { milestones, isLongest, milestoneEligible, cardBadges, SHOW_MAX } from '
 import { ART_CREDIT } from '../stickers.js';
 import { rankOf } from '../labels.js';
 import { icon } from '../icons.js';
-import { directory, setProfile, photoUrls, squarePhoto, uploadPhoto, removePhoto, badges as loadBadges, setShowcase } from '../team-data.js';
+import { directory, setProfile, photoUrls, squarePhoto, uploadPhoto, removePhoto, badges as loadBadges, setShowcase, tabSeen } from '../team-data.js';
 import { trees as loadTrees } from '../learning-data.js';
 import { cardHtml, wireAbout } from '../team-card.js';
 
@@ -31,7 +31,7 @@ const TRACK_STAGES = {
   ],
 };
 
-export async function render(panel, { me, roles = [] }) {
+export async function render(panel, { me, roles = [], menuTabs = [] }) {
   const staff = me.track !== 'abat'; // ABAT learners have no probation or hours
   panel.innerHTML = `
     <section class="card">
@@ -64,7 +64,7 @@ export async function render(panel, { me, roles = [] }) {
       <p class="muted">Your hours will appear here once the Hours module is switched on.</p>
     </section>` : ''}`;
 
-  if (milestoneEligible(me, roles)) loadMyCard(panel, me, roles);
+  if (milestoneEligible(me, roles)) loadMyCard(panel, me, roles, menuTabs);
 
   const list = panel.querySelector('.timeline');
   try {
@@ -98,7 +98,7 @@ function eventItem(ev) {
 // ---------------------------------------------------------------------------
 // My team card + My badges
 // ---------------------------------------------------------------------------
-async function loadMyCard(panel, me, roles) {
+async function loadMyCard(panel, me, roles, menuTabs = []) {
   const longest = await isLongest(me);
   mc = null;
   try {
@@ -121,6 +121,11 @@ async function loadMyCard(panel, me, roles) {
   }
   if (!mc) ach = await loadBadges().then((b) => b.find((x) => x.id === me.id) || null).catch(() => null);
   else ach = mc.badge;
+  // Explorer progress: how many of the tabs in my menu I've opened.
+  if (ach && menuTabs.length) {
+    const prog = await tabSeen('journey', menuTabs).catch(() => null);
+    if (prog) ach = { ...ach, explorer: ach.explorer || prog.done, tabsTotal: menuTabs.length, tabsSeen: menuTabs.filter((k) => prog.seen.includes(k)).length };
+  }
   drawMilestones(panel, me, roles, longest);
 }
 

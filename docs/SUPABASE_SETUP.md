@@ -645,3 +645,13 @@ Run `supabase/migrations/20261120005800_care_board.sql` after Step 57, then publ
 - **Final score = average of Clinical, HR performance and QCD average** (equal thirds). If a part is missing (e.g. no admin evaluation for half 1), it uses the parts there are.
 - The mid-year meeting is now called the **Check-in meeting** everywhere: the lead + an admin look at the QCD so far and the admin evaluation (half 1). At the check-in, QCD is shown for the talk only.
 - The year report, the person's year-end review and Close the year all use the new rule.
+
+## Step 60 — Explorer and All set badges (added 2026-11-21)
+
+1. **Run** `supabase/migrations/20261121006000_explorer_all_set.sql` (after 058).
+2. **Publish** the app (Q18).
+
+- **Explorer**: open every tab in your own menu at least once. The Portal keeps one tick per tab per person (first time only). Office staff only need the tabs they have. My Journey shows progress ("5 of 8 so far").
+- **All set**: team card has a photo, an "about me" line and chosen badges.
+- Both are for CARE staff (not applicants). New ones are announced on the CARE board; cards that were already "All set" are saved quietly.
+- Art: placeholders for now (`web/assets/milestones/explorer.svg`, `all-set.svg`) until the real art arrives.

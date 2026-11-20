@@ -18,6 +18,9 @@ export const badges = () => supa.rpc('team_badges').then(must);
 export const giveBadge = (who, key) => supa.rpc('badge_give', { p_who: who, p_key: key }).then(must);
 export const takeBackBadge = (who, key) => supa.rpc('badge_take_back', { p_who: who, p_key: key }).then(must);
 export const setShowcase = (keys) => supa.rpc('team_set_showcase', { p_keys: keys }).then(must);
+// Explorer (Portal 060): tick a tab as opened; `tabs` = every tab in my menu.
+// Answers { seen: [tabs opened], done } (null if not CARE staff).
+export const tabSeen = (tab, tabs) => supa.rpc('portal_tab_seen', { p_tab: tab, p_tabs: tabs }).then(must);
 
 export const setProfile = (about, photoPath) =>
   supa.rpc('team_set_profile', { p_about: about, p_photo_path: photoPath }).then(must);
