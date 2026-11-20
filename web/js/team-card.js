@@ -25,14 +25,16 @@ export function cardHtml(p, { url = null, badge = {}, tree = null, isMe = false,
   const { shown, more } = cardBadges(p, badge);
   const posName = (r) => (OFFICE_ROLES.includes(r) ? roleLabel(r) : RANK_LABEL[r]);
   const treeName = tree ? stagesFor(tree.hub)[stageOf(tree.points)].name : '';
+  // Years at CARE: under the garden (or under the photo when there's no garden).
+  const yearsHtml = `<p class="muted small tm-years">${p.years == null ? '' : p.years < 1 ? 'New to CARE 🌱' : `${p.years} year${p.years > 1 ? 's' : ''} at CARE`}</p>`;
   return `<li class="tm-card${isMe ? ' is-me' : ''}${tree ? '' : ' no-tree'}">
+    <div class="tm-main">
     <div class="tm-left">
       <div class="tm-avatar">
         ${avatarHtml(p, url)}
         ${rankBadges.map((r, i) => `<img class="tm-rank ${i ? 'tm-rank-2' : 'tm-rank-1'}" src="assets/badges/${BADGE_FILE[r]}" alt="${esc(posName(r))} badge" title="${esc(posName(r))}" width="40" height="40">`).join('')}
         ${gm ? '<span class="tm-gm" title="Portal manager">GM</span>' : ''}
       </div>
-      <p class="muted small tm-years">${p.years == null ? '' : p.years < 1 ? 'New to CARE 🌱' : `${p.years} year${p.years > 1 ? 's' : ''} at CARE`}</p>
     </div>
     <div class="tm-body">
       <p class="tm-name">${esc(p.nickname || p.full_name)}${isMe ? ' <span class="chip stage">You</span>' : ''}</p>
@@ -43,8 +45,10 @@ export function cardHtml(p, { url = null, badge = {}, tree = null, isMe = false,
       </div>` : ''}
       ${p.about ? `<p class="tm-about" tabindex="0" title="Tap to read all">${esc(p.about)}</p>` : ''}
       ${edit}
+      ${tree ? '' : yearsHtml}
     </div>
-    ${tree ? `<div class="tm-tree" title="${esc(treeName)}">${sceneSvg(tree, { label: `${p.nickname || p.full_name}’s ${tree?.hub === 'admin' ? 'flower field' : 'tree'}: ${treeName}` })}<span class="tm-tree-name">${esc(treeName)}</span></div>` : ''}
+    </div>
+    ${tree ? `<div class="tm-tree" title="${esc(treeName)}">${sceneSvg(tree, { label: `${p.nickname || p.full_name}’s ${tree?.hub === 'admin' ? 'flower field' : 'tree'}: ${treeName}` })}<span class="tm-tree-name">${esc(treeName)}</span>${yearsHtml}</div>` : ''}
   </li>`;
 }
 
