@@ -654,4 +654,12 @@ Run `supabase/migrations/20261120005800_care_board.sql` after Step 57, then publ
 - **Explorer**: open every tab in your own menu at least once. The Portal keeps one tick per tab per person (first time only). Office staff only need the tabs they have. My Journey shows progress ("5 of 8 so far").
 - **All set**: team card has a photo, an "about me" line and chosen badges.
 - Both are for CARE staff (not applicants). New ones are announced on the CARE board; cards that were already "All set" are saved quietly.
-- Art: placeholders for now (`web/assets/milestones/explorer.svg`, `all-set.svg`) until the real art arrives.
+- Art (Q19): Explorer = the explorer in the leaves (Vecteezy); All set = round ribbon badge from the "badge idea" pack with "ALL SET".
+
+## Step 61 — Office badge "Assistant" + Explorer / All set on your card (added 2026-11-21)
+
+1. **Run** `supabase/migrations/20261121006100_assistant_badge.sql` (after 060).
+2. **Publish** the app (Q19).
+
+- **Assistant** (the robot with the headset): hand-given office badge, like Scheduler and Centre manager. Only Admin / the Portal manager can give it (Our Team → 🎖️ Give a badge).
+- Fix: Explorer and All set can now be chosen to show on your team card.

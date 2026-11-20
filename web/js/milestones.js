@@ -40,6 +40,7 @@ export const GIVEN = [
   { key: 'unshakable', label: 'Unshakable', about: 'Great spirit in hard sessions: no complaints, calm with big behaviour, focused on solutions' },
   { key: 'scheduler', label: 'Scheduler', about: 'Keeps CARE’s schedule running smoothly: sessions, cover and changes, with great attention to detail', by: 'admin' },
   { key: 'centre-manager', label: 'Centre manager', about: 'Leads the CARE centre and the office team, keeping everything running well', by: 'admin' },
+  { key: 'assistant', label: 'Assistant', about: 'The office team’s helping hand: always ready to help, sorts things out and keeps the day running smoothly', by: 'admin' },
 ];
 export const givenImg = (key) => file(key);
 const NAMED_ABOUT = {
@@ -163,7 +164,7 @@ export async function isLongest(me) {
 // 5 to show; badges not earned are never shown, even if chosen.
 // ---------------------------------------------------------------------------
 export const SHOW_MAX = 5;
-const ACH_KEY = /^(explorer|all-set|abat|safmeds|(resources|logs|kudos|thanked)-\d+|school-shadow|supporter|stimuli-master|unshakable|scheduler|centre-manager)$/;   // newest is shown with longest
+const ACH_KEY = /^(explorer|all-set|abat|safmeds|(resources|logs|kudos|thanked)-\d+|school-shadow|supporter|stimuli-master|unshakable|scheduler|centre-manager|assistant)$/;   // newest is shown with longest
 const TRAINING = [
   { key: 'supervisor', label: 'Supervisor Training' },
   { key: 'qcd-training', label: 'QCD Training' },
