@@ -34,3 +34,10 @@ export const forward = (id) => supa.rpc('connect_forward', { p_message: id }).th
 export const kudosRequests = () => supa.rpc('connect_kudos_requests').then(must);
 export const kudosDecide = (id, post, text, to = null) => supa.rpc('connect_kudos_decide', { p_message: id, p_post: post, p_text: text, p_to: to }).then(must);
 export const kudosBoard = (limit = 50) => supa.rpc('connect_kudos_board', { p_limit: limit }).then(must);
+
+// The CARE board (Portal 058): badge news + kudos, reactions, and the red dot.
+export const boardFeed = (kind = 'all', limit = 20, before = null) =>
+  supa.rpc('board_feed', { p_kind: kind, p_limit: limit, p_before: before }).then(must);
+export const boardReact = (type, id, emoji) => supa.rpc('board_react', { p_type: type, p_id: id, p_emoji: emoji }).then(must);
+export const connectDot = () => supa.rpc('connect_dot').then(must);
+export const markSeen = () => supa.rpc('connect_mark_seen').then(must);

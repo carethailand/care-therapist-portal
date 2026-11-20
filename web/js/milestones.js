@@ -195,3 +195,22 @@ export function cardBadges(p, extra = {}) {
   }
   return { shown, more: all.length - shown.length, all };
 }
+
+// ---------------------------------------------------------------------------
+// The CARE board (Portal 058): name + picture for a badge key, for the news.
+// ---------------------------------------------------------------------------
+const NAMED = {
+  probation: 'Passed probation', longest: 'Longest-serving therapist', newest: 'Newest therapist',
+  'senior-training': 'Senior Therapist Training', 'qcd-training': 'QCD Training', supervisor: 'Supervisor Training',
+  abat: 'ABAT passed', safmeds: 'SAFMEDS master',
+};
+export function badgeInfo(key) {
+  const g = GIVEN.find((x) => x.key === key);
+  if (g) return { label: g.label, img: file(key), about: g.about, given: true };
+  if (NAMED[key]) return { label: NAMED[key], img: file(key) };
+  let m = /^year-(\d+)$/.exec(key);
+  if (m) { const n = Number(m[1]); return { label: `${n} year${n > 1 ? 's' : ''} at CARE`, img: file(key), word: WORD[n] || '' }; }
+  m = /^(resources|logs|kudos|thanked)-(\d+)$/.exec(key);
+  if (m) { const f = FAMILY.find((x) => x.key === m[1]); return { label: f.label(Number(m[2])), img: file(key) }; }
+  return { label: key, img: file(key) };
+}

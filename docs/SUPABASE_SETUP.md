@@ -587,8 +587,8 @@ While scoring a live QCD, the draft is saved on the device **and** in the Portal
 1. **Run** `supabase/migrations/20261118005300_yearly_release_sign.sql` (after 052).
 2. **Publish** the app (Q6).
 
-- In the person's yearly review (Team → Yearly review → open a person), admin / Portal manager or the **lead supervisor** see "Shown to …" with **Show mid-year** and **Show year-end** (and Hide, until the person signs). Use them in the review meeting.
-- **Mid-year shown**: the person sees their admin evaluation for half 1 (My supervision → Yearly review → Mid-year review → See details).
+- In the person's yearly review (Team → Yearly review → open a person), admin / Portal manager or the **lead supervisor** see "Shown to …" with **Show check-in** (was "mid-year") and **Show year-end** (and Hide, until the person signs). Use them in the review meeting.
+- **Check-in shown** (the mid-year check-in meeting): the person sees their admin evaluation for half 1 and their QCD so far (My supervision → Yearly review → Check-in meeting → See details).
 - **Year-end shown**: the person sees Clinical, HR performance (average of the halves) and the **Final score** (= average of the two), with every item in See details, then taps **I agree, sign** (optional comment). After signing it can't be hidden.
 - The list shows "shown: mid ✓ · year-end ✓ · signed 15 Dec" per person. Office staff only see the reflection step.
 
@@ -625,3 +625,23 @@ Run `supabase/migrations/20261118005700_leave_request_edit.sql` after Step 56, t
 
 - While a request is **waiting for HR**, the therapist sees **Edit** next to Cancel: they can change the type, dates, half day, days, reason and the sessions they'll miss. HR sees "✏️ Changed <date>" on it, and the admin-leave Slack channel gets a note (if Slack is set up).
 - Once approved, changes go through **Ask to cancel** (Step 46) as before.
+
+## Step 58 — The CARE board + red dot (added 2026-11-20)
+
+Run `supabase/migrations/20261120005800_care_board.sql` after Step 57, then publish the app (Q14).
+
+- CARE Connect now opens with the **CARE board**: badge news and kudos in one list (All / Badges / Kudos), newest first, with a "New" tag on anything since you last looked.
+- Every new badge is news; count badges (Resources, Study logs, Kudos given, Kudos received) only at a new colour (1, 10, 20). Badges people already had when you run this are saved quietly, so the board starts fresh. Longest-serving and Newest aren't announced.
+- All CARE staff can react ⭐ ❤️ 👍 🚀 🎉 (once each, tap again to undo). "Who reacted" shows the names.
+- Below the board: a compact inbox (5 rows, then "Show all") and a folded **Share something** box: Idea, Concern, Question, Thank you. Problem is now part of Concern.
+- Admin / Supervisors see a small "Kudos waiting for the board" bar when something needs posting.
+- A **red dot** on the CARE Connect tab means something new on the board or in your inbox. Opening CARE Connect clears it.
+
+## Step 59 — QCD counts in the final score + "Check-in meeting" (added 2026-11-20)
+
+1. **Run** `supabase/migrations/20261120005900_final_score_qcd.sql` (after 054; it doesn't need 058).
+2. **Publish** the app (Q15).
+
+- **Final score = average of Clinical, HR performance and QCD average** (equal thirds). If a part is missing (e.g. no admin evaluation for half 1), it uses the parts there are.
+- The mid-year meeting is now called the **Check-in meeting** everywhere: the lead + an admin look at the QCD so far and the admin evaluation (half 1). At the check-in, QCD is shown for the talk only.
+- The year report, the person's year-end review and Close the year all use the new rule.

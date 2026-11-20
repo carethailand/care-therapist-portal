@@ -1765,3 +1765,63 @@ a.lh-tool:hover { border-color: var(--line-strong); background: var(--surface-ra
 .tm-give li > span:nth-child(2) { flex: 1; min-width: 0; }
 .tm-give img { flex: none; }
 .tm-give-side { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: flex-end; }
+
+/* CARE Connect (Portal 058): CARE board first, then compact inbox + folded write box */
+.od-board .bd-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+.od-board .bd-head h2 { margin: 0; }
+.od-board .bd-head h2 .ico { color: var(--care-yellow); }
+.bd-list { list-style: none; margin: 0; padding: 0; }
+.bd-item { display: flex; gap: 14px; align-items: flex-start; padding: 14px 2px; border-top: 1px solid var(--line); }
+.bd-item:first-child { border-top: 0; }
+.bd-art { width: 56px; height: 56px; flex: none; object-fit: contain; }
+.bd-icon { display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--clay-soft); color: var(--care-pink); }
+.bd-icon .ico { width: 26px; height: 26px; }
+.bd-main { flex: 1; min-width: 0; }
+.bd-main p { margin: 0 0 3px; }
+.bd-line { font-size: .98rem; }
+.bd-new { margin-left: 6px; font-size: .7rem; padding: 1px 8px; vertical-align: 1px; }
+.bd-kudos .kudos-text { margin: 2px 0 4px; }
+.bd-react { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+.bd-r { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 999px; font-size: .85rem; line-height: 1.4;
+  border: 1px solid var(--line-strong); background: var(--surface-raised); cursor: pointer; }
+.bd-r.zero { opacity: .55; }
+.bd-r.zero:hover, .bd-r.zero:focus-visible { opacity: 1; }
+.bd-r.on { background: var(--accent-soft); border-color: var(--accent-fill); color: var(--accent); opacity: 1; }
+.bd-n { font-weight: 500; font-variant-numeric: tabular-nums; }
+.bd-who-btn { font-size: .8rem; }
+.bd-who { margin-top: 4px; }
+.bd-more { text-align: center; margin: 10px 0 0; }
+.od-board .credit { margin-top: 12px; }
+.od-kudosq { padding-top: 12px; padding-bottom: 12px; }
+.kq-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.kq-bar .ico { width: 18px; height: 18px; vertical-align: -3px; color: var(--care-pink); }
+.kq-list { margin-top: 12px; }
+.od-pair { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); align-items: start; margin-bottom: 16px; }
+.od-pair > .card { margin: 0; width: 100%; }
+@media (min-width: 860px) {
+  .od-pair { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); }
+  .od-pair .od-write.open { grid-column: 1 / -1; grid-row: 1; }
+}
+.od-write h2 { margin-top: 0; }
+.od-write-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.od-kinds { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.od-kinds button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 8px; border-radius: 14px; }
+.od-kinds .ico { width: 18px; height: 18px; color: var(--accent); }
+.od-write > .msg { margin-top: 10px; }
+.od-row.od-compact { padding: 9px 6px; gap: 10px; align-items: center; }
+.od-compact .od-kind .ico { margin-top: 0; width: 20px; height: 20px; }
+.od-compact .od-snip { font-size: .93rem; }
+.od-compact .od-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.od-compact .od-side { flex-direction: row; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.od-compact .sticker.sm { width: 26px; height: 26px; margin-top: 0; }
+.od-all { margin: 6px 0 0; text-align: center; }
+@media (max-width: 560px) {
+  .od-compact .od-side .chip:not(:last-child) { display: none; }
+  .bd-art { width: 44px; height: 44px; }
+}
+/* The red dot on the CARE Connect tab */
+#tabs a { position: relative; }
+.tab-dot { width: 8px; height: 8px; border-radius: 50%; background: #d9443f; box-shadow: 0 0 0 2px var(--bg); flex: none; margin-left: 2px; }
+@media (min-width: 1000px) { .tab-dot { box-shadow: 0 0 0 2px var(--surface); margin-left: auto; } }
+.od-pair .od-inboxes { grid-template-columns: minmax(0, 1fr); min-width: 0; }
+.od-pair .od-panel, .od-pair .od-list { min-width: 0; }

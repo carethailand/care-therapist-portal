@@ -204,7 +204,39 @@ async function enterApp(user) {
   renderNav();
   showView('view-app');
   route();
+  checkDot(true);
 }
+
+// ---------------------------------------------------------------------------
+// The red dot on the CARE Connect tab (Portal 058): new board news (badges,
+// kudos) or something new in your inbox since you last opened CARE Connect.
+// Checked on start, when you move between tabs (at most once a minute) and
+// when you come back to the Portal. Opening CARE Connect clears it.
+// ---------------------------------------------------------------------------
+let dotAt = 0;
+async function checkDot(force = false) {
+  if (!state.me || !state.visible.some((m) => m.key === 'connect')) return;
+  if (!force && Date.now() - dotAt < 60000) return;
+  dotAt = Date.now();
+  let n = { board: 0, inbox: 0 };
+  try {
+    const { connectDot } = await import('./connect-data.js');
+    n = await connectDot();
+  } catch { return; }   // not on Portal 058 yet: no dot
+  const onConnect = window.location.hash.startsWith('#/connect');
+  setDot(!onConnect && (n?.board > 0 || n?.inbox > 0), n);
+}
+function setDot(on, n = {}) {
+  const a = document.querySelector('#tabs a[data-key="connect"]');
+  if (!a) return;
+  a.querySelector('.tab-dot')?.remove();
+  if (!on) return;
+  const what = [n.board ? 'new on the CARE board' : '', n.inbox ? 'new in your inbox' : ''].filter(Boolean).join(' and ');
+  a.insertAdjacentHTML('beforeend', `<span class="tab-dot" role="img" aria-label="Something ${what}" title="Something ${what}"></span>`);
+}
+window.addEventListener('connect-seen', () => setDot(false));
+window.addEventListener('hashchange', () => checkDot());
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkDot(); });
 
 // ---------------------------------------------------------------------------
 // Tabs

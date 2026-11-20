@@ -125,7 +125,7 @@ async function drawKudos(el) {
   if (credit && list.some((k) => k.sticker)) credit.hidden = false;
   el.innerHTML = `<p class="level-kicker">Kudos</p><h2>Thank-yous around CARE</h2>
     <ul class="kudos-list compact">${list.map(card).join('')}</ul>
-    <a class="text-link" href="#/connect">See the Kudos board ${icon('arrow-right')}</a>`;
+    <a class="text-link" href="#/connect">See the CARE board ${icon('arrow-right')}</a>`;
   el.hidden = false;
 }
 

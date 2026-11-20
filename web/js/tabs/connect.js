@@ -1,23 +1,30 @@
-// CARE Connect: send an idea, concern, problem, question or thank-you to a
-// team (Admin, Supervisor & QCD, Senior) or to one person — with your name or
-// anonymously. Teams reply here within 5 working days. Thank-yous can go on
-// the Kudos board once an admin approves them.
+// CARE Connect (Portal 058 layout): the CARE board first (badge news + kudos,
+// with reactions), then a compact inbox and a folded "Share something" box.
+// Messages: an idea, concern, question or thank-you to a team (Admin,
+// Supervisor & QCD, Senior) or to one person — with your name or anonymously.
+// Teams reply here within 5 working days. Thank-yous can go on the board once
+// an admin approves them.
 import {
   sendMessage, people as loadPeople, myMessages, visibleMessages, thread, reply, update, forward,
-  kudosRequests, kudosDecide, kudosBoard,
+  kudosRequests, kudosDecide, boardFeed, boardReact, markSeen,
 } from '../connect-data.js';
 import { esc, fmtDate, todayLocal } from '../ui.js';
 import { icon } from '../icons.js';
 import { rankOf } from '../labels.js';
 import { STICKERS, stickerImg, stickerSrc, ART_CREDIT } from '../stickers.js';
+import { badgeInfo } from '../milestones.js';
 
+// Problem and Concern are one kind now (Songg, 2026-11-20): new messages are
+// "concern"; older "problem" messages show as Concern too.
 const KIND = {
   idea: ['Idea', 'bulb'],
   concern: ['Concern', 'cloud-storm'],
-  problem: ['Problem', 'tool'],
+  problem: ['Concern', 'cloud-storm'],
   question: ['Question', 'help-circle'],
   thanks: ['Thank you', 'heart-handshake'],
 };
+const WRITE_KINDS = ['idea', 'concern', 'question', 'thanks'];
+const sameKind = (k) => (k === 'problem' ? 'concern' : k);
 const TOPIC = {
   workplace: 'Workplace & facility', schedule: 'Schedule & sessions', pay: 'Pay & travel fee',
   training: 'Training & supervision', team: 'Team', other: 'Other',
@@ -25,6 +32,10 @@ const TOPIC = {
 const TO = { admin: 'Admin team', sup: 'Supervisor & QCD team', senior: 'Senior team', person: 'A person', both: 'Admin + Supervisor teams' };
 const STATUS = { received: ['Received', ''], in_progress: ['Looking into it', 'warn'], resolved: ['Resolved', 'ok'] };
 const REPLY_DAYS = 5;
+// Reactions on the CARE board
+const REACT = [['star', '⭐', 'Star'], ['heart', '❤️', 'Love'], ['like', '👍', 'Like'], ['rocket', '🚀', 'Rocket'], ['party', '🎉', 'Celebrate']];
+const INBOX_SHOW = 5;   // inbox rows shown before "Show all"
+const BOARD_PAGE = 15;  // board items per page
 
 let ctx;
 let panelEl;
@@ -32,18 +43,21 @@ let staff = [];   // [{ id, full_name, nickname }] current CARE staff (names onl
 
 const has = (...r) => ctx.roles.some((x) => r.includes(x));
 const nameOf = (id) => { const p = staff.find((x) => x.id === id); return p ? (p.nickname || p.full_name) : ''; };
+const myName = () => ctx.me.nickname || ctx.me.full_name;
 const toLabel = (m) => (m.send_to === 'person' ? (m.recipient_id === ctx.me.id ? 'you' : nameOf(m.recipient_id) || 'a colleague') : TO[m.send_to]);
 const bkkDate = (ts) => new Date(ts).toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
 const when = (ts) => new Date(ts).toLocaleString('en-GB', { timeZone: 'Asia/Bangkok', dateStyle: 'medium', timeStyle: 'short' });
 const isStaff = () => ctx.me.track !== 'abat' && rankOf(ctx.roles) !== 'applicant';
 
-// Same rule as the database (private.connect_visible), for sorting into inboxes.
-function teamSees(m) {
-  return (['admin', 'both'].includes(m.send_to) && has('admin', 'hr'))
-    || (['sup', 'both'].includes(m.send_to) && has('supervisor', 'qcd'))
-    || (m.send_to === 'senior' && has('senior'))
-    || (m.send_to === 'person' && !!m.forwarded_at && has('admin', 'hr'));
+// "today", "yesterday", "3 days ago", then the date
+function ago(ts) {
+  const days = Math.round((Date.parse(`${todayLocal()}T00:00:00`) - Date.parse(`${bkkDate(ts)}T00:00:00`)) / 86400000);
+  if (days <= 0) return 'today';
+  if (days === 1) return 'yesterday';
+  if (days < 7) return `${days} days ago`;
+  return fmtDate(bkkDate(ts));
 }
+
 const toMe = (m) => m.send_to === 'person' && m.recipient_id === ctx.me.id;
 
 function workingDaysSince(iso) {
@@ -60,14 +74,15 @@ const waitingTooLong = (m) => m.status !== 'resolved' && !m.first_reply_at && m.
 export async function render(panel, context) {
   ctx = context;
   panelEl = panel;
+  board = { kind: 'all', items: [], seen: null, more: false };
+  writeOpen = false;
   panel.innerHTML = `
     <div class="page-head"><h1 class="page-title">${icon('message-heart')} CARE Connect</h1></div>
-    <p class="lead">Share anything with the team: an idea, a worry, a problem, a question, or a thank-you.
-      We read every message and reply within ${REPLY_DAYS} working days.</p>
+    <p class="lead">CARE news, kudos, and your messages to the team. We read every message and reply within ${REPLY_DAYS} working days.</p>
     <div class="od-stack">
-    <section class="card" id="od-write"><p class="muted">Loading…</p></section>
-    ${isStaff() ? '<section class="card" id="od-board"></section>' : ''}
-    ${has('admin', 'manager', 'supervisor') ? '<section class="card" id="od-kudosq" hidden></section>' : ''}
+    ${has('admin', 'manager', 'supervisor') ? '<section class="card od-kudosq" id="od-kudosq" hidden></section>' : ''}
+    ${isStaff() ? '<section class="card od-board" id="od-board"><p class="muted">Loading the CARE board…</p></section>' : ''}
+    <div class="od-pair">
     <section class="card od-inboxes">
       ${myTeams().length ? `<div class="seg od-tabs" role="tablist" aria-label="Inboxes">
         <button type="button" role="tab" data-inbox="mine">My inbox</button>
@@ -76,6 +91,8 @@ export async function render(panel, context) {
       <div class="od-panel" id="od-mine" data-panel="mine"><p class="muted">Loading…</p></div>
       ${myTeams().map((t) => `<div class="od-panel od-team" id="od-team-${t.key}" data-panel="${t.key}" hidden><p class="muted">Loading ${esc(t.label)}…</p></div>`).join('')}
     </section>
+    <section class="card od-write" id="od-write"><p class="muted">Loading…</p></section>
+    </div>
     </div>
     <dialog id="od-dlg" class="dlg od-dlg"></dialog>`;
   for (const b of panel.querySelectorAll('[data-inbox]')) b.addEventListener('click', () => showInbox(b.dataset.inbox));
@@ -83,12 +100,15 @@ export async function render(panel, context) {
   try { staff = await loadPeople(); } catch { staff = []; }
   drawWrite();
   await refreshAll();
+  // Opening CARE Connect clears the red dot on the tab.
+  try { await markSeen(); } catch { /* not on Portal 058 yet */ }
+  window.dispatchEvent(new CustomEvent('connect-seen'));
 }
 
 async function refreshAll() {
   let visible = [];
   try { visible = await visibleMessages(); } catch { visible = []; }
-  await Promise.all([drawMine(visible), drawKudosQueue(), drawBoard()]);
+  await Promise.all([drawMine(visible), drawKudosQueue(), loadBoard()]);
   for (const t of myTeams()) drawTeam(t, visible.filter(t.match));
 }
 
@@ -114,17 +134,148 @@ function myTeams() {
 }
 
 // ---------------------------------------------------------------------------
-// Write a message
+// The CARE board: badge news + kudos, newest first, with reactions
 // ---------------------------------------------------------------------------
-function drawWrite() {
+let board = { kind: 'all', items: [], seen: null, more: false };
+
+async function loadBoard(older = false) {
+  const box = panelEl.querySelector('#od-board');
+  if (!box) return;
+  try {
+    const before = older && board.items.length ? board.items[board.items.length - 1].at : null;
+    const res = await boardFeed(board.kind, BOARD_PAGE, before);
+    const items = res?.items || [];
+    if (!older) board.seen = res?.seen_at || null;
+    board.items = older ? [...board.items, ...items] : items;
+    board.more = items.length === BOARD_PAGE;
+  } catch (e) {
+    if (!older) board.items = [];
+    board.error = e.message;
+  }
+  drawBoard();
+}
+
+function reactionsHtml(it) {
+  const r = it.reactions || {};
+  const me = myName();
+  const names = REACT.filter(([k]) => r[k]?.length).map(([k, e]) => `${e} ${r[k].join(', ')}`);
+  return `<div class="bd-react" role="group" aria-label="Reactions">
+    ${REACT.map(([k, e, label]) => {
+    const who = r[k] || [];
+    const mine = who.includes(me);
+    return `<button type="button" class="bd-r${mine ? ' on' : ''}${who.length ? '' : ' zero'}" data-react="${k}" aria-pressed="${mine}"
+      title="${esc(who.length ? `${label}: ${who.join(', ')}` : label)}"><span aria-hidden="true">${e}</span>${who.length ? `<span class="bd-n">${who.length}</span>` : ''}<span class="sr-only">${label}</span></button>`;
+  }).join('')}
+    ${names.length ? '<button type="button" class="link bd-who-btn" data-who>Who reacted</button>' : ''}
+  </div>
+  ${names.length ? `<p class="muted small bd-who" hidden>${names.map(esc).join(' · ')}</p>` : ''}`;
+}
+
+function boardItemHtml(it) {
+  const isNew = board.seen && Date.parse(it.at) > Date.parse(board.seen);
+  const newTag = isNew ? ' <span class="chip stage bd-new">New</span>' : '';
+  if (it.type === 'badge') {
+    const b = badgeInfo(it.key);
+    const mine = it.who_id === ctx.me.id;
+    return `<li class="bd-item" data-type="badge" data-id="${esc(it.id)}">
+      <img class="bd-art" src="${esc(b.img)}" alt="" width="56" height="56" loading="lazy">
+      <div class="bd-main">
+        <p class="bd-line"><strong>${mine ? 'You' : esc(it.who)}</strong> earned <strong>${esc(b.label)}</strong>${b.word ? ` · ${esc(b.word)}` : ''}${newTag}</p>
+        ${b.about ? `<p class="muted small">${esc(b.about)}</p>` : ''}
+        <p class="muted small">${it.given_by ? `Given by ${esc(it.given_by)} · ` : ''}${esc(ago(it.at))}</p>
+        ${reactionsHtml(it)}
+      </div>
+    </li>`;
+  }
+  return `<li class="bd-item bd-kudos" data-type="kudos" data-id="${esc(it.id)}">
+    ${it.sticker ? stickerImg(it.sticker, 'sticker bd-art') : `<span class="bd-art bd-icon">${icon('heart-handshake')}</span>`}
+    <div class="bd-main">
+      <p class="bd-line"><strong>Kudos</strong> to ${esc(it.to_name || 'everyone at CARE')}${newTag}</p>
+      <p class="kudos-text">“${esc(it.kudos)}”</p>
+      <p class="muted small">From ${esc(it.from_name || 'a teammate')} · ${esc(ago(it.at))}</p>
+      ${reactionsHtml(it)}
+    </div>
+  </li>`;
+}
+
+function drawBoard() {
+  const box = panelEl.querySelector('#od-board');
+  if (!box) return;
+  const empty = board.kind === 'kudos'
+    ? 'No kudos yet. Send a thank-you below and tick "Ask Admin to post this on the board".'
+    : board.kind === 'badge' ? 'No badge news yet. New badges will show up here.'
+      : 'Nothing on the board yet. New badges and kudos will show up here.';
+  box.innerHTML = `
+    <div class="bd-head">
+      <h2>${icon('sparkles')} CARE board</h2>
+      <div class="seg" role="tablist" aria-label="Show">
+        ${[['all', 'All'], ['badge', 'Badges'], ['kudos', 'Kudos']].map(([k, l]) =>
+    `<button type="button" role="tab" data-bk="${k}" aria-selected="${board.kind === k}">${l}</button>`).join('')}
+      </div>
+    </div>
+    ${board.error && !board.items.length ? `<p class="muted">The board isn't ready yet. ${esc(board.error)}</p>`
+    : board.items.length ? `<ul class="bd-list">${board.items.map(boardItemHtml).join('')}</ul>` : `<p class="muted">${empty}</p>`}
+    ${board.more ? '<p class="bd-more"><button type="button" data-older>Show older</button></p>' : ''}
+    <p class="credit">${ART_CREDIT}</p>`;
+  for (const b of box.querySelectorAll('[data-bk]')) {
+    b.addEventListener('click', () => { if (board.kind !== b.dataset.bk) { board.kind = b.dataset.bk; loadBoard(); } });
+  }
+  box.querySelector('[data-older]')?.addEventListener('click', (e) => { e.target.disabled = true; loadBoard(true); });
+  for (const li of box.querySelectorAll('.bd-item')) wireItem(li);
+}
+
+function wireItem(li) {
+  const it = board.items.find((x) => x.id === li.dataset.id && x.type === li.dataset.type);
+  if (!it) return;
+  for (const btn of li.querySelectorAll('[data-react]')) {
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      try {
+        it.reactions = await boardReact(it.type, it.id, btn.dataset.react);
+        const holder = li.querySelector('.bd-main');
+        for (const el of holder.querySelectorAll('.bd-react, .bd-who')) el.remove();
+        holder.insertAdjacentHTML('beforeend', reactionsHtml(it));
+        wireItem(li);
+      } catch (e) { alert(e.message); btn.disabled = false; }
+    });
+  }
+  li.querySelector('[data-who]')?.addEventListener('click', () => {
+    const w = li.querySelector('.bd-who');
+    if (w) w.hidden = !w.hidden;
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Share something (folded until you pick what it is)
+// ---------------------------------------------------------------------------
+let writeOpen = false;
+function drawWrite(kind = null) {
   const box = panelEl.querySelector('#od-write');
+  box.classList.toggle('open', !!kind);
+  writeOpen = !!kind;
+  if (!kind) {
+    box.innerHTML = `
+      <h2>Share something</h2>
+      <p class="muted small">An idea, a worry, a question, or a thank-you. Pick one to start.</p>
+      <div class="od-kinds">
+        ${WRITE_KINDS.map((k) => `<button type="button" data-start="${k}">${icon(KIND[k][1])}<span>${esc(KIND[k][0])}</span></button>`).join('')}
+      </div>`;
+    for (const b of box.querySelectorAll('[data-start]')) {
+      b.addEventListener('click', () => {
+        drawWrite(b.dataset.start);
+        box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        box.querySelector('textarea')?.focus({ preventScroll: true });
+      });
+    }
+    return;
+  }
   const others = staff.filter((p) => p.id !== ctx.me.id);
   box.innerHTML = `
-    <h2>Write a message</h2>
+    <div class="od-write-head"><h2>Share something</h2><button type="button" class="link" data-act="fold">Cancel</button></div>
     <form class="od-form">
       <fieldset class="pills"><legend>What is it?</legend>
-        ${Object.entries(KIND).map(([k, [label, ic]], i) => `
-          <label class="pill"><input type="radio" name="kind" value="${k}"${i === 0 ? ' checked' : ''}><span>${icon(ic)} ${esc(label)}</span></label>`).join('')}
+        ${WRITE_KINDS.map((k) => `
+          <label class="pill"><input type="radio" name="kind" value="${k}"${k === kind ? ' checked' : ''}><span>${icon(KIND[k][1])} ${esc(KIND[k][0])}</span></label>`).join('')}
       </fieldset>
       <label>Topic
         <select name="topic">${Object.entries(TOPIC).map(([k, l]) => `<option value="${k}"${k === 'other' ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
@@ -139,7 +290,7 @@ function drawWrite() {
         <textarea name="body" rows="6" maxlength="4000" required placeholder="Tell us what's on your mind."></textarea></label>
       <p class="muted small">Please don't write a child's name. Use the 3-letter case code (e.g. ABC) if you need to.</p>
       <label class="check kudos-box" data-kudos hidden><input type="checkbox" name="kudos">
-        <span><strong>Ask Admin to post this on the Kudos board</strong><br>
+        <span><strong>Ask Admin to post this on the CARE board</strong><br>
         <span class="muted small">An admin reads it first and may tidy the wording. Everyone at CARE can then see it.</span></span></label>
       <label class="kudos-to-field" data-kudosto hidden>Who is this kudos for? <span class="muted small">(optional)</span>
         <input name="kudosTo" maxlength="80" placeholder="e.g. Pao and Ploy, the Monday team. Leave empty for everyone at CARE"></label>
@@ -149,42 +300,39 @@ function drawWrite() {
       </fieldset>
       <label class="check anon-box"><input type="checkbox" name="anon">
         <span><strong>Send without my name</strong><br>
-        <span class="muted small" data-anonhint>Some things, like a travel fee or your own schedule, need your name so we can help. For anything else you can stay anonymous: nobody in the Portal (team, supervisors or admins) can see who sent it, and you'll see it with our reply in your Personal inbox on any device.</span></span></label>
+        <span class="muted small" data-anonhint></span></span></label>
       <p class="msg" role="status" hidden></p>
-      <p><button type="submit" class="primary">Send</button></p>
+      <p class="row-actions"><button type="button" data-act="fold">Cancel</button> <button type="submit" class="primary">Send</button></p>
     </form>`;
+  for (const b of box.querySelectorAll('[data-act="fold"]')) b.addEventListener('click', () => drawWrite(null));
   const form = box.querySelector('form');
   const msg = form.querySelector('.msg');
+  const ANON_HINT = 'Some things, like a travel fee or your own schedule, need your name so we can help. For anything else you can stay anonymous: nobody in the Portal (team, supervisors or admins) can see who sent it, and you\'ll see it with our reply in My inbox on any device.';
   const sync = () => {
-    const kind = form.kind.value;
-    // Problems always go to the Admin team.
-    for (const r of form.querySelectorAll('input[name="to"]')) {
-      r.disabled = kind === 'problem' && r.value !== 'admin';
-      if (r.disabled && r.checked) form.querySelector('input[name="to"][value="admin"]').checked = true;
-    }
+    const k = form.kind.value;
     const to = form.to.value;
     form.querySelector('[data-person]').hidden = to !== 'person';
-    form.querySelector('[data-tohint]').textContent = kind === 'problem'
-      ? 'Problems (facility, equipment, safety) go to the Admin team, who can fix them.'
-      : to === 'person' ? 'Only this person will see it. If it\'s a concern about someone, please send it to the Admin team instead.'
-        : to === 'senior' ? 'Goes to all senior therapists.' : '';
-    form.querySelector('[data-kudos]').hidden = kind !== 'thanks';
-    form.querySelector('[data-kudosto]').hidden = kind !== 'thanks' || !form.kudos.checked;
+    form.querySelector('[data-tohint]').textContent = to === 'person'
+      ? 'Only this person will see it. If it\'s a concern about someone, please send it to the Admin team instead.'
+      : to === 'senior' ? 'Goes to all senior therapists.'
+        : k === 'concern' && to !== 'admin' ? 'Something broken, or a safety problem? Send it to the Admin team so they can fix it.' : '';
+    form.querySelector('[data-kudos]').hidden = k !== 'thanks';
+    form.querySelector('[data-kudosto]').hidden = k !== 'thanks' || !form.kudos.checked;
     form.kudosTo.placeholder = to === 'person'
       ? 'e.g. Pao and Ploy. Leave empty to use the name of the person you chose'
       : 'e.g. Pao and Ploy, the Monday team. Leave empty for everyone at CARE';
-    form.querySelector('[data-stickers]').hidden = kind !== 'thanks';
-    if (kind !== 'thanks') {
+    form.querySelector('[data-stickers]').hidden = k !== 'thanks';
+    if (k !== 'thanks') {
       form.kudos.checked = false;
       form.querySelector('input[name="sticker"][value=""]').checked = true;
     }
     // To one person, anonymous is only for thank-yous.
-    const anonBlocked = to === 'person' && kind !== 'thanks';
+    const anonBlocked = to === 'person' && k !== 'thanks';
     form.anon.disabled = anonBlocked;
     if (anonBlocked) form.anon.checked = false;
     form.querySelector('[data-anonhint]').textContent = anonBlocked
       ? 'Messages to one person carry your name (anonymous is only for thank-yous). To raise something anonymously, send it to a team.'
-      : 'Some things, like a travel fee or your own schedule, need your name so we can help. For anything else you can stay anonymous: nobody in the Portal (team, supervisors or admins) can see who sent it, and you\'ll see it with our reply in your Personal inbox on any device.';
+      : ANON_HINT;
   };
   form.addEventListener('change', sync);
   sync();
@@ -203,60 +351,87 @@ function drawWrite() {
         anonymous: form.anon.checked, recipient: form.recipient.value, kudos: form.kudos.checked, kudosTo: form.kudosTo.value.trim(),
         sticker: form.kind.value === 'thanks' ? (form.sticker.value || null) : null,
       });
-      form.reset();
-      sync();
-      say(res && wasAnon
-        ? 'Sent without your name. It\'s in your Personal inbox, where only you can see it\'s yours.'
-        : 'Sent. Thank you for telling us.', 'ok');
+      drawWrite(null);
+      const done = document.createElement('p');
+      done.className = 'msg'; done.dataset.kind = 'ok'; done.setAttribute('role', 'status');
+      done.textContent = res && wasAnon
+        ? 'Sent without your name. It\'s in My inbox, where only you can see it\'s yours.'
+        : 'Sent. Thank you for telling us.';
+      box.append(done);
       await refreshAll();
     } catch (e) {
       say(e.message);
-    } finally {
       btn.disabled = false;
     }
   });
 }
 
 // ---------------------------------------------------------------------------
-// Lists
+// Inbox lists (one line per message)
 // ---------------------------------------------------------------------------
 function rowHtml(m, { mode = 'mine' } = {}) {
   const [kl, ki] = KIND[m.kind];
   const [sl, sc] = STATUS[m.status];
-  const from = mode === 'mine' ? '' : ` · <span class="muted">${m.anonymous ? 'Anonymous' : esc(nameOf(m.sender_id) || 'Staff')}</span>`;
-  const tag = mode === 'mine' ? '<span class="chip">Sent</span>' : mode === 'to-me' ? '<span class="chip stage">To you</span>' : '';
+  const who = mode === 'mine' ? `to ${toLabel(m)}`
+    : mode === 'to-me' ? `from ${m.anonymous ? 'someone (anonymous)' : (nameOf(m.sender_id) || 'Staff')}`
+      : `from ${m.anonymous ? 'Anonymous' : (nameOf(m.sender_id) || 'Staff')}`;
   const extra = [
-    m.anonymous && mode === 'mine' ? 'sent anonymously (only you can see it\'s yours)' : '',
-    m.kudos_status === 'requested' ? 'kudos board: waiting for Admin' : m.kudos_status === 'posted' ? 'on the Kudos board 🎉' : '',
-    mode === 'team' && m.forwarded_at ? 'passed on by the recipient' : '',
+    m.anonymous && mode === 'mine' ? 'anonymous' : '',
+    m.kudos_status === 'requested' ? 'board: waiting for Admin' : m.kudos_status === 'posted' ? 'on the board 🎉' : '',
+    mode === 'team' && m.forwarded_at ? 'passed on' : '',
     mode === 'team' && m.assigned_to ? `${nameOf(m.assigned_to) || 'someone'} is on it` : '',
   ].filter(Boolean).join(' · ');
-  return `<li class="od-row" data-open="${esc(m.id)}" data-viewer="${mode === 'mine' ? 'sender' : mode === 'to-me' ? 'recipient' : 'team'}" tabindex="0" role="button">
+  return `<li class="od-row od-compact" data-open="${esc(m.id)}" data-viewer="${mode === 'mine' ? 'sender' : mode === 'to-me' ? 'recipient' : 'team'}" tabindex="0" role="button">
     <span class="od-kind">${m.sticker ? stickerImg(m.sticker, 'sticker sm') : icon(ki)}</span>
     <span class="od-main">
-      <span class="od-title">${esc(kl)} · ${esc(TOPIC[m.topic])}${from}</span>
-      <span class="od-snip muted small">${esc(m.body.slice(0, 120))}${m.body.length > 120 ? '…' : ''}</span>
-      <span class="muted small">${esc(fmtDate(bkkDate(m.created_at)))} · to ${esc(toLabel(m))}${extra ? ` · ${esc(extra)}` : ''}</span>
+      <span class="od-snip"><strong>${esc(kl)}</strong> · ${esc(m.body.slice(0, 140))}</span>
+      <span class="muted small od-meta">${esc(fmtDate(bkkDate(m.created_at)))} · ${esc(who)}${extra ? ` · ${esc(extra)}` : ''}</span>
     </span>
     <span class="od-side">
-      ${tag}
+      ${mode === 'to-me' ? '<span class="chip stage">To you</span>' : ''}
+      ${mode === 'team' && waitingTooLong(m) ? `<span class="chip warn">Over ${REPLY_DAYS} days</span>` : ''}
       <span class="chip ${sc}">${esc(sl)}</span>
-      ${mode === 'team' && waitingTooLong(m) ? `<span class="chip warn">Over ${REPLY_DAYS} working days</span>` : ''}
     </span>
   </li>`;
 }
 
+// A list that shows the first few rows, then "Show all (N)".
+function shortList(rows, key) {
+  if (!rows.length) return '';
+  const open = expanded.has(key);
+  const shown = open ? rows : rows.slice(0, INBOX_SHOW);
+  return `<ul class="od-list">${shown.join('')}</ul>
+    ${rows.length > INBOX_SHOW ? `<p class="od-all"><button type="button" class="link" data-all="${key}">${open ? 'Show fewer' : `Show all (${rows.length})`}</button></p>` : ''}`;
+}
+const expanded = new Set();
+function wireShowAll(box, redraw) {
+  for (const b of box.querySelectorAll('[data-all]')) {
+    b.addEventListener('click', () => {
+      const k = b.dataset.all;
+      if (expanded.has(k)) expanded.delete(k); else expanded.add(k);
+      redraw();
+    });
+  }
+}
+
+let mineCache = null;
 async function drawMine(visible) {
   const box = panelEl.querySelector('#od-mine');
   let sent = [];
   try { sent = await myMessages(); } catch (e) { box.innerHTML = `<p class="error">${esc(e.message)}</p>`; return; }
   const toMeList = visible.filter(toMe);
-  const all = [...sent.map((m) => ({ m, mode: 'mine' })), ...toMeList.map((m) => ({ m, mode: 'to-me' }))]
+  mineCache = [...sent.map((m) => ({ m, mode: 'mine' })), ...toMeList.map((m) => ({ m, mode: 'to-me' }))]
     .sort((a, b) => String(b.m.created_at).localeCompare(String(a.m.created_at)));
+  paintMine();
+}
+function paintMine() {
+  const box = panelEl.querySelector('#od-mine');
+  const all = mineCache || [];
   box.innerHTML = `${myTeams().length ? '' : '<h2>My inbox</h2>'}
-    ${all.length ? `<ul class="od-list">${all.map((x) => rowHtml(x.m, { mode: x.mode })).join('')}</ul>`
-      : '<p class="muted">Messages you send, and messages sent to you personally, appear here with their replies.</p>'}`;
+    ${all.length ? shortList(all.map((x) => rowHtml(x.m, { mode: x.mode })), 'mine')
+    : '<p class="muted">Messages you send, and messages sent to you personally, show up here with their replies.</p>'}`;
   wireOpen(box, all.map((x) => x.m));
+  wireShowAll(box, paintMine);
 }
 
 const filters = {}; // per inbox: { status, kind }
@@ -266,25 +441,26 @@ function drawTeam(team, list) {
   const open = list.filter((m) => m.status !== 'resolved');
   const late = open.filter(waitingTooLong).length;
   const shown = list.filter((m) => (f.status === 'all' || (f.status === 'open' ? m.status !== 'resolved' : m.status === 'resolved'))
-    && (!f.kind || m.kind === f.kind));
+    && (!f.kind || sameKind(m.kind) === f.kind));
   const n = panelEl.querySelector(`[data-n="${team.key}"]`);
   if (n) n.innerHTML = open.length ? ` <span class="chip${late ? ' warn' : ''}">${open.length}</span>` : '';
   box.innerHTML = `
     <div class="page-head od-team-head">
       <p class="muted small">${open.length ? `${open.length} open` : 'Nothing open'}${late ? ` · <strong>${late} waiting over ${REPLY_DAYS} days</strong>` : ''}</p>
       <span class="spacer"></span>
-      <select data-f="kind" aria-label="Kind"><option value="">All kinds</option>${Object.entries(KIND).map(([k, [l]]) => `<option value="${k}"${f.kind === k ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>
+      <select data-f="kind" aria-label="Kind"><option value="">All kinds</option>${WRITE_KINDS.map((k) => `<option value="${k}"${f.kind === k ? ' selected' : ''}>${esc(KIND[k][0])}</option>`).join('')}</select>
       <select data-f="status" aria-label="Show">
         <option value="open"${f.status === 'open' ? ' selected' : ''}>Open</option>
         <option value="resolved"${f.status === 'resolved' ? ' selected' : ''}>Resolved</option>
         <option value="all"${f.status === 'all' ? ' selected' : ''}>All</option>
       </select>
     </div>
-    ${shown.length ? `<ul class="od-list">${shown.map((m) => rowHtml(m, { mode: 'team' })).join('')}</ul>` : '<p class="muted">Nothing here.</p>'}`;
+    ${shown.length ? shortList(shown.map((m) => rowHtml(m, { mode: 'team' })), `team-${team.key}`) : '<p class="muted">Nothing here.</p>'}`;
   for (const sel of box.querySelectorAll('select[data-f]')) {
     sel.addEventListener('change', () => { f[sel.dataset.f] = sel.value; drawTeam(team, list); });
   }
   wireOpen(box, list);
+  wireShowAll(box, () => drawTeam(team, list));
 }
 
 function wireOpen(box, list) {
@@ -377,16 +553,23 @@ async function openThread(m, viewer) {
 }
 
 // ---------------------------------------------------------------------------
-// Kudos: admin approval queue + the board
+// Kudos waiting for the board (Admin, Portal manager, Supervisors): a small bar
+// that opens the list.
 // ---------------------------------------------------------------------------
+let queueOpen = false;
 async function drawKudosQueue() {
   const box = panelEl.querySelector('#od-kudosq');
   if (!box) return;
   let list = [];
   try { list = await kudosRequests(); } catch { return; }
   box.hidden = !list.length;
-  if (!list.length) return;
-  box.innerHTML = `<h2>Kudos waiting for the board <span class="chip warn">${list.length}</span></h2>
+  if (!list.length) { queueOpen = false; return; }
+  box.innerHTML = `
+    <div class="kq-bar">
+      <span>${icon('heart-handshake')} <strong>Kudos waiting for the board</strong> <span class="chip warn">${list.length}</span></span>
+      <button type="button" data-toggle>${queueOpen ? 'Close' : 'Review'}</button>
+    </div>
+    <div class="kq-list"${queueOpen ? '' : ' hidden'}>
     <p class="muted small">Check who it’s for and tidy the wording if needed, then post it. Everyone at CARE will see it. Leave “To” empty for everyone at CARE.</p>
     ${list.map((k) => `
       <div class="kudos-q" data-k="${esc(k.id)}">
@@ -396,7 +579,13 @@ async function drawKudosQueue() {
         <div class="kudos-q-body">${stickerImg(k.sticker, 'sticker md')}<textarea rows="3" maxlength="600">${esc(k.body)}</textarea></div>
         <p class="row-actions"><button type="button" class="small-btn" data-no>Not for the board</button>
           <button type="button" class="small-btn primary" data-post>Post on the board</button></p>
-      </div>`).join('')}`;
+      </div>`).join('')}
+    </div>`;
+  box.querySelector('[data-toggle]').addEventListener('click', (e) => {
+    queueOpen = !queueOpen;
+    box.querySelector('.kq-list').hidden = !queueOpen;
+    e.target.textContent = queueOpen ? 'Close' : 'Review';
+  });
   for (const el of box.querySelectorAll('.kudos-q')) {
     const go = async (post) => {
       try { await kudosDecide(el.dataset.k, post, el.querySelector('textarea').value, el.querySelector('[data-to]').value.trim()); await refreshAll(); } catch (e) { alert(e.message); }
@@ -406,6 +595,7 @@ async function drawKudosQueue() {
   }
 }
 
+// Used by Home (latest kudos)
 export function kudosCardHtml(k) {
   return `<li class="kudos-card${k.sticker ? ' has-sticker' : ''}">
     ${stickerImg(k.sticker, 'sticker kudos-stk')}
@@ -413,15 +603,4 @@ export function kudosCardHtml(k) {
     <p class="kudos-text">“${esc(k.kudos)}”</p>
     <p class="muted small">From ${esc(k.from_name || 'a teammate')} · ${esc(fmtDate(bkkDate(k.posted_at)))}</p>
   </li>`;
-}
-
-async function drawBoard() {
-  const box = panelEl.querySelector('#od-board');
-  if (!box) return;
-  let list = [];
-  try { list = await kudosBoard(60); } catch { list = []; }
-  box.innerHTML = `<h2>${icon('heart-handshake')} Kudos board</h2>
-    ${list.length ? `<ul class="kudos-list">${list.map(kudosCardHtml).join('')}</ul>`
-      : '<p class="muted">No kudos yet. Send a thank-you and tick "Ask Admin to post this on the Kudos board".</p>'}
-    <p class="credit">${ART_CREDIT}</p>`;
 }

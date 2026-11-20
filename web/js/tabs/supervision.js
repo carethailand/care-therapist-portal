@@ -925,7 +925,7 @@ async function drawYearly() {
           <span class="muted small">Reflection: ${p.reflection === 'submitted' ? `submitted ${esc(whenText(p.submitted_at))}` : p.reflection === 'started' ? 'draft' : 'not started'}${p.rank !== 'office' ? ` · admin half 1 ${p.admin_h1 || 0}/${nSec} · half 2 ${p.admin_h2 || 0}/${nSec}` : ''}
             ${p.rank !== 'office' ? `<br>Clinical: ${p.final_total != null ? `final <b>${outOf(p.final_total)}</b>${p.ioa != null ? ` · IOA ${Number(p.ioa)}%` : ''}`
               : p.lead_id ? `lead ${esc(p.lead || '')} ${p.lead_done ? '✓' : '…'}${p.second_id ? ` · second ${esc(p.second || '')} ${p.second_done ? '✓' : '…'}` : ''}` : 'evaluators not assigned'}${myClin(p) ? ' · <b>waiting for you</b>' : ''}
-              · shown: mid ${p.release_mid_at ? '✓' : '—'} · year-end ${p.release_end_at ? '✓' : '—'}${p.signed_at ? ` · <b>signed ${esc(whenText(p.signed_at))}</b>` : ''}` : ''}</span>
+              · shown: check-in ${p.release_mid_at ? '✓' : '—'} · year-end ${p.release_end_at ? '✓' : '—'}${p.signed_at ? ` · <b>signed ${esc(whenText(p.signed_at))}</b>` : ''}` : ''}</span>
           ${p.rank !== 'office' ? chip(p[`admin_h${nowHalf()}`] || 0) : `<span class="chip ${p.reflection === 'submitted' ? 'ok' : ''}">${p.reflection === 'submitted' ? 'Reflection in' : '—'}</span>`}
         </button></li>`).join('')}` : '';
     }).join('') || '<li class="muted">Nobody here.</li>'}
@@ -953,9 +953,9 @@ async function yearlyPerson(p, tab = null) {
   const head = `<div class="sv-ph"><h2>${esc(nameOf(p))} · yearly review ${year}</h2>${p.rank !== 'office' ? `<button type="button" class="small-btn primary" data-report>${icon('file-text')} Year report</button>` : ''}</div>
     ${has('admin') ? `<label class="check small"><input type="checkbox" data-noyearly${p.no_yearly ? ' checked' : ''}> No yearly review for this person (e.g. not evaluated by anyone)</label>` : ''}
     ${p.rank !== 'office' && !p.no_yearly && (has('admin') || p.lead_id === ctx.me.id) ? `<div class="sv-release">
-      <span><b>Shown to ${esc(nameOf(p))}:</b> mid-year ${p.release_mid_at ? `✓ ${esc(whenText(p.release_mid_at))}` : 'hidden'} · year-end ${p.release_end_at ? `✓ ${esc(whenText(p.release_end_at))}` : 'hidden'}${p.signed_at ? ` · <b>signed ${esc(whenText(p.signed_at))}</b>` : ''}</span>
+      <span><b>Shown to ${esc(nameOf(p))}:</b> check-in ${p.release_mid_at ? `✓ ${esc(whenText(p.release_mid_at))}` : 'hidden'} · year-end ${p.release_end_at ? `✓ ${esc(whenText(p.release_end_at))}` : 'hidden'}${p.signed_at ? ` · <b>signed ${esc(whenText(p.signed_at))}</b>` : ''}</span>
       <span class="spacer"></span>
-      ${p.signed_at ? '' : `<button type="button" class="small-btn" data-rel="mid|${p.release_mid_at ? 0 : 1}">${p.release_mid_at ? 'Hide mid-year' : 'Show mid-year'}</button>
+      ${p.signed_at ? '' : `<button type="button" class="small-btn" data-rel="mid|${p.release_mid_at ? 0 : 1}">${p.release_mid_at ? 'Hide check-in' : 'Show check-in'}</button>
       <button type="button" class="small-btn ${p.release_end_at ? '' : 'primary'}" data-rel="end|${p.release_end_at ? 0 : 1}">${p.release_end_at ? 'Hide year-end' : 'Show year-end'}</button>`}</div>` : ''}
     <div class="seg" role="tablist" style="margin:6px 0 10px"><button type="button" role="tab" data-yt="reflection" aria-selected="${tab === 'reflection'}">Reflection</button>
       ${p.rank !== 'office' ? `<button type="button" role="tab" data-yt="admin" aria-selected="${tab === 'admin'}">Admin evaluation</button>
@@ -969,7 +969,7 @@ async function yearlyPerson(p, tab = null) {
     d.querySelector('[data-close]')?.addEventListener('click', closeDlg);
     d.querySelectorAll('[data-rel]').forEach((b) => b.addEventListener('click', async () => {
       const [which, on] = b.dataset.rel.split('|'); const show = on === '1';
-      if (show && !confirm(`Show the ${which === 'mid' ? 'mid-year' : 'year-end'} review to ${nameOf(p)} now? They'll see their ${which === 'mid' ? 'admin evaluation (half 1)' : 'clinical and admin scores and the final score, and can sign'}.`)) return;
+      if (show && !confirm(`Show the ${which === 'mid' ? 'check-in meeting' : 'year-end review'} to ${nameOf(p)} now? They'll see their ${which === 'mid' ? 'admin evaluation (half 1) and QCD so far' : 'clinical, admin and QCD scores and the final score, and can sign'}.`)) return;
       try { await api.release(p.id, year, which, show); p[`release_${which}_at`] = show ? new Date().toISOString() : null; drawYearly(); yearlyPerson(p, tab); }
       catch (err) { alert(err.message); }
     }));
@@ -1138,7 +1138,7 @@ async function clinicalTab(d, p, head, wire) {
   const assignBox = `<div class="sv-assign">
     <div><span class="muted small">Lead supervisor</span><b>${esc(g.lead || 'not assigned')}</b></div>
     <div><span class="muted small">Second supervisor</span><b>${esc(g.second || (g.lead ? 'none' : 'not assigned'))}</b></div>
-    <div><span class="muted small">Mid-year review</span><b>${esc(dtText(g.mid_review_at))}</b></div>
+    <div><span class="muted small">Check-in meeting</span><b>${esc(dtText(g.mid_review_at))}</b></div>
     <div><span class="muted small">Year-end review</span><b>${esc(dtText(g.end_review_at))}</b></div>
     ${has('admin') ? '<button type="button" class="small-btn" data-assign>Assign / change</button>' : ''}</div>`;
   // 2. reference: the year's QCD sessions + tally summary
@@ -1250,7 +1250,7 @@ async function clinicalTab(d, p, head, wire) {
     box.innerHTML = `<form class="sv-assignform">
       <label>Lead supervisor<select name="lead">${opt(g.lead_id)}</select></label>
       <label>Second supervisor<select name="second">${opt(g.second_id)}</select></label>
-      <label>Mid-year review<input type="datetime-local" name="mid" value="${esc(dtLocal(g.mid_review_at))}"></label>
+      <label>Check-in meeting<input type="datetime-local" name="mid" value="${esc(dtLocal(g.mid_review_at))}"></label>
       <label>Year-end review<input type="datetime-local" name="end" value="${esc(dtLocal(g.end_review_at))}"></label>
       <p class="muted small">The lead also runs the review meetings (with an admin). Dates can be added later.</p>
       <p class="row-actions"><span class="error small" data-amsg></span><span class="spacer"></span><button type="submit" class="small-btn primary">${icon('check')} Save</button></p></form>`;
@@ -1273,8 +1273,9 @@ async function reviewNumbers(rv) {
   const h1 = half(1); const h2 = half(2);
   const hr = mean([h1, h2].filter((x) => x != null));
   const clin = rv?.clinical?.total != null ? Number(rv.clinical.total) : null;
-  const fin = mean([clin, hr].filter((x) => x != null));
-  return { af, h1, h2, hr, clin, fin };
+  const q = rv?.qcd_avg != null ? Number(rv.qcd_avg) : null; const qn = Number(rv?.qcd_sessions || 0);
+  const fin = mean([clin, hr, q].filter((x) => x != null));   // final = average of Clinical, HR performance and QCD (Portal 059)
+  return { af, h1, h2, hr, clin, q, qn, fin };
 }
 
 async function reviewSteps(rv) {
@@ -1283,13 +1284,13 @@ async function reviewSteps(rv) {
   const when = (iso) => (iso ? new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '');
   return `
     <li class="${midShown ? 'done' : 'later'}"><span class="sv-step-dot">${midShown ? icon('check') : '2'}</span>
-      <span><strong>Mid-year review</strong><br><span class="muted small">${rv?.mid_review_at ? `Meeting ${esc(when(rv.mid_review_at))}${rv.lead ? ` with ${esc(rv.lead)} and an admin` : ''}` : 'A meeting with your lead supervisor and an admin; the date will appear here.'}
-        ${midShown ? `<br>Admin evaluation, half 1: <b>${outOf(n.h1)}</b>` : ''}</span></span>
+      <span><strong>Check-in meeting</strong><br><span class="muted small">${rv?.mid_review_at ? `Meeting ${esc(when(rv.mid_review_at))}${rv.lead ? ` with ${esc(rv.lead)} and an admin` : ''}` : 'A meeting with your lead supervisor and an admin to look at your QCD so far and your admin evaluation; the date will appear here.'}
+        ${midShown ? `<br>Admin evaluation, half 1: <b>${outOf(n.h1)}</b>${n.qn ? ` · QCD so far: <b>${outOf(n.q)}</b> (${n.qn} session${n.qn === 1 ? '' : 's'})` : ''}` : ''}</span></span>
       <span class="sv-step-side">${midShown ? '<button type="button" class="small-btn" data-myrev="mid">See details</button>' : '<span class="chip">Not shown yet</span>'}</span></li>
     <li class="${rv?.signed_at ? 'done' : endShown ? 'now' : 'later'}"><span class="sv-step-dot">${rv?.signed_at ? icon('check') : '3'}</span>
-      <span><strong>Year-end review</strong><br><span class="muted small">${rv?.end_review_at ? `Meeting ${esc(when(rv.end_review_at))}${rv.lead ? ` with ${esc(rv.lead)} and an admin` : ''}` : 'Your clinical checklist and admin evaluation, then you sign.'}</span>
+      <span><strong>Year-end review</strong><br><span class="muted small">${rv?.end_review_at ? `Meeting ${esc(when(rv.end_review_at))}${rv.lead ? ` with ${esc(rv.lead)} and an admin` : ''}` : 'Your clinical checklist, admin evaluation and QCD sessions, then you sign.'}</span>
         ${endShown ? `<span class="sv-final"><span><span class="muted small">Clinical</span><b>${outOf(n.clin)}</b></span><span><span class="muted small">HR performance</span><b>${outOf(n.hr)}</b></span>
-          <span class="sv-final-big"><span class="muted small">Final score</span><b>${outOf(n.fin)}</b></span></span>
+          <span><span class="muted small">QCD average</span><b>${outOf(n.q)}</b></span><span class="sv-final-big"><span class="muted small">Final score</span><b>${outOf(n.fin)}</b></span></span>
           ${rv.signed_at ? `<span class="small">Signed ${esc(whenText(rv.signed_at))}${rv.sign_comment ? ` · “${esc(rv.sign_comment)}”` : ''}</span>`
             : `<label class="small">Comment <span class="muted">(optional)</span><textarea data-signnote rows="2" maxlength="1500"></textarea></label>`}` : ''}</span>
       <span class="sv-step-side">${endShown ? `<button type="button" class="small-btn" data-myrev="end">See details</button><button type="button" class="small-btn" data-myreport>${icon('file-text')} Year report</button>${rv.signed_at ? '' : `<button type="button" class="small-btn primary" data-sign>${icon('check')} I agree, sign</button>`}` : '<span class="chip">Not shown yet</span>'}</span></li>`;
@@ -1314,9 +1315,10 @@ async function myReviewDialog(rv, which) {
       ${(yb.notes || []).map((x) => (rv.clinical.notes?.[x.key] ? `<p class="small"><strong>${esc(x.label)}:</strong> ${esc(rv.clinical.notes[x.key])}</p>` : '')).join('')}`;
   }
   const d = openDlg(`<div class="lh-form sv-read">
-    <h2>Your ${which === 'mid' ? 'mid-year' : 'year-end'} review ${year}</h2>
-    ${which === 'end' ? `<p>Final score <span class="sv-total">${outOf(n.fin)}</span> <span class="muted small">= average of Clinical (${fmtScore(n.clin)}) and HR performance (${fmtScore(n.hr)})</span></p>` : ''}
-    <p class="muted small">Scores 0–3. ${which === 'mid' ? 'Your QCD sessions are in My supervision too.' : ''}</p>
+    <h2>Your ${which === 'mid' ? 'check-in meeting' : 'year-end review'} ${year}</h2>
+    ${which === 'end' ? `<p>Final score <span class="sv-total">${outOf(n.fin)}</span> <span class="muted small">= average of Clinical (${fmtScore(n.clin)}), HR performance (${fmtScore(n.hr)}) and QCD (${fmtScore(n.q)})</span></p>`
+      : `<p>QCD so far <span class="sv-total">${outOf(n.q)}</span> <span class="muted small">${n.qn} session${n.qn === 1 ? '' : 's'} · for the talk at the check-in</span></p>`}
+    <p class="muted small">Scores 0–3. Your QCD sessions are in My supervision.</p>
     ${clin}${adminHalf(1)}${which === 'end' ? adminHalf(2) : ''}
     <div class="dlg-actions"><button type="button" data-close>Close</button></div></div>`, true);
   d.querySelector('[data-close]').addEventListener('click', closeDlg);
@@ -1350,14 +1352,14 @@ async function yearReportHtml(rp) {
       <footer class="yr-sign">${S.signed_at ? `<p><b>Signed by ${esc(S.name)}</b> on ${esc(dayText(S.signed_at))}${S.sign_comment ? ` · “${esc(S.sign_comment)}”` : ''}</p>` : '<p>Not signed.</p>'}</footer>
     </article>`;
   }
-  // numbers (same rule as the review: final = average of clinical and HR performance)
+  // numbers (same rule as the review: final = average of clinical, HR performance and QCD)
   const af = rp.admin?.length ? await api.form('admin_eval', rp.admin[0].form_version).catch(() => null) : null;
   const halfAvg = (h) => { const xs = rp.admin.filter((e) => e.half === h && e.average != null).map((e) => Number(e.average)); return xs.length ? mean(xs) : null; };
   const h1 = halfAvg(1); const h2 = halfAvg(2);
   const hr = mean([h1, h2].filter((x) => x != null));
   const clin = rp.clinical?.total != null ? Number(rp.clinical.total) : null;
-  const fin = mean([clin, hr].filter((x) => x != null));
   const qT = (rp.qcd || []).map((r) => r.total).filter((x) => x != null).map(Number);
+  const fin = mean([clin, hr, mean(qT)].filter((x) => x != null));   // Portal 059: QCD counts too
 
   // clinical checklist
   let clinHtml = '<p class="muted">The clinical checklist hasn’t been finalised yet.</p>';
@@ -1386,8 +1388,8 @@ async function yearReportHtml(rp) {
   return `<article class="yr">${head(fin)}
     <div class="yr-nums">${num('Clinical', clin, rp.clinical?.ioa != null ? `IOA ${Number(rp.clinical.ioa)}%` : '')}
       ${num('HR performance', hr, [h1 != null ? `half 1 ${fmtScore(h1)}` : '', h2 != null ? `half 2 ${fmtScore(h2)}` : ''].filter(Boolean).join(' · '))}
-      ${num('QCD average', mean(qT), `${rp.qcd.length} session${rp.qcd.length === 1 ? '' : 's'} · for reference`)}</div>
-    <p class="yr-note">Scores 0–3. Final score = average of Clinical and HR performance. QCD sessions are shown for the discussion.</p>
+      ${num('QCD average', mean(qT), `${rp.qcd.length} session${rp.qcd.length === 1 ? '' : 's'}`)}</div>
+    <p class="yr-note">Scores 0–3. Final score = average of Clinical, HR performance and QCD average.</p>
     <section class="yr-part"><h2>QCD sessions ${year}</h2>${rp.qcd.length ? await resultsHtml(rp.qcd) : '<p class="muted">No QCD sessions this year.</p>'}</section>
     <section class="yr-part yr-break"><h2>Clinical checklist <span class="sv-total">${outOf(clin)}</span></h2>${clinHtml}</section>
     <section class="yr-part"><h2>Admin evaluation <span class="sv-total">${outOf(hr)}</span></h2>${admHtml}</section>
