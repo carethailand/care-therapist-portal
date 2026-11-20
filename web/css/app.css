@@ -1825,3 +1825,9 @@ a.lh-tool:hover { border-color: var(--line-strong); background: var(--surface-ra
 @media (min-width: 1000px) { .tab-dot { box-shadow: 0 0 0 2px var(--surface); margin-left: auto; } }
 .od-pair .od-inboxes { grid-template-columns: minmax(0, 1fr); min-width: 0; }
 .od-pair .od-panel, .od-pair .od-list { min-width: 0; }
+
+/* Our Team: Give kudos / Give a badge side by side */
+.tm-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.tm-kudos-where { border: 0; padding: 0; margin: 4px 0; display: grid; gap: 8px; }
+.tm-kudos-where legend { font-weight: 600; margin-bottom: 4px; }
+#tm-kudos .sticker-pick { max-height: 220px; overflow-y: auto; }

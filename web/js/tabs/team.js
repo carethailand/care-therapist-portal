@@ -6,7 +6,8 @@ import { directory, photoUrls, badges as loadBadges, giveBadge, takeBackBadge } 
 import { GIVEN, givenImg } from '../milestones.js';
 import { esc } from '../ui.js';
 import { rankOf } from '../labels.js';
-import { ART_CREDIT } from '../stickers.js';
+import { ART_CREDIT, STICKERS, stickerSrc } from '../stickers.js';
+import { sendMessage } from '../connect-data.js';
 import { trees as loadTrees } from '../learning-data.js';
 import { cardHtml, wireAbout } from '../team-card.js';
 
@@ -43,9 +44,15 @@ export async function render(panel, ctx) {
   // Supervisors, QCD and admin can give hand-given badges (Portal 055); admin can take one back.
   const has = (...r) => (ctx.roles || []).some((x) => r.includes(x));
   const canGive = has('admin', 'manager', 'supervisor', 'qcd');
+  // Everyone at CARE (not applicants) can give anyone kudos: a thank-you message in CARE Connect.
+  const canKudos = ctx.me.track !== 'abat' && rankOf(ctx.roles) !== 'applicant';
   const card = (p) => {
     const isMe = p.id === ctx.me.id;
-    const give = !isMe && canGive && badgeOf[p.id] ? `<p class="tm-edit-link"><button type="button" class="small-btn" data-give="${esc(p.id)}">🎖️ Give a badge</button></p>` : '';
+    const btns = [
+      canKudos ? `<button type="button" class="small-btn" data-kudos="${esc(p.id)}">💌 Give kudos</button>` : '',
+      canGive && badgeOf[p.id] ? `<button type="button" class="small-btn" data-give="${esc(p.id)}">🎖️ Give a badge</button>` : '',
+    ].filter(Boolean).join(' ');
+    const give = !isMe && btns ? `<p class="tm-edit-link tm-actions">${btns}</p>` : '';
     return cardHtml(p, {
       url: p.photo_path && urls[p.photo_path], badge: badgeOf[p.id], tree: treeOf[p.id], isMe,
       edit: isMe ? '<p class="tm-edit-link"><a class="link" href="#/journey">Edit my card</a></p>' : give,
@@ -61,6 +68,54 @@ export async function render(panel, ctx) {
   }).join('') || '<p class="muted">Nobody to show yet.</p>';
   wireAbout(box);
   box.querySelectorAll('[data-give]').forEach((b) => b.addEventListener('click', () => giveDialog(people.find((p) => p.id === b.dataset.give))));
+  box.querySelectorAll('[data-kudos]').forEach((b) => b.addEventListener('click', () => kudosDialog(people.find((p) => p.id === b.dataset.kudos))));
+
+  // Give kudos = a thank-you in CARE Connect. "Just to them" → their inbox.
+  // "On the CARE board" → also asks Admin to post it (Admin checks it first).
+  function kudosDialog(p) {
+    const name = p.nickname || p.full_name;
+    let dlg = panel.querySelector('#tm-kudos');
+    if (!dlg) { dlg = document.createElement('dialog'); dlg.id = 'tm-kudos'; dlg.className = 'dlg'; panel.append(dlg); }
+    dlg.innerHTML = `<form class="lh-form od-form" method="dialog">
+      <h2>💌 Kudos for ${esc(name)}</h2>
+      <label>Your message
+        <textarea name="body" rows="5" maxlength="4000" required placeholder="Thank you for…"></textarea></label>
+      <p class="muted small">Please don't write a child's name. Use the 3-letter case code (e.g. ABC) if you need to.</p>
+      <fieldset class="tm-kudos-where"><legend>Who sees it?</legend>
+        <label class="check"><input type="radio" name="where" value="direct" checked>
+          <span><strong>Just ${esc(name)}</strong><br><span class="muted small">It goes to ${esc(name)}'s messages in CARE Connect.</span></span></label>
+        <label class="check"><input type="radio" name="where" value="board">
+          <span><strong>Everyone, on the CARE board</strong><br><span class="muted small">${esc(name)} gets it now. An admin reads it first (and may tidy the wording), then posts it on the board.</span></span></label>
+      </fieldset>
+      <fieldset class="sticker-pick"><legend>Add a sticker <span class="muted small">(optional)</span></legend>
+        <label class="stk none"><input type="radio" name="sticker" value="" checked><span>No sticker</span></label>
+        ${STICKERS.map((st) => `<label class="stk" title="${esc(st.label)}"><input type="radio" name="sticker" value="${esc(st.key)}"><img src="${stickerSrc(st.key)}" alt="${esc(st.label)}" width="256" height="256" loading="lazy"></label>`).join('')}
+      </fieldset>
+      <label class="check anon-box"><input type="checkbox" name="anon">
+        <span><strong>Send without my name</strong><br><span class="muted small">Nobody in the Portal can see who sent it. Kudos without a name don't count toward badges.</span></span></label>
+      <p class="msg" role="status" hidden></p>
+      <div class="dlg-actions"><button type="button" data-close>Cancel</button> <button type="submit" class="primary">Send kudos</button></div>
+    </form>`;
+    const form = dlg.querySelector('form'); const msg = form.querySelector('.msg');
+    const say = (t, k = 'error') => { msg.hidden = false; msg.dataset.kind = k; msg.textContent = t; };
+    dlg.querySelector('[data-close]').addEventListener('click', () => dlg.close());
+    form.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const body = form.body.value.trim();
+      if (!body) return say('Please write your message.');
+      const board = form.where.value === 'board';
+      const btn = form.querySelector('[type="submit"]'); btn.disabled = true;
+      try {
+        await sendMessage({ kind: 'thanks', topic: 'team', sendTo: 'person', recipient: p.id, body,
+          anonymous: form.anon.checked, kudos: board, kudosTo: '', sticker: form.sticker.value || null });
+        form.innerHTML = `<h2>💌 Sent!</h2><p>${board ? `${esc(name)} has your kudos. It goes on the CARE board once an admin has read it.` : `${esc(name)} will find your kudos in CARE Connect.`}</p>
+          <div class="dlg-actions"><button type="button" class="primary" data-close>Close</button></div>`;
+        form.querySelector('[data-close]').addEventListener('click', () => dlg.close());
+      } catch (e) { say(e.message); btn.disabled = false; }
+    });
+    if (!dlg.open) dlg.showModal();
+    form.body.focus();
+  }
 
   function giveDialog(p) {
     const held = badgeOf[p.id]?.gifts || {};
