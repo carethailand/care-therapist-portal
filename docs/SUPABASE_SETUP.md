@@ -678,3 +678,17 @@ Run `supabase/migrations/20261120005800_care_board.sql` after Step 57, then publ
 - The supervisor uses **Supervision → My supervision → My evaluations** to read it once it's shared and sign it. Signing means "seen", not "agree".
 - Other supervisors never see these. A draft is only seen by the evaluator. Evaluations aren't removed when a year is closed.
 - Running 062 again is safe (e.g. after an update to it).
+
+## Step 63 — Supervisor evaluation, part 2: due dates (added 2026-11-23)
+
+1. **Run** `supabase/migrations/20261123006300_supervisor_eval_due.sql` (after 062).
+2. **Run** the private file `Import 2026/2026 supervisor evaluation dates.sql` (kept outside GitHub). It adds evaluations done before the Portal. The last table shows each supervisor's next evaluation.
+3. **Publish** the app (Q24).
+
+- **Supervision → Team → Supervisor evaluations** shows each supervisor's next evaluation, its due date, and whether it's overdue, due soon (within 30 days) or on track. The title shows how many are overdue or due soon.
+- The rule:
+  - In the first year as a supervisor: a 6-month evaluation, then a 12-month one (counted from "supervisor since").
+  - After that: a mid-year check-in 6 months after the last 12-month or annual evaluation, then the annual evaluation 12 months after it. If the check-in was skipped and 10 months have passed, the annual comes next.
+- What counts as done: evaluations marked finished in the Portal, plus "past evaluations" typed in for dates before the Portal (date and type only).
+- Tap a supervisor's name to set **Supervisor since** and to add or remove past evaluations. The evaluator and Admin can do this.
+- A new evaluation starts with the type that's due.

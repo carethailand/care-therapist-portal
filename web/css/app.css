@@ -1918,3 +1918,14 @@ a.lh-tool:hover { border-color: var(--line-strong); background: var(--surface-ra
   #print-area .se-print-sign span { border-top: 1px solid #000; padding-top: 4px; font-size: 10pt; }
   #print-area .se-sign { display: none; }
 }
+/* Supervisor evaluation due dates (Portal 063) */
+.chip.se-late { background: var(--clay-soft); color: var(--error); border-color: transparent; }
+.se-due { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; flex-basis: 100%; }
+.se-sched { border: 1px solid var(--line); border-radius: 12px; padding: 4px 12px 10px; margin-bottom: 12px; background: var(--surface-raised); }
+.se-sched h3 { margin: 8px 0 2px; font-size: 1rem; }
+.se-sched h4 { margin: 10px 0 4px; font-size: .92rem; }
+.se-since { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: .9rem; }
+.se-past { list-style: none; margin: 0; padding: 0; }
+.se-past li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 4px 0; border-top: 1px solid var(--line); font-size: .92rem; }
+.se-past-add { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.se-since input, .se-past-add input, .se-past-add select { width: auto; flex: 0 1 auto; }

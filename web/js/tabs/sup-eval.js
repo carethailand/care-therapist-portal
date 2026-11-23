@@ -26,6 +26,10 @@ const api = {
   finish: (id, ready) => supa.rpc('sv_sup_finish', { p_id: id, p_ready: ready }).then(must),
   release: (id, show) => supa.rpc('sv_sup_release', { p_id: id, p_show: show }).then(must),
   remove: (id) => supa.rpc('sv_sup_delete', { p_id: id }).then(must),
+  schedule: () => supa.rpc('sv_sup_schedule_list').then(must).catch(() => []),   // [] until Portal 063 is run
+  setSince: (who, since) => supa.rpc('sv_sup_set_since', { p_who: who, p_since: since || null }).then(must),
+  pastAdd: (who, kind, on) => supa.rpc('sv_sup_past_add', { p_who: who, p_kind: kind, p_on: on }).then(must),
+  pastDelete: (id) => supa.rpc('sv_sup_past_delete', { p_id: id }).then(must),
   sign: (id, comment) => supa.rpc('sv_sup_sign', { p_id: id, p_comment: comment }).then(must),
 };
 
@@ -75,6 +79,19 @@ function calc(body, scores) {
 const bandOf = (body, v) => (v == null ? null : (body.bands || []).slice().sort((a, b) => b.min - a.min).find((b) => v >= b.min)?.label || null);
 const secOf = (list, key) => (list || []).find((s) => s.key === key);
 const isEv = () => env.role === 'evaluator';
+const daysTo = (iso) => Math.round((new Date(`${String(iso).slice(0, 10)}T00:00:00`) - new Date(`${todayLocal()}T00:00:00`)) / 86400000);
+// Next evaluation (Portal 063): "12-month · due 20 Nov 2026" + overdue / due soon / on track.
+function dueHtml(p) {
+  const due = p.sched?.due;
+  if (!due) return `<span class="muted small">Next: ${p.sched ? 'tap the name to add the start date or past evaluations' : '—'}</span>`;
+  const n = daysTo(due.due_on);
+  const busy = p.open && !p.open.ready_at;          // a draft is being written
+  const chip = busy ? '<span class="chip">In progress</span>'
+    : due.status === 'overdue' ? `<span class="chip se-late">Overdue ${-n} day${n === -1 ? '' : 's'}</span>`
+    : due.status === 'soon' ? `<span class="chip warn">Due in ${n} day${n === 1 ? '' : 's'}</span>`
+    : '<span class="chip ok">On track</span>';
+  return `<span class="se-due"><span class="muted small">Next: ${esc(KIND[due.kind])} · due ${esc(dayText(due.due_on))}</span> ${chip}</span>`;
+}
 const stateChip = (x) => (x.signed_at ? '<span class="chip ok">Signed</span>'
   : x.released_at ? '<span class="chip">Shared · not signed yet</span>'
   : x.ready_at ? '<span class="chip warn">Finished · not shared yet</span>'
@@ -122,17 +139,21 @@ function goalsHtml(review, readOnly) {
 export async function drawSupTeam(box, e) {
   env = e;
   box.innerHTML = '<p class="muted">Loading…</p>';
-  let list;
-  try { [list] = await Promise.all([api.people(), bodyOf()]); } catch (err) { box.innerHTML = `<section class="card"><p class="error">${esc(err.message)}</p></section>`; return; }
-  list = (list || []).slice().sort(byName);
+  let list; let sched;
+  try { [list, , sched] = await Promise.all([api.people(), bodyOf(), api.schedule()]); } catch (err) { box.innerHTML = `<section class="card"><p class="error">${esc(err.message)}</p></section>`; return; }
+  const sMap = new Map((sched || []).map((s) => [s.id, s]));
+  list = (list || []).map((p) => ({ ...p, sched: sMap.get(p.id) || null })).sort(byName);
+  const drafting = (p) => p.open && !p.open.ready_at;
+  const late = list.filter((p) => p.sched?.due?.status === 'overdue' && !drafting(p)).length;
+  const soon = list.filter((p) => p.sched?.due?.status === 'soon' && !drafting(p)).length;
   box.innerHTML = `<section class="card">
-    <h2>Supervisor evaluations <span class="chip">${list.length}</span></h2>
+    <h2>Supervisor evaluations <span class="chip">${list.length}</span>${late ? ` <span class="chip se-late">${late} overdue</span>` : ''}${soon ? ` <span class="chip warn">${soon} due soon</span>` : ''}</h2>
     <p class="muted small">${icon('lock')} ${isEv()
       ? 'Drafts are yours only. When you mark one finished, Admin can see it to set up the review meeting and print it; the supervisor sees it once it’s shared.'
       : 'Finished evaluations from the evaluator: set up the review meeting, print, and share each one with the supervisor. Other supervisors never see these.'} ${allItems(latest.body).length} items in ${latest.body.sections.length} areas, rated 1–5 or N/A.</p>
     ${list.length ? `<div class="se-people">${list.map((p) => `<div class="se-person">
-        <button type="button" class="se-name" data-hist="${esc(p.id)}"><b>${esc(nameOf(p))}</b><span class="muted small">${p.total} evaluation${p.total === 1 ? '' : 's'}</span></button>
-        <span class="se-last">${p.last ? `<span class="muted small">Last: ${esc(KIND[p.last.kind])} · ${esc(dayText(p.last.eval_on))}</span><b>${num(p.last.weighted)}</b> ${esc(p.last.band || '')} ${stateChip(p.last)}` : '<span class="muted small">No shared evaluation yet</span>'}</span>
+        <button type="button" class="se-name" data-hist="${esc(p.id)}"><b>${esc(nameOf(p))}</b><span class="muted small">${p.total} evaluation${p.total === 1 ? '' : 's'} · dates</span></button>
+        <span class="se-last">${p.last ? `<span class="muted small">Last: ${esc(KIND[p.last.kind])} · ${esc(dayText(p.last.eval_on))}</span><b>${num(p.last.weighted)}</b> ${esc(p.last.band || '')} ${stateChip(p.last)}` : '<span class="muted small">No shared evaluation yet</span>'}${dueHtml(p)}</span>
         <span class="se-act">${p.open ? `<button type="button" class="small-btn primary" data-open="${esc(p.open.id)}" data-who="${esc(p.id)}">${p.open.ready_at ? `Open ${esc(KIND[p.open.kind])}${isEv() ? ' (finished)' : ' · share'}` : `Continue ${esc(KIND[p.open.kind])}`}</button>`
           : isEv() ? `<button type="button" class="small-btn" data-new="${esc(p.id)}">${icon('plus')} New evaluation</button>`
           : p.last ? `<button type="button" class="small-btn" data-open="${esc(p.last.id)}" data-who="${esc(p.id)}">Open</button>` : ''}</span></div>`).join('')}</div>`
@@ -145,9 +166,21 @@ export async function drawSupTeam(box, e) {
 }
 
 async function historyDialog(p, box) {
-  let list;
-  try { list = await api.list(p.id); } catch (err) { alert(err.message); return; }
+  let list; let sched;
+  try { [list, sched] = await Promise.all([api.list(p.id), api.schedule()]); } catch (err) { alert(err.message); return; }
+  const s = (sched || []).find((x) => x.id === p.id) || null;
+  p = { ...p, sched: s };
   const d = env.openDlg(`<h2>${esc(nameOf(p))} · evaluations</h2>
+    ${s ? `<div class="se-sched">
+      <h3>Schedule</h3>
+      <p class="muted small">First year as a supervisor: 6-month and 12-month evaluations. After that: a mid-year check-in, then the annual evaluation.</p>
+      <p>${dueHtml(p)}</p>
+      <label class="se-since">Supervisor since <input type="date" data-since value="${esc(s.since || '')}"> <button type="button" class="small-btn" data-since-save>Save</button></label>
+      <h4>Past evaluations (before the Portal)</h4>
+      ${s.past.length ? `<ul class="se-past">${s.past.map((x) => `<li><span>${esc(KIND[x.kind])} · ${esc(dayText(x.eval_on))}</span><button type="button" class="small-btn" data-past-del="${esc(x.id)}" aria-label="Remove ${esc(KIND[x.kind])} ${esc(dayText(x.eval_on))}">Remove</button></li>`).join('')}</ul>` : '<p class="muted small">None added.</p>'}
+      <div class="se-past-add"><select data-past-kind aria-label="Type">${KINDS.map((k) => `<option value="${k}">${esc(KIND[k])}</option>`).join('')}</select>
+        <input type="date" data-past-on max="${esc(todayLocal())}" aria-label="Date"><button type="button" class="small-btn" data-past-add>${icon('plus')} Add</button></div>
+      <p class="error" data-smsg hidden></p></div><h3>In the Portal</h3>` : ''}
     ${list.length ? `<ul class="se-hist">${list.map((x) => `<li><button type="button" data-id="${esc(x.id)}">
         <span><b>${esc(KIND[x.kind])}</b> · ${esc(dayText(x.eval_on))}${x.period ? ` <span class="muted small">(${esc(x.period)})</span>` : ''}</span>
         <span>${x.weighted != null ? `<b>${num(x.weighted)}</b> ${esc(x.band || '')}` : ''}
@@ -157,6 +190,20 @@ async function historyDialog(p, box) {
   d.querySelector('[data-close]').addEventListener('click', env.closeDlg);
   d.querySelector('[data-new]')?.addEventListener('click', () => { env.closeDlg(); startNew(p, box); });
   d.querySelectorAll('[data-id]').forEach((b) => b.addEventListener('click', () => { env.closeDlg(); openEval(b.dataset.id, p, box); }));
+  const smsg = d.querySelector('[data-smsg]');
+  const run = async (fn) => {
+    try { await fn(); } catch (err) { smsg.textContent = err.message; smsg.hidden = false; return; }
+    await historyDialog(p, box); drawSupTeam(box, env);
+  };
+  d.querySelector('[data-since-save]')?.addEventListener('click', () => run(() => api.setSince(p.id, d.querySelector('[data-since]').value)));
+  d.querySelector('[data-past-add]')?.addEventListener('click', () => {
+    const on = d.querySelector('[data-past-on]').value;
+    if (!on) { smsg.textContent = 'Choose the date first.'; smsg.hidden = false; return; }
+    run(() => api.pastAdd(p.id, d.querySelector('[data-past-kind]').value, on));
+  });
+  d.querySelectorAll('[data-past-del]').forEach((b) => b.addEventListener('click', () => {
+    if (confirm('Remove this past evaluation date?')) run(() => api.pastDelete(b.dataset.pastDel));
+  }));
 }
 
 async function startNew(p, box) {
@@ -166,7 +213,7 @@ async function startNew(p, box) {
     const last = list.find((x) => x.released_at);
     if (last) prev = await api.get(last.id);
   } catch { /* no previous: fine */ }
-  const kind = !prev ? '6_month' : prev.kind === '6_month' ? '12_month' : 'annual';
+  const kind = p.sched?.due?.kind || (!prev ? '6_month' : prev.kind === '6_month' ? '12_month' : 'annual');
   const review = { prev_goals: (prev?.review?.new_goals || []).map((g) => ({ goal: g?.goal || '', outcome: '', comment: '' })), new_goals: [] };
   editor(p, { id: null, who: p.id, kind, eval_on: todayLocal(), period: '', scores: {}, notes: {}, review, released_at: null,
     previous: prev ? { ...prev, review: undefined } : null }, latest.body, box);
