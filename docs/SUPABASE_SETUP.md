@@ -663,3 +663,15 @@ Run `supabase/migrations/20261120005800_care_board.sql` after Step 57, then publ
 
 - **Assistant** (the robot with the headset): hand-given office badge, like Scheduler and Centre manager. Only Admin / the Portal manager can give it (Our Team → 🎖️ Give a badge).
 - Fix: Explorer and All set can now be chosen to show on your team card.
+
+## Step 62 — Supervisor evaluation, part 1 (added 2026-11-23)
+
+1. **Run** `supabase/migrations/20261123006200_supervisor_evaluation.sql` (after 061).
+2. **Run** the private file `Supervisor evaluator (setup).sql` (kept outside GitHub). It names the one person who scores supervisors. Its last line should show exactly one name.
+3. **Publish** the app (Q22).
+
+- The checklist has 103 items in 9 weighted areas, rated 1–5 or N/A, with an optional detail note for each item. There's also a summary, previous goals and new goals.
+- Scores are worked out in the database. An area's average counts rated items only. The weights are shared again over the areas that were rated. Bands: below 2 Does not meet, 2 Developing, 3 Meets, 3.5 Exceeds, 4.5 Exceptional.
+- The evaluator uses **Supervision → Team → Supervisor evaluations** to start or continue an evaluation and share it.
+- The supervisor uses **Supervision → My supervision → My evaluations** to read it once it's shared and sign it. Signing means "seen", not "agree".
+- Only the evaluator and the supervisor it's about can read an evaluation. Other supervisors, admin and the Portal manager can't. It isn't removed when a year is closed.

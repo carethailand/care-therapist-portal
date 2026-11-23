@@ -9,6 +9,7 @@ import { supa } from '../supabase.js';
 import { rankOf } from '../labels.js';
 import { esc, fmtDate, todayLocal, byName } from '../ui.js';
 import { icon } from '../icons.js';
+import { supRole, drawSupTeam, drawMySup } from './sup-eval.js';
 
 const must = ({ data, error }) => { if (error) throw new Error(error.message || String(error)); return data; };
 const api = {
@@ -65,6 +66,7 @@ const canEdit = () => has('admin', 'supervisor');
 // Yearly review: supervisors + admin / Portal manager read everyone's (not QCD).
 const yearlyTeam = () => has('admin', 'supervisor');
 let teamView = 'qcd';
+let supEval = null;              // 'evaluator' = scores supervisors (Portal 062)
 // Supervisors don't get QCD sessions, so they have no "My supervision" (yet).
 const myLevel = () => ({ therapist: 'junior', senior: 'senior', qcd: 'senior' })[rankOf(ctx.roles)] || null;
 const RANK_GROUPS = [['qcd', 'QCD'], ['senior', 'Senior'], ['therapist', 'Junior']];
@@ -95,6 +97,7 @@ export async function render(panel, context) {
     form = await api.form('qcd');
     if (!form) throw new Error('The QCD checklist isn’t set up yet (Portal 045).');
     versions.set(form.version, form.body);
+    supEval = await supRole();
   } catch (e) {
     panel.innerHTML = `<section class="card"><p class="error">Could not load Supervision: ${esc(e.message)}</p></section>`;
     return;
@@ -118,9 +121,10 @@ function draw() {
     <div data-pane="mine"${mine ? '' : ' hidden'}><div id="sv-mine"><p class="muted">Loading…</p></div></div>
     <div data-pane="team"${team ? '' : ' hidden'}>
       ${isTeam() && yearlyTeam() ? `<div class="seg sv-teamview" role="tablist" id="sv-teamview">
-        <button type="button" role="tab" data-tv="qcd">QCD sessions</button><button type="button" role="tab" data-tv="yearly">Yearly review</button></div>` : ''}
+        <button type="button" role="tab" data-tv="qcd">QCD sessions</button><button type="button" role="tab" data-tv="yearly">Yearly review</button>${supEval ? '<button type="button" role="tab" data-tv="supeval">Supervisor evaluations</button>' : ''}</div>` : ''}
       <div id="sv-team"${isTeam() ? '' : ' hidden'}><p class="muted">Loading…</p></div>
       <div id="sv-yearly" hidden></div>
+      <div id="sv-supeval" hidden></div>
     </div>
     <dialog id="sv-dlg" class="dlg"></dialog>`;
   panelEl.querySelector('#sv-year').addEventListener('change', (e) => { year = Number(e.target.value); draw(); });
@@ -138,13 +142,16 @@ function draw() {
   if (team) {
     if (!isTeam()) teamView = 'yearly';
     if (!yearlyTeam()) teamView = 'qcd';
+    if (teamView === 'supeval' && !supEval) teamView = 'qcd';
     const tv = panelEl.querySelector('#sv-teamview');
     const setTv = (v) => {
       teamView = v;
       tv?.querySelectorAll('[data-tv]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tv === v)));
       panelEl.querySelector('#sv-team').hidden = v !== 'qcd';
       panelEl.querySelector('#sv-yearly').hidden = v !== 'yearly';
+      panelEl.querySelector('#sv-supeval').hidden = v !== 'supeval';
       if (v === 'yearly') drawYearly();
+      if (v === 'supeval') drawSupTeam(panelEl.querySelector('#sv-supeval'), { panelEl, ctx, openDlg, closeDlg });
     };
     tv?.addEventListener('click', (e) => { const b = e.target.closest('[data-tv]'); if (b) setTv(b.dataset.tv); });
     if (isTeam()) drawTeam();
@@ -157,8 +164,9 @@ function draw() {
 // ---------------------------------------------------------------------------
 async function drawMine() {
   const box = panelEl.querySelector('#sv-mine');
-  box.innerHTML = '<div id="sv-myyear"></div><div id="sv-myqcd"></div>';
+  box.innerHTML = '<div id="sv-myyear"></div><div id="sv-mysup"></div><div id="sv-myqcd"></div>';
   drawMyYear();
+  if (has('supervisor') && !supEval) drawMySup(box.querySelector('#sv-mysup'), { panelEl, ctx, openDlg, closeDlg });
   if (!myLevel()) return;                  // supervisors / office staff: no QCD sessions
   const qbox = box.querySelector('#sv-myqcd');
   let list = [];
