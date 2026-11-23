@@ -27,8 +27,20 @@ export const ADMIN_SKILLS = [
   { key: 'adm_tools', label: 'Tools & Systems', short: 'Tools', color: '#80614C' },
   { key: 'adm_profession', label: 'Professionalism & Ethics', short: 'Ethics', color: '#B95E44' },
 ];
-export const skillsFor = (hub) => (hub === 'admin' ? ADMIN_SKILLS : SKILLS);
-export const skillLabel = (k) => [...SKILLS, ...ADMIN_SKILLS].find((s) => s.key === k)?.label || k;
+// Supervisors' hub (Portal 064): the 9 areas of the supervisor evaluation.
+export const SUP_SKILLS = [
+  { key: 'sup_prof', label: 'Professionalism & Ethics', short: 'Ethics', color: '#80614C' },
+  { key: 'sup_assess', label: 'Assessment & Planning', short: 'Planning', color: '#3B8FC4' },
+  { key: 'sup_behavior', label: 'Behavior Assessment', short: 'Behavior', color: '#B95E44' },
+  { key: 'sup_impl', label: 'Program Implementation', short: 'Programs', color: '#6F8A69' },
+  { key: 'sup_coach', label: 'Therapist Coaching', short: 'Coaching', color: '#C8901A' },
+  { key: 'sup_caregiver', label: 'Caregiver Collaboration', short: 'Caregivers', color: '#CF4F84' },
+  { key: 'sup_data', label: 'Data & Documentation', short: 'Data', color: '#4F8C86' },
+  { key: 'sup_lead', label: 'Leadership & Cases', short: 'Leadership', color: '#7A6BA8' },
+  { key: 'sup_admin', label: 'Admin & Compliance', short: 'Admin', color: '#8C8C3A' },
+];
+export const skillsFor = (hub) => (hub === 'admin' ? ADMIN_SKILLS : hub === 'supervisor' ? SUP_SKILLS : SKILLS);
+export const skillLabel = (k) => [...SKILLS, ...ADMIN_SKILLS, ...SUP_SKILLS].find((s) => s.key === k)?.label || k;
 
 export const STAGES = [
   { name: 'Seedling', at: 0, h: 110 },
@@ -186,13 +198,14 @@ export function fieldSvg(tree, { stage = null, label = '' } = {}) {
 // Small picture of one piece of art (for the choosers).
 export const artImg = (file, alt = '') => `<img src="${ART}${esc(file)}" alt="${esc(alt)}" loading="lazy">`;
 
-// Seven-sided skill wheel. skills = { key: points }.
+// Skill wheel (7 sides; 9 for supervisors). skills = { key: points }.
 export function wheelSvg(skills, hub = 'clinical') {
   const SKILLS = skillsFor(hub);
   const vals = SKILLS.map((s) => Number(skills?.[s.key] || 0));
   const max = Math.max(5, ...vals);
   const cx = 200, cy = 165, R = 100;
-  const pt = (i, r) => { const a = -Math.PI / 2 + (i * 2 * Math.PI) / 7; return [cx + r * Math.cos(a), cy + r * Math.sin(a)]; };
+  const n = SKILLS.length;
+  const pt = (i, r) => { const a = -Math.PI / 2 + (i * 2 * Math.PI) / n; return [cx + r * Math.cos(a), cy + r * Math.sin(a)]; };
   // Full skill names, wrapped onto short lines ("Safe Behavior / Management").
   const lines = (label) => label.split(' ').reduce((acc, w) => {
     const last = acc[acc.length - 1];

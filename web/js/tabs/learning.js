@@ -56,8 +56,10 @@ let manageHub = 'clinical';    // Manage topics: clinical or admin team topics (
 const isGM = () => ctx.roles.includes('manager');
 const officeOnly = () => !rankOf(ctx.roles) && ctx.roles.some((r) => OFFICE_ROLES.includes(r));
 const field = () => hub === 'admin';
-const hubOfSkill = (k) => (String(k).startsWith('adm_') ? 'admin' : 'clinical');
-const inHub = (t, h = hub) => hubOfSkill(t.skill) === h;
+const hubOfSkill = (k) => (String(k).startsWith('adm_') ? 'admin' : String(k).startsWith('sup_') ? 'supervisor' : 'clinical');
+// Supervisors have their own wheel (Portal 064) but study the therapist topics.
+const topicHub = () => (hub === 'supervisor' ? 'clinical' : hub);
+const inHub = (t, h = topicHub()) => hubOfSkill(t.skill) === h;
 const canEditTopic = (t) => isTeam() && (hubOfSkill(t.skill) === 'clinical' || isGM());
 // Experience leaves by clinical rank (the database gives them; this only explains it).
 const expLeaves = () => ({ senior: 100, qcd: 200, supervisor: 300 })[rankOf(ctx.roles)] || 0;
@@ -162,8 +164,9 @@ async function drawMe(body) {
   const pr = progress(me.points);
   const ST = stagesFor(hub);
   const st = ST[pr.stage];
-  const canInvest = me.balance >= LEAVES_PER_POINT;
-  const toUse = Math.floor(me.balance / LEAVES_PER_POINT);
+  const unplaced = me.unplaced || 0;             // points given back to place again (Portal 064)
+  const canInvest = me.balance >= LEAVES_PER_POINT || unplaced > 0;
+  const toUse = Math.floor(me.balance / LEAVES_PER_POINT) + unplaced;
   const fold = (key, title, extra, inner) => `<details class="card lh-fold" data-fold="${key}" ${openFolds.has(key) ? 'open' : ''}>
       <summary><h2>${title}</h2>${extra}<span class="lh-fold-ico">${icon('chevron-down')}</span></summary>${inner}</details>`;
   const nDone = done.length;
@@ -196,7 +199,7 @@ async function drawMe(body) {
         </div>
         <div class="lh-wheel-head"><h3 class="lh-h3">Self-reflection skill wheel</h3>
           <button type="button" class="small-btn" data-act="wheel" title="Add points or move them between skills">Edit my wheel</button></div>
-        <p class="small lh-toUse">${toUse ? `You have <strong>${toUse}</strong> skill point${toUse === 1 ? '' : 's'} left to use.` : '<span class="muted">No skill points left to use. Earn 10 leaves for the next one.</span>'}</p>
+        <p class="small lh-toUse">${toUse ? `You have <strong>${toUse}</strong> skill point${toUse === 1 ? '' : 's'} left to use.${unplaced ? ` ${unplaced} of them came back from your old wheel when you moved to the supervisor wheel: place them on the new areas.` : ''}` : '<span class="muted">No skill points left to use. Earn 10 leaves for the next one.</span>'}</p>
         ${wheelSvg(me.skills, hub)}
       </section>
     </div>
@@ -338,7 +341,7 @@ function toolsHtml() {
 }
 
 // Topic cards, grouped by the 7 areas. manage = edit mode for the team.
-function topicsHtml(manage = false, h = hub) {
+function topicsHtml(manage = false, h = topicHub()) {
   return skillsFor(h).map((s) => {
     const list = topics.filter((t) => t.skill === s.key && t.active);
     if (!list.length && !manage) return '';
@@ -426,7 +429,7 @@ function doneDialog(resId) {
 }
 
 function logDialog(preset = null) {
-  const opts = skillsFor(hub).map((s) => `<optgroup label="${esc(s.label)}">${topics.filter((t) => t.skill === s.key && t.active)
+  const opts = skillsFor(topicHub()).map((s) => `<optgroup label="${esc(s.label)}">${topics.filter((t) => t.skill === s.key && t.active)
     .map((t) => `<option value="${esc(t.code)}" ${t.code === preset ? 'selected' : ''}>${esc(t.title)}</option>`).join('')}</optgroup>`).join('');
   const d = openDlg(`<form class="lh-form" method="dialog">
     <h2>Log a study session</h2>
@@ -474,7 +477,7 @@ function editWheelDialog({ first = false } = {}) {
   const before = stageOf(me.points);
   const was = Object.fromEntries(SK.map((s) => [s.key, me.skills?.[s.key] ?? 0]));
   const pts = { ...was };
-  const can = Math.floor(me.balance / LEAVES_PER_POINT);   // new points available
+  const can = Math.floor(me.balance / LEAVES_PER_POINT) + (me.unplaced || 0);   // new points + points to place again
   const total = (o) => Object.values(o).reduce((a, b) => a + b, 0);
   const d = openDlg(`<div class="lh-form">
     <h2>${first ? 'Place your skill points' : 'Edit my wheel'}</h2>

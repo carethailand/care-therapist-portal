@@ -692,3 +692,14 @@ Run `supabase/migrations/20261120005800_care_board.sql` after Step 57, then publ
 - What counts as done: evaluations marked finished in the Portal, plus "past evaluations" typed in for dates before the Portal (date and type only).
 - Tap a supervisor's name to set **Supervisor since** and to add or remove past evaluations. The evaluator and Admin can do this.
 - A new evaluation starts with the type that's due.
+
+## Step 64 — Learning Hub for supervisors: 9 skills (added 2026-11-23)
+
+1. **Run** `supabase/migrations/20261123006400_supervisor_learning_hub.sql` (after 063).
+2. **Publish** the app (Q25).
+
+- Supervisors get their own self-reflection skill wheel with the 9 areas of the supervisor evaluation: Professionalism & Ethics, Assessment & Planning, Behavior Assessment, Program Implementation, Therapist Coaching, Caregiver Collaboration, Data & Documentation, Leadership & Cases, and Admin & Compliance.
+- They keep their tree and its stage, and they still study the therapist topics.
+- Points already placed on the old 7 skills come back as "points to place again". The total stays the same, so the tree doesn't shrink, and placing them again costs no leaves. "Use your skill points" shows how many are ready.
+- Anyone given the Supervisor role later is moved over the same way, automatically.
+- Therapists and the admin team are unchanged.
