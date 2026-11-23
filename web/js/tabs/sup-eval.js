@@ -1,10 +1,12 @@
 // Supervision → Supervisor evaluation (Portal 062).
-//   Team → Supervisor evaluations ... ONLY the evaluator: every supervisor, start / continue an
-//                                     evaluation, rate items 1–5 or N/A (optional detail per
-//                                     item), summary and goals, then share it.
+//   Team → Supervisor evaluations ... the evaluator: start / continue an evaluation, rate items
+//                                     1–5 or N/A (optional detail per item), summary and goals,
+//                                     then mark it finished.
+//                                     Admin: sees finished ones, sets up the review meeting,
+//                                     prints, and shares it with the supervisor.
 //   My supervision ................... a supervisor sees their own evaluations once shared,
 //                                     and signs to say they've seen it (not agreement).
-// Nobody else can read these (not other supervisors, admin or the Portal manager).
+// Other supervisors never see these.
 // The database works the scores out again; this page only shows a live preview.
 import { supa } from '../supabase.js';
 import { esc, todayLocal, byName } from '../ui.js';
@@ -21,6 +23,7 @@ const api = {
     p_id: s.id || null, p_who: s.who, p_kind: s.kind, p_on: s.eval_on, p_period: s.period || null,
     p_scores: s.scores, p_notes: s.notes, p_review: s.review,
   }).then(must),
+  finish: (id, ready) => supa.rpc('sv_sup_finish', { p_id: id, p_ready: ready }).then(must),
   release: (id, show) => supa.rpc('sv_sup_release', { p_id: id, p_show: show }).then(must),
   remove: (id) => supa.rpc('sv_sup_delete', { p_id: id }).then(must),
   sign: (id, comment) => supa.rpc('sv_sup_sign', { p_id: id, p_comment: comment }).then(must),
@@ -36,7 +39,7 @@ const REVIEW_TEXT = [
 ];
 const GOALS = 3;
 
-let env;                      // { panelEl, ctx, openDlg, closeDlg }
+let env;                      // { panelEl, ctx, openDlg, closeDlg, printReports, role }
 const bodies = new Map();
 let latest = null;
 
@@ -44,7 +47,7 @@ const dayText = (iso) => (iso ? new Date(`${String(iso).slice(0, 10)}T00:00:00`)
 const num = (v) => (v == null ? '—' : Number(v).toFixed(2));
 const nameOf = (p) => p.nickname || p.full_name;
 
-// 'evaluator' or null (also null when Portal 062 hasn't been run yet).
+// 'evaluator', 'admin' or null (also null when Portal 062 hasn't been run yet).
 export async function supRole() { try { return await api.role(); } catch { return null; } }
 
 async function bodyOf(version = null) {
@@ -71,6 +74,11 @@ function calc(body, scores) {
 }
 const bandOf = (body, v) => (v == null ? null : (body.bands || []).slice().sort((a, b) => b.min - a.min).find((b) => v >= b.min)?.label || null);
 const secOf = (list, key) => (list || []).find((s) => s.key === key);
+const isEv = () => env.role === 'evaluator';
+const stateChip = (x) => (x.signed_at ? '<span class="chip ok">Signed</span>'
+  : x.released_at ? '<span class="chip">Shared · not signed yet</span>'
+  : x.ready_at ? '<span class="chip warn">Finished · not shared yet</span>'
+  : '<span class="chip warn">Draft · only the evaluator</span>');
 
 // Score summary: weighted score, growth, and one bar per area (tick = last time).
 function resultHtml(body, cur, prev) {
@@ -119,12 +127,15 @@ export async function drawSupTeam(box, e) {
   list = (list || []).slice().sort(byName);
   box.innerHTML = `<section class="card">
     <h2>Supervisor evaluations <span class="chip">${list.length}</span></h2>
-    <p class="muted small">${icon('lock')} Only you and the supervisor can read these, and the supervisor only after you share it. ${allItems(latest.body).length} items in ${latest.body.sections.length} areas, rated 1–5 or N/A.</p>
+    <p class="muted small">${icon('lock')} ${isEv()
+      ? 'Drafts are yours only. When you mark one finished, Admin can see it to set up the review meeting and print it; the supervisor sees it once it’s shared.'
+      : 'Finished evaluations from the evaluator: set up the review meeting, print, and share each one with the supervisor. Other supervisors never see these.'} ${allItems(latest.body).length} items in ${latest.body.sections.length} areas, rated 1–5 or N/A.</p>
     ${list.length ? `<div class="se-people">${list.map((p) => `<div class="se-person">
         <button type="button" class="se-name" data-hist="${esc(p.id)}"><b>${esc(nameOf(p))}</b><span class="muted small">${p.total} evaluation${p.total === 1 ? '' : 's'}</span></button>
-        <span class="se-last">${p.last ? `<span class="muted small">Last: ${esc(KIND[p.last.kind])} · ${esc(dayText(p.last.eval_on))}</span><b>${num(p.last.weighted)}</b> ${esc(p.last.band || '')}${p.last.signed_at ? ` <span class="chip ok">Signed</span>` : ' <span class="chip">Not signed yet</span>'}` : '<span class="muted small">No shared evaluation yet</span>'}</span>
-        <span class="se-act">${p.open ? `<button type="button" class="small-btn primary" data-open="${esc(p.open.id)}" data-who="${esc(p.id)}">Continue ${esc(KIND[p.open.kind])}</button>`
-          : `<button type="button" class="small-btn" data-new="${esc(p.id)}">${icon('plus')} New evaluation</button>`}</span></div>`).join('')}</div>`
+        <span class="se-last">${p.last ? `<span class="muted small">Last: ${esc(KIND[p.last.kind])} · ${esc(dayText(p.last.eval_on))}</span><b>${num(p.last.weighted)}</b> ${esc(p.last.band || '')} ${stateChip(p.last)}` : '<span class="muted small">No shared evaluation yet</span>'}</span>
+        <span class="se-act">${p.open ? `<button type="button" class="small-btn primary" data-open="${esc(p.open.id)}" data-who="${esc(p.id)}">${p.open.ready_at ? `Open ${esc(KIND[p.open.kind])}${isEv() ? ' (finished)' : ' · share'}` : `Continue ${esc(KIND[p.open.kind])}`}</button>`
+          : isEv() ? `<button type="button" class="small-btn" data-new="${esc(p.id)}">${icon('plus')} New evaluation</button>`
+          : p.last ? `<button type="button" class="small-btn" data-open="${esc(p.last.id)}" data-who="${esc(p.id)}">Open</button>` : ''}</span></div>`).join('')}</div>`
       : '<p class="muted">No supervisors to evaluate.</p>'}
   </section>`;
   const byId = new Map(list.map((p) => [p.id, p]));
@@ -140,11 +151,11 @@ async function historyDialog(p, box) {
     ${list.length ? `<ul class="se-hist">${list.map((x) => `<li><button type="button" data-id="${esc(x.id)}">
         <span><b>${esc(KIND[x.kind])}</b> · ${esc(dayText(x.eval_on))}${x.period ? ` <span class="muted small">(${esc(x.period)})</span>` : ''}</span>
         <span>${x.weighted != null ? `<b>${num(x.weighted)}</b> ${esc(x.band || '')}` : ''}
-          ${x.signed_at ? '<span class="chip ok">Signed</span>' : x.released_at ? '<span class="chip">Shared</span>' : '<span class="chip warn">Draft · only you</span>'}</span></button></li>`).join('')}</ul>`
+          ${stateChip(x)}</span></button></li>`).join('')}</ul>`
       : '<p class="muted">No evaluations yet.</p>'}
-    <div class="dlg-actions"><button type="button" class="primary" data-new>${icon('plus')} New evaluation</button><button type="button" data-close>Close</button></div>`);
+    <div class="dlg-actions">${isEv() ? `<button type="button" class="primary" data-new>${icon('plus')} New evaluation</button>` : ''}<button type="button" data-close>Close</button></div>`);
   d.querySelector('[data-close]').addEventListener('click', env.closeDlg);
-  d.querySelector('[data-new]').addEventListener('click', () => { env.closeDlg(); startNew(p, box); });
+  d.querySelector('[data-new]')?.addEventListener('click', () => { env.closeDlg(); startNew(p, box); });
   d.querySelectorAll('[data-id]').forEach((b) => b.addEventListener('click', () => { env.closeDlg(); openEval(b.dataset.id, p, box); }));
 }
 
@@ -165,7 +176,7 @@ async function openEval(id, p, box) {
   let rec;
   try { rec = await api.get(id); } catch (err) { alert(err.message); return; }
   const body = await bodyOf(rec.form_version);
-  if (rec.released_at) viewer(rec, body, { evaluator: true, back: () => drawSupTeam(box, env), person: p, box });
+  if (rec.released_at || rec.ready_at || !isEv()) viewer(rec, body, { evaluator: true, back: () => drawSupTeam(box, env), person: p, box });
   else editor(p, { ...rec, who: p.id }, body, box);
 }
 
@@ -238,9 +249,9 @@ function editor(p, rec, body, box) {
     if (view === 'result') {
       const c = calc(body, st.scores);
       main.innerHTML = `<h3>Result</h3>${resultHtml(body, c, prev)}
-        <p class="muted small">Sharing lets ${esc(nameOf(p))} read it (scores, details, summary and goals) and sign to say they’ve seen it. You can hide it again until they sign.</p>
+        <p class="muted small">When it’s finished, Admin can see it to set up the review meeting and print it. Then you or Admin share it with ${esc(nameOf(p))}, who reads it and signs. You can reopen it to edit until it’s shared.</p>
         <p class="error" data-msg hidden></p>
-        <div class="dlg-actions"><button type="button" class="primary" data-share>Share with ${esc(nameOf(p))}</button>
+        <div class="dlg-actions"><button type="button" class="primary" data-share>${icon('check')} Mark as finished</button>
           ${st.id ? '<button type="button" class="se-del" data-del>Delete draft</button>' : ''}</div>`;
       return;
     }
@@ -290,12 +301,12 @@ function editor(p, rec, body, box) {
     if (e.target.closest('[data-share]')) {
       const c = calc(body, st.scores);
       const msg = main.querySelector('[data-msg]');
-      if (st.kind !== 'check_in' && c.weighted == null) { msg.textContent = 'Rate at least one item before sharing.'; msg.hidden = false; return; }
+      if (st.kind !== 'check_in' && c.weighted == null) { msg.textContent = 'Rate at least one item first.'; msg.hidden = false; return; }
       const rated = c.sections.reduce((a, x) => a + x.n, 0);
-      if (!confirm(`Share this ${KIND[st.kind]} evaluation with ${nameOf(p)}?${st.kind !== 'check_in' ? ` ${rated} of ${allItems(body).length} items rated, weighted score ${num(c.weighted)}.` : ''}`)) return;
+      if (!confirm(`Mark this ${KIND[st.kind]} evaluation of ${nameOf(p)} as finished?${st.kind !== 'check_in' ? ` ${rated} of ${allItems(body).length} items rated, weighted score ${num(c.weighted)}.` : ''} Admin can then see it.`)) return;
       dirty = true;
       if (!(await push())) return;
-      try { await api.release(st.id, true); } catch (err) { msg.textContent = err.message; msg.hidden = false; return; }
+      try { await api.finish(st.id, true); } catch (err) { msg.textContent = err.message; msg.hidden = false; return; }
       d.classList.remove('sv-full'); env.closeDlg(); drawSupTeam(box, env); return;
     }
     if (e.target.closest('[data-del]')) {
@@ -337,7 +348,10 @@ function viewer(rec, body, { evaluator = false, back, person, box } = {}) {
       <h2>${esc(evaluator ? nameOf(person) : 'Your')} ${esc(KIND[rec.kind])} evaluation · ${esc(dayText(rec.eval_on))}</h2>
       <span class="muted small">${rec.period ? `${esc(rec.period)} · ` : ''}by ${esc(rec.evaluator || '—')}</span>
       <span class="spacer"></span>
-      ${evaluator && !rec.signed_at ? '<button type="button" data-hide>Hide to edit</button>' : ''}
+      <button type="button" data-print>Print</button>
+      ${evaluator && isEv() && rec.ready_at && !rec.released_at ? '<button type="button" data-reopen>Reopen to edit</button>' : ''}
+      ${evaluator && rec.ready_at && !rec.released_at ? `<button type="button" class="primary" data-show>Share with ${esc(nameOf(person))}</button>` : ''}
+      ${evaluator && rec.released_at && !rec.signed_at ? `<button type="button" data-hide>Hide from ${esc(nameOf(person))}</button>` : ''}
       <button type="button" data-close>Close</button>
     </div>
     <div class="sv-live-main se-view">
@@ -350,7 +364,7 @@ function viewer(rec, body, { evaluator = false, back, person, box } = {}) {
       }).join('')}</ul>`).join('')}`}
       <div class="se-sign">
         ${rec.signed_at ? `<p>${icon('check')} Signed ${esc(dayText(rec.signed_at))}.${rec.sign_comment ? `<br><span class="muted small">Comment: ${esc(rec.sign_comment)}</span>` : ''}</p>`
-          : evaluator ? '<p class="muted">Not signed yet.</p>'
+          : evaluator ? `<p class="muted">${rec.released_at ? `Shared ${esc(dayText(rec.released_at))} · not signed yet.` : 'Not shared with the supervisor yet.'}</p>`
           : `<label class="sv-q"><span>Your comments (optional)</span><textarea rows="3" maxlength="2000" data-signnote></textarea></label>
              <p class="muted small">Signing says you’ve seen and discussed this evaluation. It doesn’t have to mean you agree.</p>
              <div class="dlg-actions"><button type="button" class="primary" data-sign>${icon('check')} Sign</button></div>`}
@@ -359,10 +373,30 @@ function viewer(rec, body, { evaluator = false, back, person, box } = {}) {
   d.classList.add('sv-full');
   const close = () => { d.classList.remove('sv-full'); env.closeDlg(); back?.(); };
   d.querySelector('[data-close]').addEventListener('click', close);
+  const again = () => { d.classList.remove('sv-full'); env.closeDlg(); openEval(rec.id, person, box); };
   d.querySelector('[data-hide]')?.addEventListener('click', async () => {
-    if (!confirm('Hide this evaluation from the supervisor so you can change it?')) return;
+    if (!confirm(`Hide this evaluation from ${nameOf(person)} again?`)) return;
     try { await api.release(rec.id, false); } catch (err) { alert(err.message); return; }
-    d.classList.remove('sv-full'); env.closeDlg(); openEval(rec.id, person, box);
+    again();
+  });
+  d.querySelector('[data-show]')?.addEventListener('click', async () => {
+    if (!confirm(`Share this evaluation with ${nameOf(person)}? They can read it and sign.`)) return;
+    try { await api.release(rec.id, true); } catch (err) { alert(err.message); return; }
+    again();
+  });
+  d.querySelector('[data-reopen]')?.addEventListener('click', async () => {
+    if (!confirm('Reopen this evaluation to edit it? Admin won’t see it until you mark it finished again.')) return;
+    try { await api.finish(rec.id, false); } catch (err) { alert(err.message); return; }
+    again();
+  });
+  d.querySelector('[data-print]').addEventListener('click', () => {
+    const who = evaluator ? nameOf(person) : (rec.name || '');
+    const html = `<article class="se-print"><h1>Supervisor evaluation · ${esc(who)}</h1>
+      <p>${esc(KIND[rec.kind])} · ${esc(dayText(rec.eval_on))}${rec.period ? ` · ${esc(rec.period)}` : ''} · evaluator ${esc(rec.evaluator || '—')}</p>
+      ${d.querySelector('.se-view').innerHTML.replace(/<textarea[\s\S]*?<\/textarea>/g, '').replace(/<button[\s\S]*?<\/button>/g, '')}
+      <div class="se-print-sign"><span>Supervisor signature</span><span>Evaluator signature</span><span>Review date</span></div>
+      <p class="muted small">Signing shows the review took place; it doesn’t have to mean agreement. CARE Therapist Portal · printed ${esc(dayText(new Date().toISOString()))}</p></article>`;
+    env.printReports(html, `Supervisor evaluation ${who} ${String(rec.eval_on).slice(0, 10)}`);
   });
   d.querySelector('[data-sign]')?.addEventListener('click', async () => {
     if (!confirm('Sign this evaluation to say you’ve seen it?')) return;

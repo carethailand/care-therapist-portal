@@ -668,10 +668,13 @@ Run `supabase/migrations/20261120005800_care_board.sql` after Step 57, then publ
 
 1. **Run** `supabase/migrations/20261123006200_supervisor_evaluation.sql` (after 061).
 2. **Run** the private file `Supervisor evaluator (setup).sql` (kept outside GitHub). It names the one person who scores supervisors. Its last line should show exactly one name.
-3. **Publish** the app (Q22).
+3. **Publish** the app (Q22, then Q23 for the Admin step).
 
 - The checklist has 103 items in 9 weighted areas, rated 1–5 or N/A, with an optional detail note for each item. There's also a summary, previous goals and new goals.
 - Scores are worked out in the database. An area's average counts rated items only. The weights are shared again over the areas that were rated. Bands: below 2 Does not meet, 2 Developing, 3 Meets, 3.5 Exceeds, 4.5 Exceptional.
-- The evaluator uses **Supervision → Team → Supervisor evaluations** to start or continue an evaluation and share it.
+- The steps are: draft → finished → shared → signed.
+- The evaluator uses **Supervision → Team → Supervisor evaluations** to start or continue an evaluation, then marks it **finished**. They can reopen it until it's shared.
+- **Admin** (the Admin role itself, not just Portal manager) sees every finished evaluation in the same place. They set up the review meeting, **Print** it (with signature lines), and **Share** it with the supervisor. Admin or the evaluator can hide it again until it's signed.
 - The supervisor uses **Supervision → My supervision → My evaluations** to read it once it's shared and sign it. Signing means "seen", not "agree".
-- Only the evaluator and the supervisor it's about can read an evaluation. Other supervisors, admin and the Portal manager can't. It isn't removed when a year is closed.
+- Other supervisors never see these. A draft is only seen by the evaluator. Evaluations aren't removed when a year is closed.
+- Running 062 again is safe (e.g. after an update to it).

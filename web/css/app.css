@@ -1909,3 +1909,12 @@ a.lh-tool:hover { border-color: var(--line-strong); background: var(--surface-ra
   .se-goals { grid-template-columns: 1fr; }
   .se-goals > .muted { display: none; }
 }
+@media print {
+  #print-area .se-print h1 { font-size: 18pt; margin: 0 0 4px; }
+  #print-area .se-track, #print-area .se-fill, #print-area .se-tick { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  #print-area .se-fill { background: #7A8B76 !important; }
+  #print-area .se-kpi, #print-area .se-bar, #print-area .sv-items li { break-inside: avoid; }
+  #print-area .se-print-sign { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 28px 0 8px; }
+  #print-area .se-print-sign span { border-top: 1px solid #000; padding-top: 4px; font-size: 10pt; }
+  #print-area .se-sign { display: none; }
+}

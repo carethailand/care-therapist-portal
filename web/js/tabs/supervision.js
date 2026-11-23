@@ -151,7 +151,7 @@ function draw() {
       panelEl.querySelector('#sv-yearly').hidden = v !== 'yearly';
       panelEl.querySelector('#sv-supeval').hidden = v !== 'supeval';
       if (v === 'yearly') drawYearly();
-      if (v === 'supeval') drawSupTeam(panelEl.querySelector('#sv-supeval'), { panelEl, ctx, openDlg, closeDlg });
+      if (v === 'supeval') drawSupTeam(panelEl.querySelector('#sv-supeval'), { panelEl, ctx, openDlg, closeDlg, printReports, role: supEval });
     };
     tv?.addEventListener('click', (e) => { const b = e.target.closest('[data-tv]'); if (b) setTv(b.dataset.tv); });
     if (isTeam()) drawTeam();
@@ -166,7 +166,7 @@ async function drawMine() {
   const box = panelEl.querySelector('#sv-mine');
   box.innerHTML = '<div id="sv-myyear"></div><div id="sv-mysup"></div><div id="sv-myqcd"></div>';
   drawMyYear();
-  if (has('supervisor') && !supEval) drawMySup(box.querySelector('#sv-mysup'), { panelEl, ctx, openDlg, closeDlg });
+  if (has('supervisor') && supEval !== 'evaluator') drawMySup(box.querySelector('#sv-mysup'), { panelEl, ctx, openDlg, closeDlg, printReports, role: null });
   if (!myLevel()) return;                  // supervisors / office staff: no QCD sessions
   const qbox = box.querySelector('#sv-myqcd');
   let list = [];
