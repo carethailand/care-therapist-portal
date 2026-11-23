@@ -2,10 +2,8 @@
 --
 -- Run AFTER 062. Works out each supervisor's NEXT evaluation and when it's due:
 --   First year as a supervisor ... 6-month, then 12-month (from "supervisor since").
---   After that ................... a mid-year check-in 6 months after the last 12-month /
---                                  annual, then the annual 12 months after it. (If the
---                                  check-in was skipped and 10 months have passed, the
---                                  annual is next.)
+--   After that ................... the annual evaluation, 12 months after the last 12-month /
+--                                  annual. (Supervisors have no mid-year check-in.)
 -- Counted as done: evaluations finished in the Portal, plus "past evaluations" typed in
 -- for dates before the Portal (date and type only, no scores).
 -- Status: overdue (date passed) · due soon (within 30 days) · on track.
@@ -44,7 +42,7 @@ create or replace function private.sv_sup_due(p_who uuid)
 returns jsonb language plpgsql stable security definer set search_path = ''
 as $$
 declare
-  v_since date; v_6 date; v_last date; v_ci date;
+  v_since date; v_6 date; v_last date;
   v_kind text; v_on date;
 begin
   select since into v_since from public.sv_sup_schedule where therapist_id = p_who;
@@ -64,16 +62,7 @@ begin
       v_kind := '12_month'; v_on := coalesce((v_since + interval '12 months')::date, (v_6 + interval '6 months')::date);
     end if;
   else
-    select max(eval_on) into v_ci from (
-      select kind, eval_on from public.sv_sup_evals where therapist_id = p_who and ready_at is not null
-      union all
-      select kind, eval_on from public.sv_sup_past where therapist_id = p_who) x
-     where x.kind = 'check_in' and x.eval_on > v_last;
-    if v_ci is null and current_date < (v_last + interval '10 months')::date then
-      v_kind := 'check_in'; v_on := (v_last + interval '6 months')::date;
-    else
-      v_kind := 'annual'; v_on := (v_last + interval '12 months')::date;
-    end if;
+    v_kind := 'annual'; v_on := (v_last + interval '12 months')::date;
   end if;
   return jsonb_build_object('kind', v_kind, 'due_on', v_on,
     'status', case when v_on < current_date then 'overdue' when v_on <= current_date + 30 then 'soon' else 'ok' end);

@@ -34,7 +34,7 @@ const api = {
 };
 
 export const KIND = { '6_month': '6-month', '12_month': '12-month', annual: 'Annual', check_in: 'Mid-year check-in', extra: 'Extra' };
-const KINDS = ['6_month', '12_month', 'annual', 'check_in', 'extra'];
+const KINDS = ['6_month', '12_month', 'annual', 'extra'];    // supervisors have no mid-year check-in
 const REVIEW_TEXT = [
   ['strengths', 'Overall strengths and evidence'],
   ['priorities', 'Priority areas for improvement'],
@@ -173,7 +173,7 @@ async function historyDialog(p, box) {
   const d = env.openDlg(`<h2>${esc(nameOf(p))} · evaluations</h2>
     ${s ? `<div class="se-sched">
       <h3>Schedule</h3>
-      <p class="muted small">First year as a supervisor: 6-month and 12-month evaluations. After that: a mid-year check-in, then the annual evaluation.</p>
+      <p class="muted small">First year as a supervisor: 6-month and 12-month evaluations. After that: one annual evaluation a year (no mid-year check-in).</p>
       <p>${dueHtml(p)}</p>
       <label class="se-since">Supervisor since <input type="date" data-since value="${esc(s.since || '')}"> <button type="button" class="small-btn" data-since-save>Save</button></label>
       <h4>Past evaluations (before the Portal)</h4>
@@ -242,7 +242,7 @@ function editor(p, rec, body, box) {
   const d = env.openDlg(`<div class="sv-live">
     <div class="sv-live-head">
       <h2>${esc(nameOf(p))} · supervisor evaluation</h2>
-      <label>Type<select data-f="kind">${KINDS.map((k) => `<option value="${k}"${k === st.kind ? ' selected' : ''}>${esc(KIND[k])}</option>`).join('')}</select></label>
+      <label>Type<select data-f="kind">${(st.kind === 'check_in' ? [...KINDS, 'check_in'] : KINDS).map((k) => `<option value="${k}"${k === st.kind ? ' selected' : ''}>${esc(KIND[k])}</option>`).join('')}</select></label>
       <label>Date<input type="date" data-f="eval_on" value="${esc(st.eval_on)}"></label>
       <label>Period (optional)<input type="text" data-f="period" maxlength="80" placeholder="Jan–Jun 2026" value="${esc(st.period)}"></label>
       <span class="spacer"></span>

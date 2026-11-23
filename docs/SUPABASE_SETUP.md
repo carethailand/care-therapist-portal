@@ -688,7 +688,7 @@ Run `supabase/migrations/20261120005800_care_board.sql` after Step 57, then publ
 - **Supervision → Team → Supervisor evaluations** shows each supervisor's next evaluation, its due date, and whether it's overdue, due soon (within 30 days) or on track. The title shows how many are overdue or due soon.
 - The rule:
   - In the first year as a supervisor: a 6-month evaluation, then a 12-month one (counted from "supervisor since").
-  - After that: a mid-year check-in 6 months after the last 12-month or annual evaluation, then the annual evaluation 12 months after it. If the check-in was skipped and 10 months have passed, the annual comes next.
+  - After that: one annual evaluation, 12 months after the last 12-month or annual evaluation. Supervisors have no mid-year check-in.
 - What counts as done: evaluations marked finished in the Portal, plus "past evaluations" typed in for dates before the Portal (date and type only).
 - Tap a supervisor's name to set **Supervisor since** and to add or remove past evaluations. The evaluator and Admin can do this.
 - A new evaluation starts with the type that's due.
