@@ -205,6 +205,7 @@ function drawBoard() {
     ? 'No kudos yet. Send a thank-you below and tick "Ask Admin to post this on the board".'
     : board.kind === 'badge' ? 'No badge news yet. New badges will show up here.'
       : 'Nothing on the board yet. New badges and kudos will show up here.';
+  const keep = box.querySelector('.bd-scroll')?.scrollTop || 0;   // stay in place after "Show older"
   box.innerHTML = `
     <div class="bd-head">
       <h2>${icon('sparkles')} CARE board</h2>
@@ -214,14 +215,15 @@ function drawBoard() {
       </div>
     </div>
     ${board.error && !board.items.length ? `<p class="muted">The board isn't ready yet. ${esc(board.error)}</p>`
-    : board.items.length ? `<ul class="bd-list">${board.items.map(boardItemHtml).join('')}</ul>` : `<p class="muted">${empty}</p>`}
-    ${board.more ? '<p class="bd-more"><button type="button" data-older>Show older</button></p>' : ''}
+    : board.items.length ? `<div class="bd-scroll" tabindex="0" aria-label="CARE board news"><ul class="bd-list">${board.items.map(boardItemHtml).join('')}</ul>
+      ${board.more ? '<p class="bd-more"><button type="button" data-older>Show older</button></p>' : ''}</div>` : `<p class="muted">${empty}</p>`}
     <p class="credit">${ART_CREDIT}</p>`;
   for (const b of box.querySelectorAll('[data-bk]')) {
     b.addEventListener('click', () => { if (board.kind !== b.dataset.bk) { board.kind = b.dataset.bk; loadBoard(); } });
   }
   box.querySelector('[data-older]')?.addEventListener('click', (e) => { e.target.disabled = true; loadBoard(true); });
   for (const li of box.querySelectorAll('.bd-item')) wireItem(li);
+  const sc = box.querySelector('.bd-scroll'); if (sc && keep) sc.scrollTop = keep;
 }
 
 function wireItem(li) {

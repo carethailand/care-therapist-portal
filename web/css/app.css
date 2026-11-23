@@ -1861,3 +1861,9 @@ a.lh-tool:hover { border-color: var(--line-strong); background: var(--surface-ra
   .tm-card { grid-template-columns: minmax(0, 1fr); }
   .tm-tree { justify-self: stretch; max-width: none; }
 }
+
+/* CARE board: news scrolls inside the card (Q20), so the page doesn't keep growing */
+.bd-scroll { max-height: min(620px, 68vh); overflow-y: auto; overscroll-behavior: contain; padding-right: 6px;
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+  padding-bottom: 24px; scrollbar-width: thin; }
+.bd-scroll:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 8px; }
