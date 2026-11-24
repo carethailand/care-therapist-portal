@@ -16,12 +16,13 @@ function friendly(error) {
 
 // ---------------------------------------------------------------------------
 // Days: 6-day staff count Monday–Saturday; 5-day staff (senior, QCD,
-// supervisor) count Monday–Friday. Sundays never count. Half day = 0.5.
+// supervisor) count Monday–Friday. Sundays never count. Half day = 0.5,
+// quarter day ('am_q' / 'pm_q' in the form) = 0.25.
 // ---------------------------------------------------------------------------
 export const FIVE_DAY_RANKS = ['senior', 'qcd', 'supervisor'];
 export function countDays(startIso, endIso, halfDay, fiveDayWeek = false) {
   if (!startIso || !endIso || endIso < startIso) return 0;
-  if (halfDay) return 0.5;
+  if (halfDay) return String(halfDay).endsWith('_q') ? 0.25 : 0.5;
   const [y1, m1, d1] = startIso.split('-').map(Number);
   const [y2, m2, d2] = endIso.split('-').map(Number);
   const end = new Date(y2, m2 - 1, d2);

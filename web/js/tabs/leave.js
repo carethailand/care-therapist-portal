@@ -34,7 +34,7 @@ const typeLabel = (code) => ref.types.find((t) => t.code === code)?.label ?? cod
 const kindLabel = (code) => ref.kinds.find((k) => k.code === code)?.label ?? code;
 const fmtDays = (n) => `${Number(n)} day${Number(n) === 1 ? '' : 's'}`;
 const range = (r) => (r.start_date === r.end_date
-  ? `${fmtDate(r.start_date)}${r.half_day ? ` (${r.half_day === 'am' ? 'morning' : 'afternoon'})` : ''}`
+  ? `${fmtDate(r.start_date)}${r.half_day ? ` (${r.half_day === 'am' ? 'morning' : 'afternoon'}${Number(r.days) === 0.25 ? ', quarter day' : ''})` : ''}`
   : `${fmtDate(r.start_date)} – ${fmtDate(r.end_date)}`);
 
 export async function render(panel, context) {
@@ -241,9 +241,10 @@ function requestDialog(bal, editing = null) {
         <label>Last day <input name="end" type="date" required value="${today}"></label>
       </div>
       <div class="grid2">
-        <label data-half>Half day?
-          <select name="half"><option value="">Full day</option><option value="am">Morning only</option><option value="pm">Afternoon only</option></select></label>
-        <label>Number of leave days <input name="days" type="number" min="0.5" step="0.5" required></label>
+        <label data-half>Part of the day?
+          <select name="half"><option value="">Full day</option><option value="am">Morning only (½ day)</option><option value="pm">Afternoon only (½ day)</option>
+            <option value="am_q">Morning, quarter day (¼)</option><option value="pm_q">Afternoon, quarter day (¼)</option></select></label>
+        <label>Number of leave days <input name="days" type="number" min="0.25" step="0.25" required></label>
       </div>
       <p class="muted small">${fiveDay
         ? 'Counted Monday to Friday (your 5-day week). If you were scheduled on a Saturday inside these dates, add it. Change the number for public holidays too.'
@@ -321,8 +322,8 @@ function requestDialog(bal, editing = null) {
   if (editing) {                                         // fill the form with the request being changed
     form.type.value = editing.type; if (editing.kind) form.kind.value = editing.kind;
     form.reason.value = editing.reason || ''; form.start.value = editing.start_date; form.end.value = editing.end_date;
-    form.half.value = editing.half_day || ''; form.days.value = Number(editing.days);
-    daysTouched = Number(editing.days) !== countDays(editing.start_date, editing.end_date, editing.half_day || '', fiveDay);   // keep a number they typed
+    form.half.value = editing.half_day ? `${editing.half_day}${Number(editing.days) === 0.25 ? '_q' : ''}` : ''; form.days.value = Number(editing.days);
+    daysTouched = Number(editing.days) !== countDays(editing.start_date, editing.end_date, form.half.value, fiveDay);   // keep a number they typed
     for (const s of editing.sessions || []) addSession(s);
   }
   form.querySelector('[data-act="cancel"]').addEventListener('click', () => dlg.close());
@@ -342,7 +343,7 @@ function requestDialog(bal, editing = null) {
       const req = {
         therapist_id: ctx.me.id, type: t.code, kind: t.needs_kind ? form.kind.value : null,
         reason: form.reason.value.trim() || null, start_date: form.start.value, end_date: form.end.value,
-        half_day: form.half.value || null, days: Number(form.days.value),
+        half_day: form.half.value.replace('_q', '') || null, days: Number(form.days.value),   // am / pm; ¼ or ½ is in days
       };
       if (editing) await editLeave(editing.id, req, sessions);
       else await submitLeave(req, sessions);

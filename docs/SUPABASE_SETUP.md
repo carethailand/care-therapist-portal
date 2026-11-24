@@ -703,3 +703,12 @@ Run `supabase/migrations/20261120005800_care_board.sql` after Step 57, then publ
 - Points already placed on the old 7 skills come back as "points to place again". The total stays the same, so the tree doesn't shrink, and placing them again costs no leaves. "Use your skill points" shows how many are ready.
 - Anyone given the Supervisor role later is moved over the same way, automatically.
 - Therapists and the admin team are unchanged.
+
+## Step 65 — Leave: quarter days + Emergency leave (added 2026-11-24)
+
+1. **Run** `supabase/migrations/20261124006500_leave_quarter_day.sql` (after 064).
+2. **Publish** the app (Q26).
+
+- Leave can now be a **quarter day** (0.25, about 2 hours), e.g. an afternoon doctor visit. In the leave form, "Part of the day?" offers Morning or Afternoon, as a ½ day or a ¼ day. Days can be typed in steps of 0.25.
+- New Other-leave kind: **Emergency / natural disaster** (e.g. flooding), up to 7 days a year.
+- The one-time 2026 leave import (private file) needs this step first.
