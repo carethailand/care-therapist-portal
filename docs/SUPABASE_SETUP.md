@@ -712,3 +712,15 @@ Run `supabase/migrations/20261120005800_care_board.sql` after Step 57, then publ
 - Leave can now be a **quarter day** (0.25, about 2 hours), e.g. an afternoon doctor visit. In the leave form, "Part of the day?" offers Morning or Afternoon, as a ½ day or a ¼ day. Days can be typed in steps of 0.25.
 - New Other-leave kind: **Emergency / natural disaster** (e.g. flooding), up to 7 days a year.
 - The one-time 2026 leave import (private file) needs this step first.
+
+## Step 66 — Leave: ask to change approved leave (added 2026-11-24)
+
+1. **Run** `supabase/migrations/20261124006600_leave_change_request.sql` (after 065).
+2. **Publish** the app (Q27).
+
+- An approved leave that hasn't ended now has **Ask to change** next to **Ask to cancel**. The person edits it (type, dates, part of the day, days, reason, sessions) and sends the change to Admin / HR.
+- Until Admin / HR decide, the leave stays approved exactly as it was. The person can **Withdraw change** while it's waiting.
+- Admin / HR see the new details under **Team requests** (filter "Change / cancel requests"):
+  - **Approve change:** the leave is updated. Sessions still on the list keep their cover or make-up, and new sessions need arranging. If the dates or sessions changed, "families notified" is cleared.
+  - **Keep as it was:** nothing changes, and the person sees the note.
+- Only one request at a time per leave: a change or a cancel. Slack's admin channel gets "Change request".

@@ -2,7 +2,7 @@
 // the request inbox (approve / decline, families notified) and each person's
 // annual leave allowance. Children appear only as case codes (e.g. "ABC").
 import {
-  loadLeaveRef, loadMyLeave, submitLeave, editLeave, cancelLeave, requestCancel, withdrawCancel, decideCancel, staffPicklist, countDays, daysUntil, FIVE_DAY_RANKS,
+  loadLeaveRef, loadMyLeave, submitLeave, editLeave, cancelLeave, requestCancel, withdrawCancel, decideCancel, requestChange, withdrawChange, decideChange, staffPicklist, countDays, daysUntil, FIVE_DAY_RANKS,
   loadTeamLeave, decideLeave, markNotified, saveEntitlement, arrangeSession,
 } from '../leave-data.js';
 import { listStaff } from '../data.js';
@@ -169,6 +169,15 @@ async function drawMine() {
       try { await requestCancel(b.dataset.askcancel, reason); await drawMine(); if (isLeaveTeam()) await drawTeam(); } catch (e) { alert(e.message); }
     });
   }
+  for (const b of box.querySelectorAll('[data-askchange]')) {
+    b.addEventListener('click', () => requestDialog(bal, mine.requests.find((r) => r.id === b.dataset.askchange), 'change'));
+  }
+  for (const b of box.querySelectorAll('[data-withdrawchange]')) {
+    b.addEventListener('click', async () => {
+      if (!confirm('Withdraw your change request? Your leave stays as it was approved.')) return;
+      try { await withdrawChange(b.dataset.withdrawchange); await drawMine(); if (isLeaveTeam()) await drawTeam(); } catch (e) { alert(e.message); }
+    });
+  }
   for (const b of box.querySelectorAll('[data-withdraw]')) {
     b.addEventListener('click', async () => {
       if (!confirm('Withdraw your cancel request and keep this leave?')) return;
@@ -202,6 +211,10 @@ function requestRow(r, { mine = false, people = picklist, team = false } = {}) {
       ${r.decision_note ? `<p class="small">HR note: ${esc(r.decision_note)}</p>` : ''}
       ${r.status === 'approved' && r.cancel_requested_at ? `<p class="small lv-cancelreq">🙋 ${mine ? 'You asked' : 'Asked'} to cancel ${esc(fmtDate(String(r.cancel_requested_at).slice(0, 10)))}${r.cancel_reason ? `: “${esc(r.cancel_reason)}”` : ''}</p>` : ''}
       ${r.cancel_note ? `<p class="small">${r.status === 'cancelled' ? 'Cancel approved' : 'Leave kept'}: ${esc(r.cancel_note)}</p>` : ''}
+      ${r.status === 'approved' && r.change_requested_at && r.change ? `<div class="small lv-cancelreq">✏️ ${mine ? 'You asked' : 'Asked'} to change it ${esc(fmtDate(String(r.change_requested_at).slice(0, 10)))} to:
+        <strong>${esc(r.change.type)} ${esc(r.change.type === 'OL' ? kindLabel(r.change.kind) : typeLabel(r.change.type))} · ${esc(fmtDays(r.change.days))}</strong> · ${esc(range(r.change))}${r.change.reason ? ` · ${esc(r.change.reason)}` : ''}
+        ${r.change.sessions?.length ? `<br>Sessions: ${r.change.sessions.map((s) => `${esc(s.case_code)} ${esc(fmtDate(s.session_date))}${s.session_time ? ` ${esc(s.session_time)}` : ''}`).join(' · ')}` : ''}</div>` : ''}
+      ${r.change_ok != null && r.change_note ? `<p class="small">${r.change_ok ? 'Change approved' : 'Change not approved'}: ${esc(r.change_note)}</p>` : ''}
       ${r.status === 'approved' ? `<p class="small muted">Approved ${esc(fmtDate(String(r.decided_at).slice(0, 10)))}${nameOf(people, r.decided_by) ? ` by ${esc(nameOf(people, r.decided_by))}` : ''}${r.families_notified_on ? ` · families notified ${esc(fmtDate(r.families_notified_on))}` : r.sessions?.length ? ' · families not yet notified' : ''}</p>` : ''}
     </div>
     <div class="lv-side">
@@ -210,7 +223,8 @@ function requestRow(r, { mine = false, people = picklist, team = false } = {}) {
         ? (r.families_notified_on ? '<span class="chip ok">Families notified ✓</span>' : '<span class="chip warn">Families: to notify</span>') : ''}
       ${mine && r.status === 'pending' ? `<button type="button" class="small-btn" data-editreq="${esc(r.id)}">Edit</button><button type="button" class="small-btn" data-cancel="${esc(r.id)}">Cancel</button>` : ''}
       ${mine && r.status === 'approved' && r.cancel_requested_at ? `<span class="chip warn">Cancel requested</span><button type="button" class="link small" data-withdraw="${esc(r.id)}">Keep my leave</button>` : ''}
-      ${mine && r.status === 'approved' && !r.cancel_requested_at && r.end_date >= todayLocal() ? `<button type="button" class="small-btn" data-askcancel="${esc(r.id)}">Ask to cancel</button>` : ''}
+      ${mine && r.status === 'approved' && r.change_requested_at ? `<span class="chip warn">Change requested</span><button type="button" class="link small" data-withdrawchange="${esc(r.id)}">Withdraw change</button>` : ''}
+      ${mine && r.status === 'approved' && !r.cancel_requested_at && !r.change_requested_at && r.end_date >= todayLocal() ? `<button type="button" class="small-btn" data-askchange="${esc(r.id)}">Ask to change</button><button type="button" class="small-btn" data-askcancel="${esc(r.id)}">Ask to cancel</button>` : ''}
       ${team ? teamActions(r) : ''}
     </div>
   </li>`;
@@ -220,14 +234,17 @@ function requestRow(r, { mine = false, people = picklist, team = false } = {}) {
 // Request form
 // ---------------------------------------------------------------------------
 // editing = a pending request to change (Portal 057), or nothing for a new one.
-function requestDialog(bal, editing = null) {
+// mode 'change' = an approved leave: the change goes to Admin / HR to approve (Portal 066).
+function requestDialog(bal, editing = null, mode = 'edit') {
+  const asking = !!editing && mode === 'change';
   const dlg = panelEl.querySelector('#lv-dlg');
   const fiveDay = FIVE_DAY_RANKS.includes(rankOf(ctx.roles));
   const today = todayLocal();
   dlg.innerHTML = `
     <form method="dialog" class="person-form">
-      <h2>${editing ? 'Change my leave request' : 'Request leave'}</h2>
-      ${editing ? '<p class="muted small">You can change this until HR decides. HR will see that it was changed.</p>' : ''}
+      <h2>${asking ? 'Ask to change my leave' : editing ? 'Change my leave request' : 'Request leave'}</h2>
+      ${asking ? '<p class="muted small">This leave is already approved. Your change goes to Admin / HR; until they approve it, your leave stays exactly as it is.</p>'
+        : editing ? '<p class="muted small">You can change this until HR decides. HR will see that it was changed.</p>' : ''}
       <div class="grid2">
         <label>Type of leave
           <select name="type" required>${ref.types.map((t) => `<option value="${esc(t.code)}">${esc(t.code)} · ${esc(t.label)}</option>`).join('')}</select></label>
@@ -270,7 +287,7 @@ function requestDialog(bal, editing = null) {
       <p class="msg" role="status" hidden></p>
       <div class="dlg-actions"><span class="spacer"></span>
         <button type="button" data-act="cancel">Cancel</button>
-        <button type="submit" class="primary">${editing ? 'Save changes' : 'Send to HR'}</button></div>
+        <button type="submit" class="primary">${asking ? 'Send change to HR' : editing ? 'Save changes' : 'Send to HR'}</button></div>
     </form>`;
   const form = dlg.querySelector('form');
   const warn = form.querySelector('[data-warn]');
@@ -345,7 +362,8 @@ function requestDialog(bal, editing = null) {
         reason: form.reason.value.trim() || null, start_date: form.start.value, end_date: form.end.value,
         half_day: form.half.value.replace('_q', '') || null, days: Number(form.days.value),   // am / pm; ¼ or ½ is in days
       };
-      if (editing) await editLeave(editing.id, req, sessions);
+      if (asking) await requestChange(editing.id, req, sessions);
+      else if (editing) await editLeave(editing.id, req, sessions);
       else await submitLeave(req, sessions);
       dlg.close();
       await drawMine();
@@ -376,6 +394,10 @@ function teamActions(r) {
   if (r.status === 'approved' && isAdmin() && !r.families_notified_on && r.sessions?.length) {
     out.push(`<button type="button" class="small-btn" data-notified="${esc(r.id)}">Families notified</button>`);
   }
+  if (r.status === 'approved' && r.change_requested_at) {
+    out.push(`<button type="button" class="small-btn primary" data-changeok="${esc(r.id)}">Approve change</button>`);
+    out.push(`<button type="button" class="small-btn" data-changeno="${esc(r.id)}">Keep as it was</button>`);
+  }
   if (r.status === 'approved' && r.cancel_requested_at) {
     out.push(`<button type="button" class="small-btn primary" data-cancelok="${esc(r.id)}">Approve cancel</button>`);
     out.push(`<button type="button" class="small-btn" data-cancelno="${esc(r.id)}">Keep leave</button>`);
@@ -396,19 +418,20 @@ async function drawTeam() {
   }
   const staff = people.filter((p) => p.status !== 'exited' && p.track !== 'abat' && rankOf(p.roles) !== 'applicant');
   const shown = data.requests.filter((r) => teamFilter === 'all' || r.status === teamFilter
-    || ((teamFilter === 'cancelreq' || teamFilter === 'pending') && r.status === 'approved' && r.cancel_requested_at)
+    || ((teamFilter === 'cancelreq' || teamFilter === 'pending') && r.status === 'approved' && (r.cancel_requested_at || r.change_requested_at))
     || (teamFilter === 'notify' && r.status === 'approved' && !r.families_notified_on && r.sessions.length)
     || (teamFilter === 'arrange' && ['pending', 'approved'].includes(r.status) && unarranged(r) > 0));
   const waiting = data.requests.filter((r) => r.status === 'pending').length;
   const cancelReqs = data.requests.filter((r) => r.status === 'approved' && r.cancel_requested_at).length;
+  const changeReqs = data.requests.filter((r) => r.status === 'approved' && r.change_requested_at).length;
 
   box.innerHTML = `
     <section class="card">
       <div class="page-head">
-        <h2>Team requests ${waiting ? `<span class="chip warn">${waiting} waiting</span>` : ''}${cancelReqs ? ` <span class="chip warn">${cancelReqs} to cancel</span>` : ''}</h2>
+        <h2>Team requests ${waiting ? `<span class="chip warn">${waiting} waiting</span>` : ''}${cancelReqs ? ` <span class="chip warn">${cancelReqs} to cancel</span>` : ''}${changeReqs ? ` <span class="chip warn">${changeReqs} to change</span>` : ''}</h2>
         <select id="lv-filter" aria-label="Show">
           <option value="pending"${teamFilter === 'pending' ? ' selected' : ''}>Waiting for HR</option>
-          <option value="cancelreq"${teamFilter === 'cancelreq' ? ' selected' : ''}>Cancel requests${cancelReqs ? ` (${cancelReqs})` : ''}</option>
+          <option value="cancelreq"${teamFilter === 'cancelreq' ? ' selected' : ''}>Change / cancel requests${cancelReqs + changeReqs ? ` (${cancelReqs + changeReqs})` : ''}</option>
           <option value="arrange"${teamFilter === 'arrange' ? ' selected' : ''}>Sessions to arrange</option>
           <option value="notify"${teamFilter === 'notify' ? ' selected' : ''}>Families not yet notified</option>
           <option value="approved"${teamFilter === 'approved' ? ' selected' : ''}>Approved</option>
@@ -472,6 +495,19 @@ async function drawTeam() {
       const note = prompt('Why does the leave stay? (The therapist will see this note.)');
       if (note === null) return;
       act(() => decideCancel(b.dataset.cancelno, false, note));
+    });
+  }
+  for (const b of box.querySelectorAll('[data-changeok]')) {
+    b.addEventListener('click', () => {
+      if (!confirm('Approve the change? The leave is updated to the new details.')) return;
+      act(() => decideChange(b.dataset.changeok, true, prompt('Note for the therapist (optional):') || null));
+    });
+  }
+  for (const b of box.querySelectorAll('[data-changeno]')) {
+    b.addEventListener('click', () => {
+      const note = prompt('Why does the leave stay as it was? (The therapist will see this note.)');
+      if (note === null) return;
+      act(() => decideChange(b.dataset.changeno, false, note));
     });
   }
   for (const b of box.querySelectorAll('[data-tcancel]')) {
