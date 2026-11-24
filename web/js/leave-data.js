@@ -20,7 +20,8 @@ function friendly(error) {
 // quarter day ('am_q' / 'pm_q' in the form) = 0.25.
 // ---------------------------------------------------------------------------
 export const FIVE_DAY_RANKS = ['senior', 'qcd', 'supervisor'];
-export function countDays(startIso, endIso, halfDay, fiveDayWeek = false) {
+// CARE holidays (Portal 067) are skipped: pass them as a Set of 'YYYY-MM-DD'.
+export function countDays(startIso, endIso, halfDay, fiveDayWeek = false, holidays = null) {
   if (!startIso || !endIso || endIso < startIso) return 0;
   if (halfDay) return String(halfDay).endsWith('_q') ? 0.25 : 0.5;
   const [y1, m1, d1] = startIso.split('-').map(Number);
@@ -29,7 +30,8 @@ export function countDays(startIso, endIso, halfDay, fiveDayWeek = false) {
   let n = 0;
   for (let d = new Date(y1, m1 - 1, d1); d <= end; d.setDate(d.getDate() + 1)) {
     const wd = d.getDay();
-    if (wd !== 0 && !(fiveDayWeek && wd === 6)) n += 1;
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    if (wd !== 0 && !(fiveDayWeek && wd === 6) && !holidays?.has(iso)) n += 1;
   }
   return n;
 }
@@ -45,11 +47,40 @@ export function daysUntil(iso, todayIso) {
 // Reference data
 // ---------------------------------------------------------------------------
 export async function loadLeaveRef() {
-  const [types, kinds] = await Promise.all([
+  const [types, kinds, holidays] = await Promise.all([
     supa.from('leave_types').select('code,label,max_days,per_person,notice_days,needs_kind,sort_order,active').order('sort_order').then(must),
     supa.from('leave_kinds').select('code,label,max_days,sort_order').order('sort_order').then(must),
+    loadHolidays(),
   ]);
-  return { types: types.filter((t) => t.active), kinds };
+  return { types: types.filter((t) => t.active), kinds, holidays };
+}
+
+// ---------------------------------------------------------------------------
+// CARE holidays + Special Sat (Portal 067)
+// ---------------------------------------------------------------------------
+export const loadHolidays = () => supa.from('care_holidays').select('day,label').order('day').then(must).catch(() => []);   // [] until 067 is run
+export const addHoliday = (day, label) => supa.from('care_holidays').insert({ day, label }).then(must);
+export const removeHoliday = (day) => supa.from('care_holidays').delete().eq('day', day).then(must);
+export const isSaturday = (iso) => new Date(`${iso}T00:00:00`).getDay() === 6;
+// Saturday CARE holidays in a month ('YYYY-MM') or a year ('YYYY').
+export const satHolidays = (holidays, prefix) => (holidays || []).filter((h) => h.day.startsWith(prefix) && isSaturday(h.day));
+// Senior / QCD / Supervisor: a Special Sat still to use this month? -> { sats, by } or null.
+export function specialSatDue(holidays, requests, todayIso) {
+  const ym = todayIso.slice(0, 7);
+  const sats = satHolidays(holidays, ym);
+  if (!sats.length) return null;
+  const used = (requests || []).filter((r) => r.type === 'SS' && ['pending', 'approved'].includes(r.status) && r.start_date.startsWith(ym)).length;
+  if (used >= sats.length) return null;
+  const [y, m] = ym.split('-').map(Number);
+  const by = `${ym}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
+  return { sats, left: sats.length - used, by };
+}
+export async function loadMyMonthLeave(meId, todayIso) {
+  const ym = todayIso.slice(0, 7);
+  const [y, m] = ym.split('-').map(Number);
+  const last = `${ym}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
+  return supa.from('leave_requests').select('type,status,start_date').eq('therapist_id', meId).eq('type', 'SS')
+    .gte('start_date', `${ym}-01`).lte('start_date', last).then(must);
 }
 
 export const staffPicklist = () => supa.rpc('staff_picklist').then(must);

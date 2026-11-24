@@ -2,7 +2,7 @@
 // the request inbox (approve / decline, families notified) and each person's
 // annual leave allowance. Children appear only as case codes (e.g. "ABC").
 import {
-  loadLeaveRef, loadMyLeave, submitLeave, editLeave, cancelLeave, requestCancel, withdrawCancel, decideCancel, requestChange, withdrawChange, decideChange, staffPicklist, countDays, daysUntil, FIVE_DAY_RANKS,
+  loadLeaveRef, loadMyLeave, submitLeave, editLeave, cancelLeave, requestCancel, withdrawCancel, decideCancel, requestChange, withdrawChange, decideChange, staffPicklist, countDays, daysUntil, FIVE_DAY_RANKS, satHolidays, specialSatDue, addHoliday, removeHoliday, isSaturday,
   loadTeamLeave, decideLeave, markNotified, saveEntitlement, arrangeSession,
 } from '../leave-data.js';
 import { listStaff } from '../data.js';
@@ -26,6 +26,11 @@ let picklist = []; // [{ id, full_name, nickname }]
 const isHR = () => ctx.roles.includes('hr');
 const isAdmin = () => ctx.roles.includes('admin');
 const isLeaveTeam = () => isHR() || isAdmin();
+// Special Sat (Portal 067): Senior / QCD / Supervisor; CARE holidays edited by Admin + Portal manager.
+const ssEligible = () => FIVE_DAY_RANKS.includes(rankOf(ctx.roles));
+const canHolidays = () => ctx.roles.includes('admin') || ctx.roles.includes('manager');
+const holidaySet = () => new Set((ref.holidays || []).map((h) => h.day));
+const monthName = (iso) => new Date(`${iso.slice(0, 7)}-01T00:00:00`).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
 const nameOf = (list, id) => {
   const p = list.find((x) => x.id === id);
   return p ? (p.nickname || p.full_name) : '';
@@ -60,10 +65,40 @@ async function draw() {
     </div>
     <div id="lv-mine"><p class="muted">Loading…</p></div>
     ${isLeaveTeam() ? '<div id="lv-team"></div>' : ''}
+    <div id="lv-hol"></div>
     <dialog id="lv-dlg" class="dlg leave-dlg"></dialog>`;
   panelEl.querySelector('#lv-year').addEventListener('change', (e) => { year = Number(e.target.value); draw(); });
   await drawMine();
   if (isLeaveTeam()) await drawTeam();
+  drawHolidays();
+}
+
+// CARE holidays: everyone sees the list; Admin + Portal manager add / remove (Portal 067).
+function drawHolidays() {
+  const box = panelEl.querySelector('#lv-hol');
+  const list = (ref.holidays || []).filter((h) => h.day.startsWith(String(year)));
+  box.innerHTML = `<details class="card lv-hol"${canHolidays() && !list.length ? ' open' : ''}>
+    <summary><h2>CARE holidays ${year} <span class="chip">${list.length}</span></h2></summary>
+    <p class="muted small">Days off for everyone. The leave form doesn't count them.${ssEligible() || canHolidays() ? ' A holiday on a Saturday gives Senior / QCD / Supervisor a <strong>Special Sat</strong>: one free day off in that month.' : ''}</p>
+    ${list.length ? `<ul class="lv-hol-list">${list.map((h) => `<li><span>${esc(fmtDate(h.day))} <span class="muted small">${esc(new Date(`${h.day}T00:00:00`).toLocaleDateString('en-GB', { weekday: 'short' }))}</span></span>
+        <span>${esc(h.label)}${isSaturday(h.day) ? ' <span class="chip warn">Special Sat</span>' : ''}</span>
+        ${canHolidays() ? `<button type="button" class="link small" data-holdel="${esc(h.day)}" aria-label="Remove ${esc(h.label)} ${esc(h.day)}">Remove</button>` : '<span></span>'}</li>`).join('')}</ul>`
+      : `<p class="muted">No CARE holidays added for ${year} yet.</p>`}
+    ${canHolidays() ? `<form class="lv-hol-add"><input type="date" name="day" required min="${year}-01-01" max="${year}-12-31" aria-label="Date">
+        <input name="label" required maxlength="80" placeholder="Holiday name" aria-label="Holiday name"><button type="submit" class="small-btn">+ Add</button></form>
+      <p class="error small" data-holmsg hidden></p>` : ''}
+  </details>`;
+  const msg = box.querySelector('[data-holmsg]');
+  const reload = async () => { ref.holidays = (await loadLeaveRef()).holidays; await draw(); panelEl.querySelector('#lv-hol details').open = true; };
+  box.querySelector('.lv-hol-add')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    try { await addHoliday(f.day.value, f.label.value.trim()); await reload(); } catch (err) { msg.textContent = /duplicate|unique/i.test(err.message) ? 'That day is already a holiday.' : err.message; msg.hidden = false; }
+  });
+  for (const b of box.querySelectorAll('[data-holdel]')) b.addEventListener('click', async () => {
+    if (!confirm('Remove this CARE holiday?')) return;
+    try { await removeHoliday(b.dataset.holdel); await reload(); } catch (err) { msg.textContent = err.message; msg.hidden = false; }
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -74,8 +109,9 @@ function balances(ent, requests) {
   const sum = (code, status, kind) => requests
     .filter((r) => r.type === code && r.status === status && (!kind || r.kind === kind))
     .reduce((t, r) => t + Number(r.days), 0);
-  return ref.types.map((t) => {
+  return ref.types.filter((t) => t.code !== 'SS' || ssEligible()).map((t) => {
     let allowance = t.max_days != null ? Number(t.max_days) : null;
+    if (t.code === 'SS') allowance = satHolidays(ref.holidays, String(year)).length;   // one per Saturday holiday
     let carry = 0;
     if (t.per_person) {
       if (!ent) allowance = null;
@@ -143,6 +179,7 @@ async function drawMine() {
         <button type="button" data-act="print-mine">${icon('file-text')} Save form as PDF</button>
         <button type="button" class="primary" data-act="new">+ Request leave</button>
       </div>
+      ${ssReminderHtml(mine.requests)}
       ${balanceHtml(bal, mine.entitlement, `Your ${year} annual leave hasn't been set yet. HR will add it.`)}
     </section>
     <section class="card">
@@ -151,6 +188,7 @@ async function drawMine() {
         : `<p class="muted">No leave requested for ${year} yet.</p>`}
     </section>`;
   box.querySelector('[data-act="new"]').addEventListener('click', () => requestDialog(bal));
+  box.querySelector('[data-act="ss"]')?.addEventListener('click', () => requestDialog(bal, null, 'edit', 'SS'));
   box.querySelector('[data-act="print-mine"]').addEventListener('click', () =>
     printForm({ ...ctx.me, roles: ctx.roles }, mine.entitlement, mine.requests, picklist));
   for (const b of box.querySelectorAll('[data-editreq]')) {
@@ -184,6 +222,16 @@ async function drawMine() {
       try { await withdrawCancel(b.dataset.withdraw); await drawMine(); if (isLeaveTeam()) await drawTeam(); } catch (e) { alert(e.message); }
     });
   }
+}
+
+// "You have a Special Sat to use by 31 May" (this month only, until it's requested).
+function ssReminderHtml(requests) {
+  const today = todayLocal();
+  if (!ssEligible() || year !== Number(today.slice(0, 4))) return '';
+  const due = specialSatDue(ref.holidays, requests, today);
+  if (!due) return '';
+  return `<p class="lv-ss">🎉 You have ${due.left === 1 ? 'a <strong>Special Sat</strong>' : `<strong>${due.left} Special Sats</strong>`} to use by <strong>${esc(fmtDate(due.by))}</strong>
+    (${due.sats.map((h) => `${esc(h.label)} falls on Saturday ${esc(fmtDate(h.day))}`).join('; ')}). Choose your free day off: <button type="button" class="link" data-act="ss">Request Special Sat</button></p>`;
 }
 
 function sessionsText(r, people) {
@@ -235,7 +283,7 @@ function requestRow(r, { mine = false, people = picklist, team = false } = {}) {
 // ---------------------------------------------------------------------------
 // editing = a pending request to change (Portal 057), or nothing for a new one.
 // mode 'change' = an approved leave: the change goes to Admin / HR to approve (Portal 066).
-function requestDialog(bal, editing = null, mode = 'edit') {
+function requestDialog(bal, editing = null, mode = 'edit', preset = null) {
   const asking = !!editing && mode === 'change';
   const dlg = panelEl.querySelector('#lv-dlg');
   const fiveDay = FIVE_DAY_RANKS.includes(rankOf(ctx.roles));
@@ -247,7 +295,7 @@ function requestDialog(bal, editing = null, mode = 'edit') {
         : editing ? '<p class="muted small">You can change this until HR decides. HR will see that it was changed.</p>' : ''}
       <div class="grid2">
         <label>Type of leave
-          <select name="type" required>${ref.types.map((t) => `<option value="${esc(t.code)}">${esc(t.code)} · ${esc(t.label)}</option>`).join('')}</select></label>
+          <select name="type" required>${ref.types.filter((t) => t.code !== 'SS' || ssEligible() || editing?.type === 'SS').map((t) => `<option value="${esc(t.code)}">${esc(t.code)} · ${esc(t.label)}</option>`).join('')}</select></label>
         <label data-kind hidden>Which specific leave?
           <select name="kind">${ref.kinds.map((k) => `<option value="${esc(k.code)}">${esc(k.label)} (up to ${k.max_days} days)</option>`).join('')}</select></label>
       </div>
@@ -264,8 +312,8 @@ function requestDialog(bal, editing = null, mode = 'edit') {
         <label>Number of leave days <input name="days" type="number" min="0.25" step="0.25" required></label>
       </div>
       <p class="muted small">${fiveDay
-        ? 'Counted Monday to Friday (your 5-day week). If you were scheduled on a Saturday inside these dates, add it. Change the number for public holidays too.'
-        : 'Counted Monday to Saturday (Sundays skipped). Change it if a public holiday falls inside.'}</p>
+        ? 'Counted Monday to Friday (your 5-day week). If you were scheduled on a Saturday inside these dates, add it.'
+        : 'Counted Monday to Saturday (Sundays skipped).'} CARE holidays are skipped too.</p>
       <p class="msg" data-warn hidden></p>
 
       <fieldset>
@@ -298,12 +346,24 @@ function requestDialog(bal, editing = null, mode = 'edit') {
     const t = ref.types.find((x) => x.code === form.type.value);
     form.querySelector('[data-kind]').hidden = !t?.needs_kind;
     form.querySelector('[data-kindnote]').hidden = !t?.needs_kind;
+    const ss = t?.code === 'SS';                       // Special Sat: one full day, free
+    if (ss) { form.end.value = form.start.value; form.half.value = ''; }
     if (form.end.value < form.start.value) form.end.value = form.start.value;
     const single = form.start.value === form.end.value;
-    form.querySelector('[data-half]').hidden = !single;
+    form.querySelector('[data-half]').hidden = !single || ss;
+    form.end.closest('label').hidden = ss;
     if (!single) form.half.value = '';
-    if (!daysTouched) form.days.value = countDays(form.start.value, form.end.value, form.half.value, fiveDay) || '';
+    if (ss) { form.days.value = 1; daysTouched = false; }
+    else if (!daysTouched) form.days.value = countDays(form.start.value, form.end.value, form.half.value, fiveDay, holidaySet()) || '';
+    form.days.readOnly = ss;
     const notes = [];
+    const skipped = (ref.holidays || []).filter((h) => h.day >= form.start.value && h.day <= form.end.value);
+    if (skipped.length && !form.half.value) notes.push(`📅 Not counted (CARE holiday): ${skipped.map((h) => `${fmtDate(h.day)} ${h.label}`).join(', ')}.`);
+    if (ss) {
+      const sats = satHolidays(ref.holidays, form.start.value.slice(0, 7));
+      notes.push(sats.length ? `🎉 Special Sat for ${monthName(form.start.value)} (${sats.map((h) => h.label).join(', ')} on a Saturday). Free: it doesn't use any other leave.`
+        : `⚠️ No Special Sat in ${monthName(form.start.value)}: no CARE holiday falls on a Saturday that month.`);
+    }
     const lead = daysUntil(form.start.value, todayLocal());
     if (t?.notice_days && lead < t.notice_days) notes.push(`⚠️ Leave should be requested at least ${t.notice_days} days before the first day (this is ${lead < 0 ? 'in the past' : `${lead} day${lead === 1 ? '' : 's'} away`}). You can still send it.`);
     const b = bal.find((x) => x.code === t?.code);
@@ -340,7 +400,7 @@ function requestDialog(bal, editing = null, mode = 'edit') {
     form.type.value = editing.type; if (editing.kind) form.kind.value = editing.kind;
     form.reason.value = editing.reason || ''; form.start.value = editing.start_date; form.end.value = editing.end_date;
     form.half.value = editing.half_day ? `${editing.half_day}${Number(editing.days) === 0.25 ? '_q' : ''}` : ''; form.days.value = Number(editing.days);
-    daysTouched = Number(editing.days) !== countDays(editing.start_date, editing.end_date, form.half.value, fiveDay);   // keep a number they typed
+    daysTouched = Number(editing.days) !== countDays(editing.start_date, editing.end_date, form.half.value, fiveDay, holidaySet());   // keep a number they typed
     for (const s of editing.sessions || []) addSession(s);
   }
   form.querySelector('[data-act="cancel"]').addEventListener('click', () => dlg.close());
@@ -372,6 +432,7 @@ function requestDialog(bal, editing = null, mode = 'edit') {
       msg.hidden = false; msg.dataset.kind = 'error'; msg.textContent = e.message; btn.disabled = false;
     }
   });
+  if (preset && !editing) form.type.value = preset;
   refresh();
   dlg.showModal();
 }

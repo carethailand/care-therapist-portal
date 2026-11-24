@@ -72,6 +72,7 @@ export async function render(panel, { me, roles, visible = [], canAdmin = false 
           <a class="text-link" href="#/journey">See my journey ${icon('arrow-right')}</a>
         </article>
 
+        <article class="card training-card home-ss" id="home-ss" hidden></article>
         <article class="card training-card" id="home-onb" hidden></article>
         <article class="card training-card" id="home-training" hidden></article>
         <article class="card kudos-home" id="home-kudos" hidden></article>
@@ -95,6 +96,8 @@ export async function render(panel, { me, roles, visible = [], canAdmin = false 
   }
   // Latest kudos (CARE staff, when CARE Connect is open).
   if (visible.some((m) => m.key === 'connect') && me.track !== 'abat' && rank !== 'applicant') drawKudos(panel.querySelector('#home-kudos'));
+  // Special Sat reminder (Senior / QCD / Supervisor, Portal 067).
+  if (visible.some((m) => m.key === 'leave') && ['senior', 'qcd', 'supervisor'].includes(rank)) drawSpecialSat(panel.querySelector('#home-ss'), me);
   // Milestone badges (CARE staff).
   if (milestoneEligible(me, roles) && me.stage !== 'exited') drawMilestones(panel, me, roles);
 }
@@ -130,6 +133,22 @@ async function drawKudos(el) {
 }
 
 // New therapists: the next onboarding step.
+// "You have a Special Sat to use by 31 May" until it's requested.
+async function drawSpecialSat(el, me) {
+  try {
+    const l = await import('../leave-data.js');
+    const today = todayLocal();
+    const [holidays, reqs] = await Promise.all([l.loadHolidays(), l.loadMyMonthLeave(me.id, today)]);
+    const due = l.specialSatDue(holidays, reqs, today);
+    if (!due) return;
+    el.innerHTML = `<p class="level-kicker">Special Sat 🎉</p>
+      <h2>${due.left === 1 ? 'You have a free day off' : `You have ${due.left} free days off`} to use by ${esc(fmtDate(due.by))}</h2>
+      <p>${due.sats.map((h) => `${esc(h.label)} falls on Saturday ${esc(fmtDate(h.day))}`).join('; ')}. Pick your day in the leave form (type “Special Sat”). It doesn’t use any other leave.</p>
+      <a class="btn-clay" href="#/leave">Request my Special Sat ${icon('arrow-right')}</a>`;
+    el.hidden = false;
+  } catch { /* Home still works without it */ }
+}
+
 async function drawOnboarding(el, me) {
   try {
     const o = await import('../onboarding.js');

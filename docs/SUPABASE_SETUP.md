@@ -724,3 +724,13 @@ Run `supabase/migrations/20261120005800_care_board.sql` after Step 57, then publ
   - **Approve change:** the leave is updated. Sessions still on the list keep their cover or make-up, and new sessions need arranging. If the dates or sessions changed, "families notified" is cleared.
   - **Keep as it was:** nothing changes, and the person sees the note.
 - Only one request at a time per leave: a change or a cancel. Slack's admin channel gets "Change request".
+
+## Step 67 — CARE holidays + Special Sat (added 2026-11-24)
+
+1. **Run** `supabase/migrations/20261124006700_care_holidays_special_sat.sql` (after 066). It loads the 2027 CARE holidays.
+2. **Publish** the app (Q28).
+
+- **CARE holidays:** shown on the Leave page for everyone. The leave form doesn't count them, and it says which days it skipped. Only Admin and the Portal manager can add or remove them. Add next year's when the calendar is ready.
+- **Special Sat:** when a CARE holiday falls on a Saturday, Senior / QCD / Supervisor get one free day off of their choice in that same month (type **SS · Special Sat**). It doesn't use any other leave, Admin / HR approve it like other leave, and an unused one is lost at the end of the month. The database checks the rank, that it's one full day, that the month has a Saturday holiday, and that it isn't requested twice.
+- **Reminder:** during that month, eligible people see "You have a Special Sat to use by …" on their **Home** page and **Leave** page until they request it.
+- In 2027 the Saturday holidays are 2 Jan, 1 May and 23 Oct.
