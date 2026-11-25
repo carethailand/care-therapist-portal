@@ -93,7 +93,7 @@ function drawBody() {
         <label>Certificate: issued by <input name="provider" value="${esc(prog.provider_name ?? '')}"></label>
         <label>Certificate: course title <input name="ctitle" value="${esc(prog.certificate_title ?? '')}"></label>
         <label>Certificate: small print <input name="cnote" value="${esc(prog.certificate_note ?? '')}"></label>
-        <p><button type="submit" class="small-btn">Save course settings</button></p>
+        <p><button type="submit" class="small-btn primary">Save course settings</button></p>
       </form></section>` + steps.map((s) => `<section class="card" data-step="${esc(s.id)}">
       <h3>${STEP_ICON[s.kind] ?? '•'} ${esc(s.title)}</h3>
       <div class="step-body"><p class="muted">Loading…</p></div>
@@ -250,7 +250,7 @@ async function drawExam(step, el) {
       <label>Days between attempts <input name="wait" type="number" min="0" max="365" required value="${esc(cfg.retake_wait_days ?? 0)}"></label>
       <label class="check"><input type="checkbox" name="reqmod"${cfg.require_modules ? ' checked' : ''}> <span>All modules must be ticked before the exam</span></label>
       <p class="muted small">${qs.length} questions · ${total} marks${pct !== null ? ` · pass mark = ${pct}%` : ''}</p>
-      <p><button type="submit" class="small-btn">Save settings</button> <span class="small" data-saved></span></p>
+      <p><button type="submit" class="small-btn primary">Save settings</button> <span class="small" data-saved></span></p>
     </form>
     <div class="q-tools">
       <button type="button" class="primary" data-addq>+ Add question</button>

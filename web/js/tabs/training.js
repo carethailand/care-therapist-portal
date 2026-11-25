@@ -542,6 +542,7 @@ function completedCard(prog, enr, legacy = false) {
         <div class="done-main">
           <p class="level-kicker">Training</p>
           <h2>${esc(prog.title)}</h2>
+          ${prog.accreditation ? `<p class="course-accr">${icon('award')} ${esc(prog.accreditation)}</p>` : ''}
           <p class="ok-text">${icon('check')} ${legacy ? 'Completed before the Portal' : `Completed${enr.finished_on ? ` ${esc(fmtDate(enr.finished_on))}` : ''}`}${enr?.promoted_on ? ` · promoted ${esc(fmtDate(enr.promoted_on))}` : ''}</p>
           <p class="done-act">
             ${cert ? `<button type="button" class="primary small-btn" data-cert="${esc(cert.id)}">${icon('award')} View certificate</button>` : ''}
