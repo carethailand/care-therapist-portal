@@ -734,3 +734,18 @@ Run `supabase/migrations/20261120005800_care_board.sql` after Step 57, then publ
 - **Special Sat:** when a CARE holiday falls on a Saturday, Senior / QCD / Supervisor get one free day off of their choice in that same month (type **SS · Special Sat**). It doesn't use any other leave, Admin / HR approve it like other leave, and an unused one is lost at the end of the month. The database checks the rank, that it's one full day, that the month has a Saturday holiday, and that it isn't requested twice.
 - **Reminder:** during that month, eligible people see "You have a Special Sat to use by …" on their **Home** page and **Leave** page until they request it.
 - In 2027 the Saturday holidays are 2 Jan, 1 May and 23 Oct.
+
+## Step 68 — Reports & Forms: incident reports (added 2026-11-25)
+
+1. **Run** `supabase/migrations/20261125006800_incident_reports.sql` (after 067). It switches on the **Reports & Forms** tab (the old "Documents / Forms") for all CARE staff.
+2. **Publish** the app (Q29).
+
+- **Incident report** (for a therapist or a client), the paper form in the Portal: when / where / scheduled time, injury found before the session, a tap-to-mark **body map** (front, back, face), what it was (bite, bruise, …), what happened, who it was reported to and when, left work / came back, medical attention, measures taken, prevention, comments.
+- **Privacy:** the child is a 3-letter case code only. No names, no photos, no files.
+- **Steps:**
+  1. **Draft:** only the writer sees it.
+  2. **Sign and send:** the writer picks the **supervisor of that case** by hand.
+  3. **Reviewed:** that supervisor adds a note.
+  4. **Closed:** OM / HR close it.
+- **Who sees a report:** the writer, the chosen supervisor, and Admin / HR (and the Portal manager). Other supervisors never do. "To sign" shows what's waiting for you.
+- **Print** gives the report with lines for the employee's, supervisor's and OM / HR signatures. Slack's tx-to-admin gets "New incident report" with the case code only.

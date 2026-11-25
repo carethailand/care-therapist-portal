@@ -20,6 +20,7 @@ const TABS = {
   team: () => import(`./tabs/team.js?v=${APP_VERSION}`),
   learning: () => import(`./tabs/learning.js?v=${APP_VERSION}`),
   supervision: () => import(`./tabs/supervision.js?v=${APP_VERSION}`),
+  documents: () => import(`./tabs/documents.js?v=${APP_VERSION}`),
 };
 const comingSoon = () => import(`./tabs/coming-soon.js?v=${APP_VERSION}`);
 

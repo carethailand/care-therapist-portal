@@ -1939,3 +1939,45 @@ a.lh-tool:hover { border-color: var(--line-strong); background: var(--surface-ra
 .lv-hol-add { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .lv-hol-add input { width: auto; flex: 1 1 140px; }
 .home-ss { background: var(--warn-bg); color: var(--warn-ink); }
+
+/* ---------- Reports & Forms: incident reports (Portal 068) ---------- */
+.rf-list { list-style: none; margin: 10px 0 0; padding: 0; }
+.rf-list li + li { border-top: 1px solid var(--line); }
+.rf-list button { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; text-align: left; border: 0; background: none; padding: 10px 2px; color: var(--text); }
+.rf-dlg.rf-full { width: min(900px, calc(100vw - 24px)); max-height: calc(100vh - 24px); overflow-y: auto; }
+.rf-head { display: flex; gap: 8px; align-items: center; }
+.rf-head h2 { margin: 0; }
+.rf-form { display: grid; gap: 12px; }
+.rf-sec { border: 1px solid var(--line); border-radius: 14px; padding: 10px 14px 14px; margin: 0; display: grid; gap: 10px; }
+.rf-sec legend { font-weight: 600; padding: 0 6px; }
+.rf-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px 12px; }
+.rf-grid .rf-wide { grid-column: 1 / -1; }
+.rf-bodywrap { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 16px; align-items: start; }
+.rf-body { width: 100%; max-width: 330px; }
+.rf-zone { fill: var(--surface-raised); stroke: var(--line-strong); stroke-width: 1; }
+.rf-zone[data-area] { cursor: pointer; }
+.rf-zone.on { fill: var(--clay-soft); stroke: var(--clay); stroke-width: 2; }
+.rf-zone:focus-visible { outline: none; stroke: var(--accent); stroke-width: 2.5; }
+.rf-cap { font-size: 8px; fill: var(--muted); }
+.rf-face { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.rf-face .on { background: var(--clay-soft); border-color: var(--clay); color: var(--clay); }
+.rf-syms { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 2px 10px; }
+.rf-checks { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.rf-report h2 { margin: 6px 0 8px; }
+.rf-report h4 { margin: 14px 0 4px; }
+.rf-rows { display: grid; gap: 4px; }
+.rf-row { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 8px; }
+.rf-pre { white-space: pre-wrap; margin: 0; }
+.rf-steps { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+.rf-steps li.done::marker { color: var(--ok); }
+.rf-act { border-top: 1px solid var(--line); margin-top: 14px; padding-top: 10px; }
+@media (max-width: 700px) { .rf-bodywrap { grid-template-columns: 1fr; } .rf-row { grid-template-columns: 1fr; } }
+@media print {
+  #print-area .rf-zone { -webkit-print-color-adjust: exact; print-color-adjust: exact; fill: #fff; stroke: #888; }
+  #print-area .rf-zone.on { fill: #F3C7B8 !important; stroke: #B95E44 !important; }
+  #print-area .rf-body { max-width: 260px; }
+  #print-area .rf-signs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 30px 0 8px; }
+  #print-area .rf-signs span { border-top: 1px solid #000; padding-top: 4px; font-size: 10pt; }
+}
+.rf-sym { display: flex; gap: 6px; align-items: flex-start; line-height: 1.25; padding: 3px 0; }
+.rf-sym input { margin-top: 2px; }
