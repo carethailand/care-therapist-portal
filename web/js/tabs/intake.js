@@ -48,6 +48,9 @@ const EN_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July
 const WORDING = [
   ['header_line', 'Page header (under the logo)'], ['title', 'Report title'],
   ['bg_intro', 'Background: first paragraph · {name} {seen_with} {date} {assessors} {sources}'],
+  ['bg_diagnosis', 'Background: diagnosis · {name} {diagnoses} {doctor} {place} {when}'],
+  ['bg_diagnosis_also', 'Background: diagnosis by another doctor · {name} {diagnoses} {doctor} {place} {when}'],
+  ['bg_no_diagnosis', 'Background: no formal diagnosis yet · {name}'],
   ['src_questionnaire', 'Source 1'], ['src_interview', 'Source 2'], ['src_previous', 'Source 3'], ['src_observation', 'Source 4 · {name}'],
   ['bg_more', 'Background: hint for the rest (not printed)'], ['skills_hint', 'Skills observed: hint (not printed)'], ['behav_hint', 'Behaviors observed: hint (not printed)'],
   ['curr_intro', 'Curriculum: opening text · {name}'],
@@ -58,6 +61,8 @@ const WORDING = [
   ['rec_skills', 'Recommendations: SKILLS assessment · {name} {his}'], ['rec_lead', 'Recommendations: lead-in · {name}'],
   ['rec_therapy', 'Recommendations: 1:1 therapy · {hours} {location} {name}'], ['rec_supervision', 'Recommendations: supervision · {hours} {name}'],
   ['rec_school_shadow', 'Recommendations: school with a shadow · {name} {his} {he}'], ['rec_school_not_yet', 'Recommendations: school not yet · {name} {he} {delay}'],
+  ['rec_assess', 'Recommendations: further assessment lead-in · {name}'],
+  ['assess_list', 'Further assessments list: one per line as  English | ไทย | test names separated by ;', 'one'],
   ['rec_contact', 'Recommendations: contact line'],
 ];
 
@@ -73,9 +78,29 @@ function blank() {
   const t = todayLocal();
   return { kind: 'care-intake-draft', v: 1, lang: 'en', name: '', pronoun: 'he', dob: '', assess_date: t, report_date: t,
     seen_with: 'mother', seen_other: '', assessors: signer?.sign_name || '', sources: { questionnaire: true, interview: true, previous: false, observation: true },
-    bg_intro: '', bg_more: '', skills: '', behaviours: '', areas: [], behaviour: 'typical', delay: '', goals: '',
+    bg_intro: '', diag: 'yes', dx: [newDx()], bg_dx: '', bg_more: '', skills: '', behaviours: '', areas: [], behaviour: 'typical', delay: '', goals: '',
     lessons: [], further: [], rec_skills: true, hours: '', place: 'home', place_other: '', sup_hours: '', school: 'shadow', school_own: '', recs: '',
-    edited: {} };
+    assess: {}, assess_other: '', edited: {} };
+}
+function newDx() { return { list: '', by: '', place: '', month: '', year: '' }; }
+// Further assessments come from the template: one per line, "English | ไทย | test; test; test".
+const assessList = () => wd('assess_list', 'en').split('\n').map((s) => s.split('|').map((x) => x.trim())).filter((a) => a[0])
+  .map(([en, th, tests]) => ({ en, th: th || en, tests: (tests || '').split(';').map((x) => x.trim()).filter(Boolean) }));
+function assessLines() {
+  const picked = assessList().filter((a) => S.assess[a.en]).map((a) => {
+    const c = S.assess[a.en]; const test = c.pick === '__own' ? (c.own || '').trim() : c.pick;
+    const name = S.lang === 'th' ? a.th : a.en;
+    return test ? `${name}: ${test}` : name;
+  });
+  return [...picked, ...S.assess_other.split('\n').map((s) => s.trim()).filter(Boolean)];
+}
+// Month + year of a diagnosis. A Thai (Buddhist) year like 2565 is turned into 2022 first.
+function dxWhen(x) {
+  let y = Number(x.year) || 0; if (y > 2400) y -= 543;
+  const m = Number(x.month) || 0;
+  if (!y && !m) return '';
+  if (S.lang === 'th') return m ? `เดือน${TH_MONTHS[m - 1]}${y ? ` ${y + 543}` : ''}` : `ปี ${y + 543}`;
+  return m ? `${EN_MONTHS[m - 1]}${y ? ` ${y}` : ''}` : String(y);
 }
 
 // --- Fill the blanks --------------------------------------------------------------------------------------
@@ -108,6 +133,16 @@ const AUTO = {
     return fill(wd('bg_intro'), { seen_with: S.seen_with === 'other' ? S.seen_other.trim() : SEEN[S.lang][S.seen_with],
       date: fmtD(S.assess_date) || '(…)', assessors: S.assessors.trim() || '(…)', sources: joinList(srcs, S.lang) });
   },
+  bg_dx() {
+    if (S.diag === 'none') return fill(wd('bg_no_diagnosis'));
+    if (S.diag !== 'yes') return '';
+    return S.dx.map((x, i) => {
+      const items = x.list.split('\n').map((s) => s.trim().replace(/^\d+[.)]\s*/, '')).filter(Boolean);
+      const list = items.length > 1 ? items.map((s, j) => `${j + 1}. ${s}`).join(' ') : (items[0] || '(…)');
+      return fill(wd(i ? 'bg_diagnosis_also' : 'bg_diagnosis'),
+        { diagnoses: list, doctor: x.by.trim() || '(…)', place: x.place.trim() || '(…)', when: dxWhen(x) || '(…)' });
+    }).join(' ');
+  },
   goals() {
     const names = AREAS.filter((a) => S.areas.includes(a)).map((a) => (S.lang === 'th' ? AREA_LABEL.th[a] : AREA_LABEL.en[a].toLowerCase()));
     return fill(wd('goals'), { areas: joinList(names, S.lang) || '(…)', behaviour: fill(wd(`beh_${S.behaviour}`)) });
@@ -122,6 +157,8 @@ const AUTO = {
     if (S.school === 'shadow') out.push(wd('rec_school_shadow'));
     if (S.school === 'not_yet') out.push(wd('rec_school_not_yet'));
     if (S.school === 'own' && S.school_own.trim()) out.push(S.school_own.trim());
+    const as = assessLines();
+    if (as.length) out.push(wd('rec_assess'), ...as.map((x) => `• ${x}`));
     out.push(wd('rec_contact'));
     return out.map((x) => fill(x)).join('\n');
   },
@@ -191,6 +228,9 @@ function drawBuilder() {
         </div>
         <div class="rf-checks">${SOURCES.map(([k, l]) => `<label class="check"><input type="checkbox" name="src_${k}"${S.sources[k] ? ' checked' : ''}> ${esc(l)}</label>`).join('')}</div>
         <label><span class="ik-row">First paragraph (written for you) ${auto('bg_intro')}</span><textarea name="bg_intro" rows="4">${v('bg_intro')}</textarea></label>
+        <label>Diagnosis${sel('diag', [['yes', 'Has a diagnosis'], ['none', 'No formal diagnosis yet'], ['skip', 'Leave out']])}</label>
+        <div data-show="diag=yes"${S.diag === 'yes' ? '' : ' hidden'}><div data-dxbox>${dxHtml()}</div></div>
+        <label><span class="ik-row">Diagnosis sentence (written for you) ${auto('bg_dx')}</span><textarea name="bg_dx" rows="3">${v('bg_dx')}</textarea></label>
         <label>The rest of the background<textarea name="bg_more" rows="6" placeholder="${esc(wd('bg_more'))}">${v('bg_more')}</textarea></label>
       </fieldset>
 
@@ -228,6 +268,8 @@ function drawBuilder() {
         </div>
         <label data-show="school=own"${S.school === 'own' ? '' : ' hidden'}>School recommendation<textarea name="school_own" rows="3">${v('school_own')}</textarea></label>
         <label class="check"><input type="checkbox" name="rec_skills"${S.rec_skills ? ' checked' : ''}> Recommend the SKILLS assessment</label>
+        ${assessList().length ? `<div><span class="muted small">Further assessments (tick, then pick the test)</span><div class="ik-assess" data-assess>${assessHtml()}</div></div>
+        <label>Other further assessments (one per line)<textarea name="assess_other" rows="2" placeholder="Dental check-up">${v('assess_other')}</textarea></label>` : ''}
         <label><span class="ik-row">Recommendations (written for you, one paragraph per line) ${auto('recs')}</span><textarea name="recs" rows="9">${v('recs')}</textarea></label>
       </fieldset>
 
@@ -250,6 +292,29 @@ function drawBuilder() {
   refreshAuto();
   drawPickList(); drawPicked();
   showSig();
+}
+
+function dxHtml() {
+  const months = (v) => `<option value="">Month</option>${EN_MONTHS.map((m, i) => `<option value="${i + 1}"${Number(v) === i + 1 ? ' selected' : ''}>${m}</option>`).join('')}`;
+  return S.dx.map((x, i) => `<div class="ik-dx">
+      <label>Diagnoses <span class="muted small">(one per line)</span><textarea data-dx="${i}" data-f="list" rows="4" placeholder="Autism spectrum disorder&#10;Global developmental delay">${esc(x.list)}</textarea></label>
+      <div class="rf-grid">
+        <label>Diagnosed by<input data-dx="${i}" data-f="by" maxlength="120" value="${esc(x.by)}" placeholder="Dr. …"></label>
+        <label>Hospital / clinic<input data-dx="${i}" data-f="place" maxlength="160" value="${esc(x.place)}"></label>
+        <label>Month<select data-dx="${i}" data-f="month">${months(x.month)}</select></label>
+        <label>Year<input data-dx="${i}" data-f="year" type="number" min="1990" max="2700" value="${esc(x.year)}" placeholder="2022 or 2565"></label>
+      </div>
+      ${i ? `<div class="ik-row"><span class="spacer"></span><button type="button" class="link small" data-dxrm="${i}">Remove this doctor</button></div>` : ''}</div>`).join('')
+    + `<button type="button" class="small-btn" data-dxadd>${icon('plus')} Add another doctor</button>`;
+}
+function assessHtml() {
+  return assessList().map((a, i) => {
+    const c = S.assess[a.en];
+    const opts = c && a.tests.length ? `<select data-ast="${i}" aria-label="Test for ${esc(a.en)}">${a.tests.map((t) => `<option value="${esc(t)}"${c.pick === t ? ' selected' : ''}>${esc(t)}</option>`).join('')}
+      <option value=""${c.pick === '' ? ' selected' : ''}>No test name</option><option value="__own"${c.pick === '__own' ? ' selected' : ''}>Another test…</option></select>` : '';
+    const own = c && (c.pick === '__own' || (!a.tests.length && c.own)) ? `<input data-aso="${i}" maxlength="80" value="${esc(c.own || '')}" placeholder="Test name">` : '';
+    return `<div class="ik-as"><label class="check"><input type="checkbox" data-as="${i}"${c ? ' checked' : ''}> ${esc(a.en)}</label>${opts}${own}</div>`;
+  }).join('');
 }
 
 async function showSig() {
@@ -288,6 +353,33 @@ function wire() {
     const b = e.target.closest('[data-fa]'); if (!b) return;
     const a = b.dataset.fa; S.further = S.further.includes(a) ? S.further.filter((x) => x !== a) : [...S.further, a];
     b.classList.toggle('on'); b.setAttribute('aria-pressed', S.further.includes(a)); dirty = true;
+  });
+  // Diagnosis boxes (one per doctor)
+  const dxBox = panelEl.querySelector('[data-dxbox]');
+  const onDx = (e) => { const i = e.target.dataset.dx; if (i === undefined) return; S.dx[+i][e.target.dataset.f] = e.target.value; dirty = true; refreshAuto(); };
+  dxBox.addEventListener('input', onDx); dxBox.addEventListener('change', onDx);
+  dxBox.addEventListener('click', (e) => {
+    if (e.target.closest('[data-dxadd]')) S.dx.push(newDx());
+    else { const b = e.target.closest('[data-dxrm]'); if (!b) return; S.dx.splice(+b.dataset.dxrm, 1); }
+    dirty = true; dxBox.innerHTML = dxHtml(); refreshAuto();
+  });
+  // Further assessments: tick, then pick the test
+  const asBox = panelEl.querySelector('[data-assess]');
+  asBox?.addEventListener('change', (e) => {
+    const t = e.target; const list = assessList(); let focus = null;
+    if (t.dataset.as !== undefined) {
+      const a = list[+t.dataset.as];
+      if (t.checked) S.assess[a.en] = { pick: a.tests[0] || '', own: '' }; else delete S.assess[a.en];
+    } else if (t.dataset.ast !== undefined) {
+      S.assess[list[+t.dataset.ast].en].pick = t.value;
+      if (t.value === '__own') focus = `[data-aso="${t.dataset.ast}"]`;
+    } else return;
+    dirty = true; asBox.innerHTML = assessHtml(); refreshAuto();
+    if (focus) asBox.querySelector(focus)?.focus();
+  });
+  asBox?.addEventListener('input', (e) => {
+    const i = e.target.dataset.aso; if (i === undefined) return;
+    S.assess[assessList()[+i].en].own = e.target.value; dirty = true; refreshAuto();
   });
   for (const b of panelEl.querySelectorAll('[data-redo]')) b.addEventListener('click', () => { S.edited[b.dataset.redo] = false; b.hidden = true; refreshAuto(); });
   panelEl.querySelectorAll('[data-lang]').forEach((b) => b.addEventListener('click', () => setLang(b.dataset.lang)));
@@ -380,7 +472,7 @@ function blocks() {
   const L = S.lang; const H = HEAD[L];
   const b = [{ t: 'title', text: wd('title') },
     { t: 'fields', rows: [[H.name, S.name], [H.dob, fmtD(S.dob)], [H.age, age()], [H.assess, fmtD(S.assess_date)], [H.report, fmtD(S.report_date)]] },
-    { t: 'h', text: H.background }, ...textBlocks(S.bg_intro), ...textBlocks(S.bg_more),
+    { t: 'h', text: H.background }, ...textBlocks(S.bg_intro), ...textBlocks(S.bg_dx), ...textBlocks(S.bg_more),
     { t: 'h', text: H.skills }, ...textBlocks(S.skills),
     { t: 'h', text: H.behav }, ...textBlocks(S.behaviours),
     { t: 'h', text: H.curriculum }, ...textBlocks(fill(wd('curr_intro'))),
@@ -566,9 +658,10 @@ export async function openTemplateEditor(panel, context, back) {
         <ul class="rf-list">${lessons.map((l) => `<li><button type="button" data-edit="${esc(l.id)}"><span><b>${esc(l.name_en)}</b>${l.name_th ? ` · ${esc(l.name_th)}` : ''}${q ? ` <span class="muted small">· ${AREA_UI[l.area]}</span>` : ''}<br>
           <span class="muted small">${esc((l.expl_en || '').slice(0, 140))}</span></span>${l.active ? '' : '<span class="chip">Hidden</span>'}</button></li>`).join('') || '<li class="muted small">No lessons.</li>'}</ul></section>
       <section class="card"><h2>Standard wording</h2>
-        ${WORDING.map(([k, label]) => `<details class="ik-word"><summary>${esc(label)}</summary>
-          <label>English<textarea data-w="${k}" data-lang="en" rows="3">${esc(wd(k, 'en'))}</textarea></label>
-          <label>ไทย<textarea data-w="${k}" data-lang="th" rows="3">${esc(wd(k, 'th'))}</textarea></label>
+        ${WORDING.map(([k, label, one]) => `<details class="ik-word"><summary>${esc(label)}</summary>
+          ${one ? `<textarea data-w="${k}" data-lang="en" rows="12" aria-label="${esc(label)}">${esc(wd(k, 'en'))}</textarea>`
+    : `<label>English<textarea data-w="${k}" data-lang="en" rows="3">${esc(wd(k, 'en'))}</textarea></label>
+          <label>ไทย<textarea data-w="${k}" data-lang="th" rows="3">${esc(wd(k, 'th'))}</textarea></label>`}
           <div class="ik-row"><span class="muted small" data-wm="${k}"></span><span class="spacer"></span><button type="button" class="small-btn" data-wsave="${k}">Save</button></div></details>`).join('')}
       </section>
       <dialog id="ik-ldlg" class="dlg"></dialog>`;
@@ -581,7 +674,10 @@ export async function openTemplateEditor(panel, context, back) {
     for (const b of panel.querySelectorAll('[data-wsave]')) b.addEventListener('click', async () => {
       const k = b.dataset.wsave; const m = panel.querySelector(`[data-wm="${k}"]`);
       try {
-        for (const lang of ['en', 'th']) await api.wordSave(k, lang, panel.querySelector(`[data-w="${k}"][data-lang="${lang}"]`).value);
+        for (const lang of ['en', 'th']) {
+          const ta = panel.querySelector(`[data-w="${k}"][data-lang="${lang}"]`);
+          if (ta) await api.wordSave(k, lang, ta.value);
+        }
         tpl = await api.template(); m.textContent = 'Saved'; m.className = 'muted small';
       } catch (e) { m.textContent = e.message; m.className = 'error small'; }
     });

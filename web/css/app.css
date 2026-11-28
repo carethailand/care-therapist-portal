@@ -1991,6 +1991,10 @@ a.lh-tool:hover { border-color: var(--line-strong); background: var(--surface-ra
 .ik-chips .on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
 .ik-group { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 8px; display: grid; gap: 8px; }
 .ik-lesson { display: grid; gap: 4px; }
+.ik-dx { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; display: grid; gap: 8px; margin-bottom: 8px; }
+.ik-assess { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: 6px 14px; margin: 4px 0 8px; }
+.ik-as { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.ik-as select, .ik-as input { width: auto; max-width: 100%; min-width: 0; font-size: .9em; }
 .ik-sig { max-height: 56px; max-width: 200px; background: #fff; border: 1px solid var(--line); border-radius: 6px; }
 .ik-bar { position: sticky; bottom: 0; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 10px 0; background: var(--bg, var(--surface-raised)); border-top: 1px solid var(--line); margin-top: 12px; }
 .ik-word { border-top: 1px solid var(--line); padding: 8px 0; }

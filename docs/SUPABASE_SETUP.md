@@ -761,3 +761,13 @@ Run `supabase/migrations/20261120005800_care_board.sql` after Step 57, then publ
 - **Privacy:** the report is **never saved in the Portal**. It stays in the browser tab until the supervisor downloads **Word** or **PDF** (print → Save as PDF). **Save draft file** puts an unfinished report on the supervisor's own computer; **Open draft file** carries on.
 - **Who:** Supervisors write reports. Supervisors + Admin edit the template (wording and lessons; lessons are hidden, never deleted).
 - **Signature:** each supervisor sets their name, title, credentials and a signature picture under **My signature**. The picture is in the private `signatures` store: only that supervisor can see it (admins can only remove one).
+
+## Step 70 — Intake report: diagnosis + further assessments (added 2026-11-28)
+
+1. **Run** `supabase/migrations/20261128007000_intake_diagnosis_assessments.sql` (after 069 and the private 069b). The last lines list the 9 new wording rows.
+2. **Publish** the app (Q32).
+
+- **Background → Diagnosis:** "Has a diagnosis" (diagnoses one per line, diagnosed by, hospital / clinic, month and year; "Add another doctor" for more), "No formal diagnosis yet", or "Leave out". The sentence is written for you in English or Thai (a Thai year like 2565 also works).
+- **Recommendations → Further assessments:** tick an assessment, then pick the test (e.g. IQ / cognitive test → WISC-V, printed as "IQ / cognitive test: WISC-V"). "Another test…" lets you type one. They print as bullets under "Further Assessment".
+- **Edit template:** the list is under **Further assessments list**, one per line as `English | ไทย | test; test; test`. The diagnosis and assessment sentences are editable too.
+- Still nothing about the child is saved in the Portal.
