@@ -749,3 +749,15 @@ Run `supabase/migrations/20261120005800_care_board.sql` after Step 57, then publ
   4. **Closed:** OM / HR close it.
 - **Who sees a report:** the writer, the chosen supervisor, and Admin / HR (and the Portal manager). Other supervisors never do. "To sign" shows what's waiting for you.
 - **Print** gives the report with lines for the employee's, supervisor's and OM / HR signatures. Slack's tx-to-admin gets "New incident report" with the case code only.
+
+## Step 69 — Reports & Forms: intake report builder (added 2026-11-28)
+
+1. **Run** `supabase/migrations/20261128006900_intake_report_builder.sql` (after 068).
+2. **Run** the private import file **"Intake template content (069b import).sql"** from the *Portal people / intake* folder (never put it in GitHub). It loads the standard wording (English + Thai) and the lesson library. The last line shows how many rows it loaded.
+3. **Publish** the app (Q31).
+4. In **Reports & Forms → Intake reports → Edit template**, open **Recommendations: contact line** and replace "(CARE email)" with CARE's email (English and Thai).
+
+- **Intake report builder:** a supervisor fills in the report in 6 steps (child details, background, skills and behaviours observed, treatment goals, possible lessons from the library, recommendations). Paragraphs are written from the blanks and can be edited. English or Thai.
+- **Privacy:** the report is **never saved in the Portal**. It stays in the browser tab until the supervisor downloads **Word** or **PDF** (print → Save as PDF). **Save draft file** puts an unfinished report on the supervisor's own computer; **Open draft file** carries on.
+- **Who:** Supervisors write reports. Supervisors + Admin edit the template (wording and lessons; lessons are hidden, never deleted).
+- **Signature:** each supervisor sets their name, title, credentials and a signature picture under **My signature**. The picture is in the private `signatures` store: only that supervisor can see it (admins can only remove one).

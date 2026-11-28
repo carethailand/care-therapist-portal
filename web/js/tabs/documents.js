@@ -2,11 +2,16 @@
 //   Everyone ......... writes their own reports (draft → sign and send).
 //   The supervisor ... chosen BY HAND = the supervisor of that case; reviews and adds a note.
 //   Admin / HR ....... see every sent report and close it after the supervisor's review.
+// Second form (Portal 069): the INTAKE REPORT BUILDER (tabs/intake.js): Supervisors write, Supervisors + Admin
+// edit the template; the report itself is never saved in the Portal.
 // Other supervisors never see a report. The child is a 3-letter case code only: no names,
 // no photos, no files. The database checks who may read / change what.
 import { supa } from '../supabase.js';
 import { esc, fmtDate, todayLocal, byName } from '../ui.js';
 import { icon } from '../icons.js';
+import { APP_VERSION } from '../config.js';
+
+const intake = () => import(`./intake.js?v=${APP_VERSION}`);
 
 const must = ({ data, error }) => { if (error) throw new Error(error.message || String(error)); return data; };
 const api = {
@@ -39,6 +44,7 @@ const AREAS = [
 ];
 const FACE = [['forehead', 'forehead'], ['eye', 'eye'], ['nose', 'nose'], ['cheek', 'cheek'], ['mouth', 'mouth / lips'], ['ear', 'ear'], ['chin', 'chin / jaw']];
 
+let ik = null;   // { write, edit } for the intake builder, or null before Portal 069
 let ctx; let panelEl; let role = 'staff'; let sups = []; let list = []; let filter = 'mine'; let picked = false;   // picked = the person chose a filter
 const nameOf = (p) => p?.nickname || p?.full_name || '';
 const symLabel = (k) => SYMPTOMS.find((s) => s[0] === k)?.[1] || k;
@@ -61,6 +67,7 @@ export async function render(panel, context) {
     panel.innerHTML = `<section class="card"><p class="error">Reports & Forms isn’t set up yet (Portal 068). ${esc(e.message)}</p></section>`; return;
   }
   sups = (sups || []).slice().sort(byName);
+  ik = await supa.rpc('intake_role').then(({ data, error }) => (error ? null : data));
   if (role === 'office') filter = 'todo';
   await draw();
 }
@@ -90,8 +97,23 @@ async function draw() {
           <span class="chip ${STATUS[r.status][1]}">${esc(STATUS[r.status][0])}</span></button></li>`).join('')}</ul>`
         : `<p class="muted">${filter === 'todo' ? 'Nothing waiting for you.' : 'No incident reports yet.'}</p>`}
     </section>
+    ${ik?.write || ik?.edit ? `<section class="card">
+      <div class="page-head"><h2>Intake reports</h2><span class="spacer"></span>
+        ${ik.write ? `<button type="button" data-ik="draft">Open draft file</button><button type="button" class="primary" data-ik="new">${icon('plus')} New intake report</button>` : ''}</div>
+      <p class="muted small">${icon('lock')} Build an intake report from the CARE template and download it as Word or PDF.
+        Nothing about the child is saved in the Portal. ${ik.write ? 'Supervisors write reports.' : 'Only supervisors write reports; you can edit the template.'}</p>
+      <div class="ik-row">${ik.write ? '<button type="button" class="small-btn" data-ik="sig">My signature</button>' : ''}
+        ${ik.edit ? `<button type="button" class="small-btn" data-ik="tpl">${icon('settings')} Edit template</button>` : ''}</div>
+    </section>` : ''}
     <dialog id="rf-dlg" class="dlg rf-dlg"></dialog>`;
   panelEl.querySelector('[data-new]').addEventListener('click', () => editor(null));
+  for (const b of panelEl.querySelectorAll('[data-ik]')) b.addEventListener('click', async () => {
+    const m = await intake(); const back = () => draw();
+    if (b.dataset.ik === 'new') m.openBuilder(panelEl, ctx, back);
+    if (b.dataset.ik === 'draft') m.pickDraft((d) => m.openBuilder(panelEl, ctx, back, d));
+    if (b.dataset.ik === 'sig') m.signerDialog(null, panelEl, ctx);
+    if (b.dataset.ik === 'tpl') m.openTemplateEditor(panelEl, ctx, back);
+  });
   panelEl.querySelector('#rf-filter')?.addEventListener('click', (e) => { const b = e.target.closest('[data-f]'); if (b) { filter = b.dataset.f; picked = true; draw(); } });
   for (const b of panelEl.querySelectorAll('[data-open]')) b.addEventListener('click', () => {
     const r = list.find((x) => x.id === b.dataset.open);
